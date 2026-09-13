@@ -571,6 +571,8 @@
     }
 
     t.renderTexts();
+
+    ScummVM.present();
   };
 
   s.updateDirtyScreen = function(n) {
