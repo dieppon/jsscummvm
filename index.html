@@ -136,6 +136,47 @@
       image-rendering: crisp-edges;
     }
 
+    /* the DOS shell that owns the screen until the game launches -------- */
+
+    .dos {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    .crt.is-running .dos { display: none; }
+
+    .dos-out {
+      margin: 0;
+      /* font-size and line-height are set by dos-shell.js so that exactly
+         80x25 characters fill the screen, whatever the font resolves to */
+      font-family: "Consolas", "Lucida Console", "DejaVu Sans Mono", ui-monospace, monospace;
+      color: #aaa;
+      text-shadow: 0 0 3px rgba(170,170,170,.45);
+      white-space: pre;
+      letter-spacing: 0;
+    }
+
+    .dos-cursor { animation: dos-blink 1s steps(1) infinite; }
+    @keyframes dos-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+    /* a real, focusable input so that typing works and phones raise a
+       keyboard -- parked under the screen rather than display:none, which
+       would make it unfocusable */
+    .dos-input {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 1px; height: 1px;
+      padding: 0; border: 0;
+      opacity: 0;
+      background: transparent;
+      color: transparent;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .dos-cursor { animation: none; }
+    }
+
     /* screen overlays --------------------------------------------------- */
 
     .scanlines,
@@ -273,6 +314,17 @@
       overflow-wrap: anywhere;
     }
 
+    .hint { margin: 0; font-size: 13px; color: #8b87b5; text-align: center; }
+    .hint kbd {
+      padding: 1px 6px;
+      border: 1px solid #4b4784;
+      border-radius: 4px;
+      background: #2c2a52;
+      color: #cfcbea;
+      font: inherit;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
     .credit { margin: 0; font-size: 12px; color: #6f6b9c; text-align: center; }
     .credit a { color: #9d98d0; }
   </style>
@@ -289,6 +341,12 @@
       <div class="monitor-inner">
         <div class="screen-container">
           <canvas id="jsscummvm" width="640" height="400"></canvas>
+          <div class="dos" id="dos">
+            <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
+            <input class="dos-input" id="dos-input" type="text"
+                   autocomplete="off" autocapitalize="off" autocorrect="off"
+                   spellcheck="false" aria-label="MS-DOS prompt">
+          </div>
           <div class="scanlines" aria-hidden="true"></div>
           <div class="glare" aria-hidden="true"></div>
         </div>
@@ -317,6 +375,8 @@
     <div id="console"></div>
   </details>
 
+  <p class="hint">Click the screen, then try <kbd>dir</kbd>, <kbd>cd games</kbd>, <kbd>monkey1.exe</kbd></p>
+
   <p class="credit">
     CRT case adapted from
     <a href="https://codepen.io/manz/pen/yLbrpGV" target="_blank" rel="noopener">Manz's
@@ -335,6 +395,7 @@
   <script type="text/javascript" src="src/engines/palette.js"></script>
   <script type="text/javascript" src="src/engines/camera.js"></script>
   <script type="text/javascript" src="src/engines/costume.js"></script>
+  <script type="text/javascript" src="src/dos-shell.js"></script>
   <script type="text/javascript">
     (function () {
       var crt = document.getElementById("crt"),
@@ -344,8 +405,6 @@
         btn.setAttribute("aria-pressed", String(!flat));
       });
     }());
-
-    ScummVM.load("monkey1");
   </script>
 </body>
 </html>
