@@ -611,7 +611,7 @@
         i++;
       }
     }
-    ctx.putImageData(dst, x, top);
+    ctx.putImageData(dst, x, y);
   };
 
   s.convertText = function(text) {
