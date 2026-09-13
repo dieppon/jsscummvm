@@ -133,6 +133,11 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
       t.scummVar("tmr_2", t.scummVar("tmr_2") + delta);
       t.scummVar("tmr_3", t.scummVar("tmr_3") + delta);
 
+      // VAR_MUSIC_TIMER is normally supplied by the music engine (IMuse steps
+      // it once per 0x411B us, i.e. at 60Hz). We have no sound engine, so
+      // drive it off game time instead: delta is already in 1/60s ticks.
+      t.scummVar("music_timer", t.scummVar("music_timer") + delta);
+
       if(delta > 15)
         delta = 15;
 
