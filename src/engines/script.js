@@ -749,7 +749,7 @@
         s.actorTalk(msg);
       break;
       case 1:
-        drawString(1, msg);
+        s.drawString(1, msg);
       break;
       default:
         log("unimplemented string slot "+slot);
