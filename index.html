@@ -1,16 +1,329 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <title>JS ScummVM</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JS ScummVM &mdash; The Secret of Monkey Island</title>
+
+  <!--
+    The CRT case below is pure CSS, no images.
+
+    Adapted from "CRT Monitor design with Pure CSS (without images)"
+    by Manz (https://manz.dev/) - https://codepen.io/manz/pen/yLbrpGV
+    Palette, the bevel (dark top / medium sides / light bottom border) and
+    the double-inset screen vignette are his. Rewritten as flat CSS (the
+    original uses postcss-nested) and reproportioned around a 640x400
+    canvas, with the parts this page does not need left out.
+  -->
+  <style>
+    :root {
+      /* palette, after Manz's pen */
+      --monitor-light: #d3ccbc;
+      --monitor-dark: #ccc5b3;
+      --shadow-light: #d7d4c1;
+      --shadow-medium: #b7b19b;
+      --shadow-dark: #908e7a;
+      --shadow-very-dark: #6e6d5f;
+
+      --monitor-texture:
+        2px -2px 30px #493e2a33 inset,
+        -2px -2px 30px #493e2a33 inset,
+        1px -1px 1px #493e2a33 inset,
+        -1px -1px 1px #493e2a33 inset,
+        0 2px 30px #ddd inset;
+
+      /* The whole monitor is derived from this: 640x400 is the engine's
+         320x200 at scale 2. At 640px the canvas maps 1:1 to its backing
+         store, so no resampling. The case adds ~28% on top of it, hence
+         70vw rather than something closer to 100. */
+      --screen-w: min(640px, 70vw);
+      --bezel: calc(var(--screen-w) * 0.028);
+      --pad: calc(var(--screen-w) * 0.11);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: clamp(16px, 4vw, 44px) 16px clamp(28px, 5vw, 56px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(16px, 3vw, 28px);
+      background: #336;
+      color: #b9b5d4;
+      font: 14px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .masthead { text-align: center; }
+    .masthead h1 {
+      margin: 0;
+      font-size: clamp(17px, 2.4vw, 22px);
+      font-weight: 600;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: #e8e4ff;
+    }
+    .masthead p {
+      margin: .35em 0 0;
+      font-size: 13px;
+      letter-spacing: .05em;
+      color: #8b87b5;
+    }
+
+    /* ---- monitor ------------------------------------------------------ */
+
+    .crt { display: flex; flex-direction: column; align-items: center; }
+
+    .monitor {
+      position: relative;
+      width: fit-content;
+      padding: var(--pad);
+      padding-bottom: calc(var(--pad) * 1.5);
+      border-radius: 5px;
+      background: linear-gradient(to bottom, var(--monitor-light), var(--monitor-dark));
+      box-shadow: var(--monitor-texture);
+    }
+
+    /* the two moulded blocks on the flanks */
+    .monitor::before,
+    .monitor::after {
+      content: "";
+      position: absolute;
+      top: calc(var(--pad) * 2.4);
+      width: calc(var(--screen-w) * 0.1);
+      height: calc(var(--screen-w) * 0.07);
+      background: linear-gradient(to bottom, #8f8d7a55, #8f8d7a22);
+      pointer-events: none;
+    }
+    .monitor::before { left: 0; border-radius: 0 3px 3px 0; }
+    .monitor::after { right: 0; border-radius: 3px 0 0 3px; }
+
+    /* bevelled bezel: dark on top, light underneath */
+    .monitor-inner {
+      position: relative;
+      z-index: 1;
+      background: #000;
+      border: var(--bezel) solid var(--shadow-medium);
+      border-top-color: var(--shadow-dark);
+      border-bottom-color: var(--shadow-light);
+      border-radius: 5px;
+    }
+
+    .screen-container {
+      position: relative;
+      width: fit-content;
+      overflow: hidden;
+      line-height: 0;
+      background: #000;
+      border: 3px solid #000;
+      border-radius: 5px;
+      box-shadow:
+        10px 10px 20px 14px #0008 inset,
+        -10px -10px 20px 14px #0008 inset;
+    }
+
+    #jsscummvm {
+      display: block;
+      width: var(--screen-w);
+      height: auto;
+      aspect-ratio: 640 / 400;
+      background: #000;
+      /* keep the pixels sharp when the canvas is scaled on narrow screens */
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* screen overlays --------------------------------------------------- */
+
+    .scanlines,
+    .glare { position: absolute; inset: 0; pointer-events: none; }
+
+    .scanlines {
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,.26) 0px, rgba(0,0,0,.26) 1px,
+        rgba(0,0,0,0)   1px, rgba(0,0,0,0)   3px);
+    }
+
+    .glare {
+      background:
+        radial-gradient(125% 85% at 50% 48%,
+          rgba(255,255,255,0) 54%, rgba(0,0,0,.16) 80%, rgba(0,0,0,.42) 100%),
+        linear-gradient(118deg,
+          rgba(255,255,255,.10) 0%, rgba(255,255,255,.035) 20%,
+          rgba(255,255,255,0) 44%);
+    }
+
+    .crt.is-flat .scanlines { opacity: 0; }
+    .crt.is-flat .glare { opacity: .3; }
+
+    /* controls ---------------------------------------------------------- */
+
+    .monitor-bottom {
+      position: absolute;
+      right: var(--pad);
+      bottom: calc(var(--pad) * 0.25);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .power-switch {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: linear-gradient(to bottom, var(--shadow-dark), var(--shadow-light));
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+    .power-switch:active .button { transform: translateY(1px); }
+    .power-switch:focus-visible { outline: 2px solid #7d78ff; outline-offset: 3px; }
+
+    .power-switch .button {
+      width: 24px;
+      height: 24px;
+      border: 2px solid #555;
+      border-radius: 50%;
+      background: #cac1b2;
+      display: grid;
+      place-items: center;
+      color: #888;
+    }
+    .power-switch svg {
+      width: 13px; height: 13px;
+      fill: none; stroke: currentColor;
+      stroke-width: 2.4; stroke-linecap: round;
+    }
+
+    .power-led {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      border: 1px solid var(--shadow-dark);
+      background: #5cef11;
+      box-shadow: 0 0 1px 1px #2228 inset, 0 0 7px 1px #5cef1199;
+    }
+    .crt.is-flat .power-led { background: #333; box-shadow: 0 0 1px 1px #2228 inset; }
+
+    /* stand ------------------------------------------------------------- */
+
+    .monitor-neck {
+      width: calc(var(--screen-w) * 0.54);
+      height: calc(var(--screen-w) * 0.07);
+      clip-path: polygon(5% 0, 95% 0, 100% 100%, 0 100%);
+      background: linear-gradient(to bottom, var(--monitor-dark), var(--shadow-medium));
+    }
+
+    .monitor-pivot {
+      width: calc(var(--screen-w) * 0.36);
+      height: calc(var(--screen-w) * 0.05);
+      margin-top: calc(var(--screen-w) * -0.022);
+      border-radius: 50%;
+      background: radial-gradient(ellipse at 50% 32%,
+        var(--shadow-light) 0%, var(--shadow-dark) 62%, var(--shadow-very-dark) 100%);
+    }
+
+    .monitor-base {
+      width: calc(var(--screen-w) * 0.46);
+      height: calc(var(--screen-w) * 0.048);
+      margin-top: calc(var(--screen-w) * -0.026);
+      clip-path: polygon(9% 0, 91% 0, 100% 100%, 0 100%);
+      background: linear-gradient(to bottom, var(--shadow-dark), var(--shadow-very-dark));
+    }
+
+    .monitor-foot {
+      width: calc(var(--screen-w) * 0.52);
+      height: calc(var(--screen-w) * 0.022);
+      border-radius: 0 0 4px 4px;
+      background: linear-gradient(to bottom, var(--shadow-light), var(--shadow-medium));
+      box-shadow: 0 22px 30px -14px #0009;
+    }
+
+    /* log --------------------------------------------------------------- */
+
+    .log {
+      width: min(760px, 92vw);
+      border: 1px solid #454278;
+      border-radius: 8px;
+      background: #2b2b5233;
+    }
+    .log > summary {
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #8b87b5;
+      user-select: none;
+    }
+    .log > summary:hover { color: #c8c4ea; }
+    #console {
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 0 14px 12px;
+      border-top: 1px solid #3a3767;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #817da8;
+      overflow-wrap: anywhere;
+    }
+
+    .credit { margin: 0; font-size: 12px; color: #6f6b9c; text-align: center; }
+    .credit a { color: #9d98d0; }
+  </style>
 </head>
 <body>
 
-  <h1>JS ScummVM</h1>
-  <h2>Monkey Island</h2>
+  <header class="masthead">
+    <h1>JS ScummVM</h1>
+    <p>The Secret of Monkey Island</p>
+  </header>
 
-  <canvas id="jsscummvm" width="320" height="200"></canvas>
-  <div id="console"></div>
+  <div class="crt" id="crt">
+    <div class="monitor">
+      <div class="monitor-inner">
+        <div class="screen-container">
+          <canvas id="jsscummvm" width="640" height="400"></canvas>
+          <div class="scanlines" aria-hidden="true"></div>
+          <div class="glare" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="monitor-bottom">
+        <button type="button" class="power-switch" id="crt-toggle"
+                aria-pressed="true" title="Toggle CRT effect">
+          <span class="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3.5v8"/>
+              <path d="M7.6 6.8a7 7 0 1 0 8.8 0"/>
+            </svg>
+          </span>
+        </button>
+        <span class="power-led" aria-hidden="true"></span>
+      </div>
+    </div>
+    <div class="monitor-neck" aria-hidden="true"></div>
+    <div class="monitor-pivot" aria-hidden="true"></div>
+    <div class="monitor-base" aria-hidden="true"></div>
+    <div class="monitor-foot" aria-hidden="true"></div>
+  </div>
 
-  <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
+  <details class="log">
+    <summary>Engine log</summary>
+    <div id="console"></div>
+  </details>
+
+  <p class="credit">
+    CRT case adapted from
+    <a href="https://codepen.io/manz/pen/yLbrpGV" target="_blank" rel="noopener">Manz's
+    pure-CSS CRT monitor</a>.
+  </p>
+
+  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
   <script type="text/javascript" src="src/jsscumm.js"></script>
   <script type="text/javascript" src="src/system.js"></script>
   <script type="text/javascript" src="src/stream.js"></script>
@@ -23,6 +336,15 @@
   <script type="text/javascript" src="src/engines/camera.js"></script>
   <script type="text/javascript" src="src/engines/costume.js"></script>
   <script type="text/javascript">
+    (function () {
+      var crt = document.getElementById("crt"),
+          btn = document.getElementById("crt-toggle");
+      btn.addEventListener("click", function () {
+        var flat = crt.classList.toggle("is-flat");
+        btn.setAttribute("aria-pressed", String(!flat));
+      });
+    }());
+
     ScummVM.load("monkey1");
   </script>
 </body>
