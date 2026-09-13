@@ -642,34 +642,214 @@
     text.text = msg;
   };
 
+  // --- Bitmap font rendering ---------------------------------------------
+  // The game's font is not a browser font: it lives in the CHAR resources
+  // inside the .00x data files as a proportional 1- or 2-bit-per-pixel
+  // bitmap. This is a port of ScummVM's CharsetRendererClassic.
+  //
+  // Layout, as offsets into the charset resource stream:
+  //    0  8-byte block header (tag + size)
+  //    8  4-byte size, 2-byte magic (0x363), 15-byte colour map
+  //   29  bitsPerPixel, fontHeight, numChars (LE16)
+  //   33  numChars x LE32 glyph offsets, relative to offset 29
+  // which is the same place ScummVM lands with its `_fontPtr += 29` for v5.
+  var FONT_BASE = 29;
+
+  s.CharsetRenderer = function(engine) {
+    var t = this;
+    t.engine = engine;
+    t.curId = -1;
+    t.ptr = null;
+    t.bitsPerPixel = 0;
+    t.fontHeight = 0;
+    t.numChars = 0;
+  };
+
+  s.CharsetRenderer.prototype = {
+    setCurID: function(id) {
+      var t = this, ptr;
+      if(id == t.curId && t.ptr) return true;
+      ptr = t.engine.getResourceAddress("charset", id);
+      if(!ptr) return false;
+      t.ptr = ptr;
+      t.curId = id;
+      t.bitsPerPixel = ptr.seek(FONT_BASE, true).readUI8();
+      t.fontHeight = ptr.readUI8();
+      t.numChars = ptr.readUI16();
+      return true;
+    },
+
+    // Where a glyph's header sits, or 0 when that slot has no glyph.
+    charOffset: function(chr) {
+      var t = this;
+      if(chr < 0 || chr >= t.numChars) return 0;
+      return t.ptr.seek(FONT_BASE + chr * 4 + 4, true).readUI32();
+    },
+
+    // Advance width: the glyph's own width plus its x offset, as ScummVM's
+    // getCharWidth. The font is proportional -- 'A' is 6px, 'I' is 2px.
+    getCharWidth: function(chr) {
+      var t = this, offs = t.charOffset(chr);
+      if(!offs) return 0;
+      return t.ptr.seek(FONT_BASE + offs, true).readUI8() +
+             t.ptr.seek(FONT_BASE + offs + 2, true).readSI8();
+    },
+
+    getStringWidth: function(codes) {
+      var t = this, i, w = 0;
+      for(i = 0; i < codes.length; i++) w += t.getCharWidth(codes[i]);
+      return w;
+    },
+
+    // Split a message into lines of glyph indices. convertMessageToString has
+    // already dropped '@' padding and every escape except 0xFF 01/02/03/08,
+    // so the bytes left over are glyph indices into the charset.
+    lines: function(raw) {
+      var out = [[]], i, c;
+      for(i = 0; i < raw.length; i++) {
+        c = raw.charCodeAt(i) & 0xFF;
+        if(c == 0xFF) {
+          c = raw.charCodeAt(++i) & 0xFF;
+          if(c == 1) out.push([]);        // newline
+          else if(c == 2) break;          // end of text
+          continue;                       // 3 = wait, 8 = keep text
+        }
+        if(c == 0) { out.push([]); continue; }
+        out[out.length - 1].push(c);
+      }
+      return out;
+    },
+
+    // Break a line so each piece fits maxWidth, preferring word boundaries.
+    wrap: function(codes, maxWidth) {
+      var t = this, out = [], cur = [], i, cw, w = 0, lastSpace = -1, head, tail;
+      for(i = 0; i < codes.length; i++) {
+        cw = t.getCharWidth(codes[i]);
+        if(cur.length && w + cw > maxWidth) {
+          if(lastSpace >= 0) {
+            head = cur.slice(0, lastSpace);
+            tail = cur.slice(lastSpace + 1);
+          } else {
+            head = cur; tail = [];
+          }
+          out.push(head);
+          cur = tail;
+          w = t.getStringWidth(cur);
+          lastSpace = cur.lastIndexOf(32);
+        }
+        if(codes[i] == 32) lastSpace = cur.length;
+        cur.push(codes[i]);
+        w += cw;
+      }
+      out.push(cur);
+      return out;
+    },
+
+    // Blit one glyph into `data`, the RGBA bytes of a dw x dh ImageData.
+    // Returns how far to advance x.
+    printChar: function(data, dw, dh, chr, x, y, color) {
+      var t = this, offs = t.charOffset(chr);
+      if(!offs) return 0;
+
+      var ptr = t.ptr, engine = t.engine;
+      ptr.seek(FONT_BASE + offs, true);
+      var w = ptr.readUI8(), h = ptr.readUI8(),
+          xoff = ptr.readSI8(), yoff = ptr.readSI8(),
+          bpp = t.bitsPerPixel, mask = (1 << bpp) - 1,
+          bits = 0, numbits = 0,
+          px, py, sx, sy, v, rgb, idx;
+
+      // The bitmap is one continuous MSB-first bit stream that runs straight
+      // across row boundaries -- rows are not padded to a byte.
+      for(py = 0; py < h; py++) {
+        sy = y + yoff + py;
+        for(px = 0; px < w; px++) {
+          if(numbits == 0) { bits = ptr.readUI8(); numbits = 8; }
+          v = (bits >> (8 - bpp)) & mask;
+          bits = (bits << bpp) & 0xFF;
+          numbits -= bpp;
+
+          if(!v) continue;                      // 0 is transparent
+          sx = x + xoff + px;
+          if(sx < 0 || sy < 0 || sx >= dw || sy >= dh) continue;
+          // 1bpp glyphs are solid and take the string's colour; deeper ones
+          // index the charset colour map, like ScummVM's drawBitsN.
+          rgb = engine._currentPalette[bpp == 1 ? color : engine._charsetColorMap[v]];
+          if(!rgb) continue;
+          idx = (sy * dw + sx) * 4;
+          data[idx] = rgb[0]; data[idx + 1] = rgb[1]; data[idx + 2] = rgb[2];
+          data[idx + 3] = 255;
+        }
+      }
+      return w + xoff;
+    },
+
+    drawLine: function(data, dw, dh, codes, x, y, color) {
+      var t = this, i;
+      for(i = 0; i < codes.length; i++)
+        x += t.printChar(data, dw, dh, codes[i], x, y, color);
+    }
+  };
+
   s.renderTexts = function() {
-    var t = this, texts = t._string, i, text, output,
-        ctx = ScummVM.context, width = ScummVM.width, height = ScummVM.height;
+    var t = this, texts = t._string, i, text,
+        ctx = ScummVM.context, width = ScummVM.width, height = ScummVM.height,
+        charset, img, data, raw, lines, j, line, lw, lx, y, right, maxWidth;
+
+    for(i = 0; i < texts.length; i++) {
+      text = texts[i];
+      if(text && text.text && text.text != " ") break;
+    }
+    if(i == texts.length) return;               // nothing on screen
+
+    charset = t._charset || (t._charset = new t.CharsetRenderer(t));
+    if(!charset.setCurID(t._curCharset) && !charset.setCurID(1)) {
+      if(!t._charsetWarned) {
+        t._charsetWarned = true;
+        error("no charset resource to render text with");
+      }
+      return;
+    }
+
+    img = ctx.getImageData(0, 0, width, height);
+    data = img.data;
+
     for(i = 0; i < texts.length; i++) {
       text = texts[i];
       if(!text || !text.text || text.text == " ") continue;
-      if(text.x <= 0) text.x = Math.floor(width / 2);
-      if(text.y <= 0) text.y = Math.floor(height * 0.75);
-      if(i == 0) {
-        ctx.font = "12px Helvetica";
-        ctx.textAlign = "center";
-      } else {
-        ctx.font = "16px Helvetica";
-        ctx.textAlign = "center";
-      }
+
+      // Read the defaults rather than writing them back: assigning to the slot
+      // pins a string that legitimately sits at x=0 to mid-screen for good.
+      lx = text.x > 0 ? text.x : Math.floor(width / 2);
+      y = text.y > 0 ? text.y : Math.floor(height * 0.75);
+      right = text.right > 0 ? Math.min(text.right, width) : width;
+      maxWidth = text.align == "center" ? right : Math.max(8, right - lx);
+
+      // Charset colour 1 is the glyph body. Multi-bit glyphs look their
+      // pixels up in this map (outline and shadow live at 2 and 3), so the
+      // string's colour has to be published here first -- ScummVM's setColor.
       t._charsetColorMap[1] = text.color;
-      ctx.fillStyle = t.paletteColor(t._charsetColorMap[text.color]);
-      ctx.strokeStyle = "#fff";
-      output = t.convertText(text.text).split("\n");
-      var y = text.y;
-      for(var j = 0; j < output.length; j++) {
-        if(ctx.measureText(output[j]).width > width) {
+
+      raw = charset.lines(text.text);
+      lines = [];
+      for(j = 0; j < raw.length; j++)
+        lines = lines.concat(charset.wrap(raw[j], maxWidth));
+
+      for(j = 0; j < lines.length; j++) {
+        line = lines[j];
+        if(line.length) {
+          lw = charset.getStringWidth(line);
+          // y is the top of the glyphs here, which is what SCUMM means by it.
+          var x = text.align == "center" ? lx - Math.floor(lw / 2) : lx;
+          if(x + lw > width) x = width - lw;
+          if(x < 0) x = 0;
+          charset.drawLine(data, width, height, line, x, y, text.color);
         }
-        // ctx.strokeText(output[j], text.x, y, width - text.x);
-        ctx.fillText(output[j], text.x, y, width - text.x);
-        y += 20;
+        y += charset.fontHeight;
       }
     }
+
+    ctx.putImageData(img, 0, 0);
   }
 
   s.addObjectToDrawQueue = function(obj) {
