@@ -955,7 +955,7 @@
         break;
         case 13: // charset set
           no = s.getVarOrDirectByte(PARAM_1);
-          // s.initCharset();
+          s.initCharset(no);
         break;
         case 14: // unknown
           table = s.getWordVararg();

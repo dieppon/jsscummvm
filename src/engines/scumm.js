@@ -71,6 +71,8 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
     _texts: [],
     _charsetData: [],
     _charsetColorMap: [],
+    _charset: null,
+    _curCharset: 1,
     _actors: [],
     _sortedActors: [],
     _lastKeyHit: "",
@@ -215,7 +217,7 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
       for(i = 0; i < 256; i++)
         t._roomPalette[i] = i;
       t.resetPalette();
-      t.loadCharset(1);
+      t.initCharset(1);
       // t._cursor.animate = 1;
       for(i = 0; i < t._nums['actors']; i++)
         t._actors[i] =  new t.Actor(i);

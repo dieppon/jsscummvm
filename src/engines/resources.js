@@ -361,12 +361,26 @@
   s.loadCharset = function(no) {
     var t = this, i, ptr;
     ptr = t.getResourceAddress("charset", no);
-    t._charsetData[no] = [];
+    if(!ptr) return;
+    t._charsetData[no] = [0];
     for(i = 0; i < 15; i++) {
       t._charsetData[no][i + 1] = ptr.seek(i + 14, true).readUI8();
-      t._charsetColorMap[i] = t._charsetData[no][i + 1];
     }
   };
+
+  // Select the charset scripts draw with, loading it on demand and publishing
+  // its colour table, the way ScummVM's initCharset does. Charset colour 1 is
+  // later replaced per string with that string's own colour.
+  s.initCharset = function(no) {
+    var t = this, i, data;
+    if(!t._charsetData[no]) t.loadCharset(no);
+    data = t._charsetData[no];
+    if(!data) return;
+    t._curCharset = no;
+    for(i = 0; i < 16; i++)
+      t._charsetColorMap[i] = data[i] || 0;
+  };
+
 
   s.getResourceRoomNr = function(type, idx) {
     var t = this,
