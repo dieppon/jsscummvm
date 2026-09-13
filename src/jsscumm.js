@@ -38,8 +38,29 @@ function assert(condition) {
     t.canvas = canvas;
     t.init_graphics();
     t.engine = ScummVM.engines.SCUMM;
+    // shutdown() leaves this set; clear it or the new run quits on its
+    // first tick.
+    t.engine._shouldQuit = false;
     t.engine.init(game);
     t.engine.go();
+  };
+
+  // Stop the engine and blank the screen. The main loop is a setInterval
+  // that schedules a setTimeout per frame, so killing the interval can
+  // still leave one frame pending -- _shouldQuit makes that frame bail out
+  // before it draws, rather than painting over the blanked screen.
+  ScummVM.shutdown = function() {
+    var t = ScummVM, e = t.engine;
+    if(e) {
+      e._shouldQuit = true;
+      if(e._timer) { window.clearInterval(e._timer); e._timer = 0; }
+    }
+    t.engine = null;
+    if(t.context) {
+      t.context.fillStyle = "black";
+      t.context.fillRect(0, 0, t.width, t.height);
+      t.present();
+    }
   };
   ScummVM.init_graphics = function() {
     var t = this;

@@ -63,13 +63,16 @@
 
   /* --- state ----------------------------------------------------------- */
 
-  var root, screenEl, out, field;
+  var root, screenEl, out, field, powerBtn;
   var cwd = "C:\\";
   var lines = [];
   var current = "";
   var history = [], histPos = 0;
-  var booting = true, running = false;
+  var booting = true, running = false, off = false;
   var bootTimers = [];
+
+  // how long the power fade lasts; must match the CSS animations
+  var OFF_MS = 520, ON_MS = 420;
 
   /* --- little helpers -------------------------------------------------- */
 
@@ -95,6 +98,7 @@
   }
 
   function render() {
+    if (off) { out.innerHTML = ""; return; }
     var view = lines.slice(), showPrompt = !booting && !running;
     if (showPrompt) view.push(cwd + ">" + current);
     view = view.slice(-ROWS);
@@ -237,6 +241,62 @@
     }, 900);
   }
 
+  /* --- the power switch ------------------------------------------------ */
+
+  function clearBootTimers() {
+    for (var i = 0; i < bootTimers.length; i++) clearTimeout(bootTimers[i]);
+    bootTimers = [];
+  }
+
+  // back to a cold machine: no scrollback, no history, root directory
+  function reset() {
+    clearBootTimers();
+    lines = [];
+    current = "";
+    cwd = "C:\\";
+    history = [];
+    histPos = 0;
+    booting = true;
+    running = false;
+    if (field) field.value = "";
+  }
+
+  function powerOff() {
+    if (off) return;
+    off = true;
+    powerBtn.setAttribute("aria-pressed", "false");
+    root.classList.add("is-powering-off");
+
+    setTimeout(function () {
+      root.classList.remove("is-powering-off");
+      root.classList.remove("is-running");
+      root.classList.add("is-off");
+      // whatever was on screen -- game or prompt -- is gone
+      if (window.ScummVM && ScummVM.shutdown) ScummVM.shutdown();
+      reset();
+      render();
+    }, OFF_MS);
+  }
+
+  function powerOn() {
+    if (!off) return;
+    off = false;
+    powerBtn.setAttribute("aria-pressed", "true");
+    root.classList.remove("is-off");
+    root.classList.add("is-powering-on");
+
+    // a power cycle is a cold boot, so start from the BIOS again and let
+    // the fade peel back over it
+    reset();
+    render();
+    boot();
+    try { field.focus(); } catch (err) {}
+
+    setTimeout(function () {
+      root.classList.remove("is-powering-on");
+    }, ON_MS);
+  }
+
   /* --- boot ------------------------------------------------------------ */
 
   var BOOT = [
@@ -258,20 +318,20 @@
   ];
 
   function boot() {
+    clearBootTimers();
     for (var i = 0; i < BOOT.length; i++) {
       bootTimers.push(setTimeout(function (text) {
-        return function () { echo(text); render(); };
+        return function () { if (!off) { echo(text); render(); } };
       }(BOOT[i][1]), BOOT[i][0]));
     }
     bootTimers.push(setTimeout(finishBoot, BOOT[BOOT.length - 1][0] + 200));
   }
 
   function finishBoot() {
-    if (!booting) return;
-    for (var i = 0; i < bootTimers.length; i++) clearTimeout(bootTimers[i]);
-    bootTimers = [];
+    if (!booting || off) return;
+    clearBootTimers();
     lines = [];
-    for (i = 0; i < BOOT.length; i++) lines.push(BOOT[i][1]);
+    for (var i = 0; i < BOOT.length; i++) lines.push(BOOT[i][1]);
     booting = false;
     render();
   }
@@ -293,7 +353,7 @@
   }
 
   function onKeyDown(e) {
-    if (running) return;
+    if (running || off) return;
 
     if (booting) { e.preventDefault(); finishBoot(); return; }
 
@@ -319,7 +379,7 @@
 
   // `input` rather than keydown for the characters, so phone keyboards work
   function onInput() {
-    if (booting || running) { field.value = ""; return; }
+    if (booting || running || off) { field.value = ""; return; }
     var max = COLS - (cwd.length + 1) - 1;
     if (field.value.length > max) field.value = field.value.slice(0, max);
     current = field.value;
@@ -352,7 +412,12 @@
     screenEl = document.querySelector(".screen-container");
     out = document.getElementById("dos-out");
     field = document.getElementById("dos-input");
-    if (!root || !out || !field) return;
+    powerBtn = document.getElementById("crt-power");
+    if (!root || !out || !field || !powerBtn) return;
+
+    powerBtn.addEventListener("click", function () {
+      if (off) powerOn(); else powerOff();
+    });
 
     fit();
     window.addEventListener("resize", fit);
@@ -362,12 +427,12 @@
 
     // clicking the screen puts the caret back, and on a phone raises the keyboard
     screenEl.addEventListener("mousedown", function (e) {
-      if (running) return;
+      if (running || off) return;
       e.preventDefault();
       field.focus();
     });
     screenEl.addEventListener("touchstart", function () {
-      if (!running) field.focus();
+      if (!running && !off) field.focus();
     }, { passive: true });
 
     try { field.focus(); } catch (err) {}

@@ -198,8 +198,107 @@
           rgba(255,255,255,0) 44%);
     }
 
-    .crt.is-flat .scanlines { opacity: 0; }
-    .crt.is-flat .glare { opacity: .3; }
+    /* switching off ------------------------------------------------------ */
+
+    /* Four layers, and between them they only ever animate opacity and
+       transform. That restriction is the whole design: animating a clip-path
+       on the screen, a gradient through @property, or a black box-shadow's
+       spread all render the effect correctly but peg the compositor hard
+       enough to hang the tab, because each frame repaints the picture
+       underneath. Here the gradient and the shadows are static -- painted
+       once, then only faded or scaled.
+         .power-vignette  darkness weighted to the edges, so it reads as
+                          closing in from the outside rather than a flat fade
+         .power-black     takes the last of the picture, centre included
+         .power-ring      the white glow travelling in with the edge
+         .power-dot       the point of light it collapses to */
+    .screen-view { position: relative; line-height: 0; }
+
+    .power-vignette,
+    .power-black,
+    .power-ring,
+    .power-dot {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .power-vignette,
+    .power-black { inset: 0; }
+
+    .power-vignette {
+      z-index: 3;
+      background: radial-gradient(circle at 50% 50%,
+        rgba(0,0,0,0) 0%, rgba(0,0,0,.35) 30%, rgba(0,0,0,.92) 58%, #000 78%);
+    }
+    .power-black { z-index: 4; background: #000; }
+
+    /* Kept to the size of the screen on purpose: every version of this that
+       used an element much larger than the container (a 760px circle, or a
+       900px box-shadow spread) wedged the renderer. */
+    .power-ring {
+      inset: 0;
+      z-index: 5;
+      border-radius: 50%;
+      transform: scale(1.7);
+      box-shadow: inset 0 0 22px 7px rgba(255,255,255,.7);
+    }
+
+    .power-dot {
+      top: 50%; left: 50%;
+      width: 12px; height: 12px;
+      margin: -6px 0 0 -6px;
+      z-index: 6;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 0 14px 5px rgba(255,255,255,.9);
+    }
+
+    .crt.is-powering-off .power-vignette { animation: fade-in .26s ease-in forwards; }
+    .crt.is-powering-off .power-black    { animation: fade-in .20s ease-in .16s forwards; }
+    .crt.is-powering-off .power-ring     { animation: ring-close .34s ease-in forwards; }
+    .crt.is-powering-off .power-dot      { animation: dot-out .26s ease-out .24s forwards; }
+
+    .crt.is-powering-on .power-vignette { animation: fade-out .26s ease-out .14s forwards; }
+    .crt.is-powering-on .power-black    { animation: fade-out .20s ease-out .1s forwards; }
+    .crt.is-powering-on .power-ring     { animation: ring-open .32s ease-out .08s forwards; }
+    .crt.is-powering-on .power-dot      { animation: dot-in .2s ease-out forwards; }
+
+    .crt.is-off .power-black { opacity: 1; }
+
+    @keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+    @keyframes ring-close {
+      0%   { opacity: 1; transform: scale(1.7); }
+      90%  { opacity: 1; transform: scale(.06); }
+      100% { opacity: 0; transform: scale(0); }
+    }
+    @keyframes ring-open {
+      0%   { opacity: 0; transform: scale(0); }
+      10%  { opacity: 1; transform: scale(.06); }
+      100% { opacity: 1; transform: scale(1.7); }
+    }
+
+    @keyframes dot-out {
+      0%   { opacity: 1; transform: scale(1); }
+      50%  { opacity: 1; transform: scale(.85); }
+      100% { opacity: 0; transform: scale(.1); }
+    }
+    @keyframes dot-in {
+      0%   { opacity: 0; transform: scale(.1); }
+      55%  { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.3); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .crt.is-powering-off .power-vignette, .crt.is-powering-off .power-black,
+      .crt.is-powering-off .power-ring,     .crt.is-powering-off .power-dot,
+      .crt.is-powering-on .power-vignette,  .crt.is-powering-on .power-black,
+      .crt.is-powering-on .power-ring,      .crt.is-powering-on .power-dot {
+        animation-duration: .01s;
+      }
+    }
 
     /* controls ---------------------------------------------------------- */
 
@@ -250,7 +349,8 @@
       background: #5cef11;
       box-shadow: 0 0 1px 1px #2228 inset, 0 0 7px 1px #5cef1199;
     }
-    .crt.is-flat .power-led { background: #333; box-shadow: 0 0 1px 1px #2228 inset; }
+    .crt.is-off .power-led,
+    .crt.is-powering-off .power-led { background: #333; box-shadow: 0 0 1px 1px #2228 inset; }
 
     /* stand ------------------------------------------------------------- */
 
@@ -340,20 +440,26 @@
     <div class="monitor">
       <div class="monitor-inner">
         <div class="screen-container">
-          <canvas id="jsscummvm" width="640" height="400"></canvas>
-          <div class="dos" id="dos">
-            <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
-            <input class="dos-input" id="dos-input" type="text"
-                   autocomplete="off" autocapitalize="off" autocorrect="off"
-                   spellcheck="false" aria-label="MS-DOS prompt">
+          <div class="screen-view">
+            <canvas id="jsscummvm" width="640" height="400"></canvas>
+            <div class="dos" id="dos">
+              <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
+              <input class="dos-input" id="dos-input" type="text"
+                     autocomplete="off" autocapitalize="off" autocorrect="off"
+                     spellcheck="false" aria-label="MS-DOS prompt">
+            </div>
+            <div class="scanlines" aria-hidden="true"></div>
+            <div class="glare" aria-hidden="true"></div>
           </div>
-          <div class="scanlines" aria-hidden="true"></div>
-          <div class="glare" aria-hidden="true"></div>
+          <div class="power-vignette" aria-hidden="true"></div>
+          <div class="power-black" aria-hidden="true"></div>
+          <div class="power-ring" aria-hidden="true"></div>
+          <div class="power-dot" aria-hidden="true"></div>
         </div>
       </div>
       <div class="monitor-bottom">
-        <button type="button" class="power-switch" id="crt-toggle"
-                aria-pressed="true" title="Toggle CRT effect">
+        <button type="button" class="power-switch" id="crt-power"
+                aria-pressed="true" title="Power">
           <span class="button">
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3.5v8"/>
@@ -375,7 +481,8 @@
     <div id="console"></div>
   </details>
 
-  <p class="hint">Click the screen, then try <kbd>dir</kbd>, <kbd>cd games</kbd>, <kbd>monkey1.exe</kbd></p>
+  <p class="hint">Click the screen, then try <kbd>dir</kbd>, <kbd>cd games</kbd>, <kbd>monkey1.exe</kbd><br>
+    The power button switches the monitor off and on.</p>
 
   <p class="credit">
     CRT case adapted from
@@ -396,15 +503,5 @@
   <script type="text/javascript" src="src/engines/camera.js"></script>
   <script type="text/javascript" src="src/engines/costume.js"></script>
   <script type="text/javascript" src="src/dos-shell.js"></script>
-  <script type="text/javascript">
-    (function () {
-      var crt = document.getElementById("crt"),
-          btn = document.getElementById("crt-toggle");
-      btn.addEventListener("click", function () {
-        var flat = crt.classList.toggle("is-flat");
-        btn.setAttribute("aria-pressed", String(!flat));
-      });
-    }());
-  </script>
 </body>
 </html>
