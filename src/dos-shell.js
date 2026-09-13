@@ -72,7 +72,7 @@
   var bootTimers = [];
 
   // how long the power fade lasts; must match the CSS animations
-  var OFF_MS = 520, ON_MS = 420;
+  var OFF_MS = 520, ON_MS = 320;
 
   /* --- little helpers -------------------------------------------------- */
 
