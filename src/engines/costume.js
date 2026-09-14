@@ -394,7 +394,7 @@
         t.pos.x = abr.x;
         t.pos.y = abr.y;
         if(!t.ignoreTurns && dir != -1)
-          t._facing = dir;
+          t.facing = dir;
         return;
       }
 
@@ -415,6 +415,14 @@
     };
     t.walkActor = function() {
       if(!t.moving) return;
+
+      if(t.moving & MF_TURN) {
+        var dir = t.updateActorDirection();
+        if(t.facing != dir) t.setDirection(dir);
+        else t.moving &= ~MF_TURN;
+        return;
+      }
+
       t.actorWalkStep();
     };
     t.setActorCostume = function(c) {
@@ -460,17 +468,33 @@
       t.needRedraw = true;
     };
     t.faceToObject = function(obj) {
-      var x2, y2, dir;
+      var pos;
 
       if(!t.isInCurrentRoom()) return;
-      dir = 90;
-      t.turnToDirection(dir);
+      try { pos = s.getObjectXYPos(obj); } catch(e) { return; }
+      if(!pos) return;
+      // face whichever way the object lies, rather than always the same way
+      t.turnToDirection(pos.x > t.pos.x ? 90 : 270);
     };
     t.turnToDirection = function(newdir) {
       if(newdir == -1 || t.ignoreTurns) return;
 
-      // t.moving = MF_TURN;
-      // t.targetFacing = newdir;
+      t.targetFacing = newdir;
+      // `moving` doubles as a bitfield; OR the flag in so a walk in progress
+      // survives the turn (true|MF_TURN is still truthy, and clearing the
+      // flag afterwards leaves the walk bit alone)
+      t.moving = (t.moving | 0) | MF_TURN;
+    };
+
+    // One step of the turn, 45 degrees at a time, the short way round.
+    t.updateActorDirection = function() {
+      var from = _system.toSimpleDir(_system.normalizeAngle(t.facing)),
+          to = _system.toSimpleDir(_system.normalizeAngle(t.targetFacing)),
+          diff = to - from;
+
+      if(from === to) return t.targetFacing;
+      if(Math.abs(diff) > 4) diff = -diff;
+      return ((from + (diff > 0 ? 1 : -1)) & 7) * 45;
     };
 
     t.showActor = function() {
