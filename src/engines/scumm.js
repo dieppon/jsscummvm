@@ -53,6 +53,7 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
     _palDirtyMax: 0,
     _haveMsg: 0,
     _haveActorSpeechMsg: false,
+    _talkDelay: 0,
     _useTalkAnims: false,
     _defaultTalkDelay: 0,
     _curPalIndex: 0,
@@ -144,6 +145,16 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
         delta = 15;
 
       t.decreaseScriptDelay(delta);
+
+      // Speech runs on game time. Without this nothing ever clears _haveMsg,
+      // so waitForMessage never returns and the game stops dead.
+      if(t._talkDelay > 0) {
+        t._talkDelay -= delta;
+        if(t._talkDelay <= 0) {
+          t._talkDelay = 0;
+          if(t._haveMsg) t.stopTalk();
+        }
+      }
 
       this.processInput();
       t.updateScummVars();

@@ -1147,15 +1147,17 @@
     var text = s._string[0];
     text.color = a.talkColor;
     text.text = msg;
-    s._talkDelay = 0;
+    // How long the line stays up, in 1/60s ticks of GAME time -- the main
+    // loop counts it down. It used to be a wall-clock setTimeout, which
+    // drifts away from the engine whenever the frame rate does and, worse,
+    // never fires reliably: if it is missed the message flag is never
+    // cleared and every script waiting on it (opcode 0xAE) spins forever.
+    s._talkDelay = Math.max(60, (msg ? msg.length : 0) * (s.scummVar("charinc") || 4));
     s._haveMsg = 0xFF;
     s.scummVar("have_msg", 0xFF);
     if(s.scummVar("charcount") != 0xFF)
       s.scummVar("charcount", 0);
     s._haveActorSpeechMsg = true;
-    window.setTimeout(function() {
-      s.stopTalk();
-    }, 5 * 1000);
   };
 
 
@@ -1167,7 +1169,7 @@
     if(a && a < 0x80) {
       act = s.getActor(a);
       if(act.isInCurrentRoom() || s._useTalkAnims) {
-        act.runActorTalkScript(a.talkStopFrame);
+        act.runActorTalkScript(act.talkStopFrame);
         s._useTalkAnims = false;
       }
       s.setTalkingActor(0xFF);
