@@ -12,6 +12,10 @@
     t.freezeResistant = false;
     t.recursive = false;
     t.freezeCount = 0;
+    // Frozen is deliberately not part of `status`: a script can be waiting
+    // out a delay ("paused") and frozen by a cutscene at the same time, and
+    // the two have to be tracked separately or they corrupt each other.
+    t.frozen = false;
     t.cutSceneOverride = 0;
     t.delayFrameCount = 0;
     t.didexec = false;
@@ -72,13 +76,15 @@
     var t = this, vm = t._vm, i;
     for(i = 0; i < vm.slot.length; i++) {
       if(t._currentScript != i && vm.slot[i].status != "dead" && !vm.slot[i].freezeResistant) {
-        vm.slot[i].status = "paused";
+        // Only the freeze flag -- leave `status` alone, so a script that was
+        // mid-delay still is one when it thaws.
+        vm.slot[i].frozen = true;
         vm.slot[i].freezeCount++;
       }
     }
     // sentence stuff
     if(vm.cutSceneScriptIndex != 0xFF) {
-      vm.slot[vm.cutSceneScriptIndex].status = "running";
+      vm.slot[vm.cutSceneScriptIndex].frozen = false;
       vm.slot[vm.cutSceneScriptIndex].freezeCount = 0;
     }
   };
@@ -86,10 +92,11 @@
   s.unfreezeScripts = function() {
     var t = this, vm = t._vm, i;
     for(i = 0; i < vm.slot.length; i++) {
-      if(vm.slot[i].status == "paused" && !--vm.slot[i].freezeCount) {
-        vm.slot[i].status = "running";
+      // The count guard matters: without it a script that was never frozen
+      // is decremented to -1 and can never reach 0 again, so it stays stuck.
+      if(vm.slot[i].freezeCount > 0 && !--vm.slot[i].freezeCount) {
+        vm.slot[i].frozen = false;
       }
-
     }
     // sentence stuff
   };
@@ -105,7 +112,7 @@
     for(cycle = 1; cycle <= numCycles; cycle++) {
       for(i = 0; i < vm.slot.length; i++) {
         slot = vm.slot[i];
-        if(slot.cycle == cycle && slot.status == "running" && !slot.didexec) {
+        if(slot.cycle == cycle && slot.status == "running" && !slot.frozen && !slot.didexec) {
           t._currentScript = i;
           t.getScriptBaseAddress();
           t.getScriptEntryPoint();
@@ -142,6 +149,7 @@
     slot.freezeResistant = freezeResistant;
     slot.recursive = recursive;
     slot.freezeCount = 0;
+    slot.frozen = false;
     slot.delayFrameCount = 0;
     slot.ptr = null;
     slot.cycle = cycle;
@@ -205,6 +213,7 @@
       slot.ptr = t._gfx["EXCD"];
       slot.freezeResistant = 0;
       slot.freezeCount = 0;
+      slot.frozen = false;
       slot.delayFrameCount = 0;
       slot.recursive = false;
       slot.cycle = 1;
@@ -230,6 +239,7 @@
       slot.ptr = t._gfx["ENCD"];
       slot.freezeResistant = 0;
       slot.freezeCount = 0;
+      slot.frozen = false;
       slot.delayFrameCount = 0;
       slot.recursive = false;
       slot.cycle = 1;
@@ -821,6 +831,7 @@
       slot.offs = offs;
       slot.status = "running";
       slot.freezeCount = 0;
+      slot.frozen = false;
       if(slot.cutSceneOverride > 0)
         slot.cutSceneOverride--;
 
