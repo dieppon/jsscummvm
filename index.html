@@ -16,6 +16,17 @@
     canvas, with the parts this page does not need left out.
   -->
   <style>
+    /* Less Perfect DOS VGA by laemeur, after Zeh Fernando's Perfect DOS VGA
+       437. Its cell is 8x16, so 80 columns come to exactly 640px at the
+       font's native 16px -- the screen is 640 wide, so the glyphs render at
+       their design size with no resampling. (More Perfect DOS VGA has a 9px
+       cell, the 720x400 text mode, which would need scaling to fit.) */
+    @font-face {
+      font-family: "Less Perfect DOS VGA";
+      src: url("fonts/LessPerfectDOSVGA.ttf") format("truetype");
+      font-display: block;
+    }
+
     :root {
       /* palette, after Manz's pen */
       --monitor-light: #d3ccbc;
@@ -151,9 +162,12 @@
       margin: 0;
       /* font-size and line-height are set by dos-shell.js so that exactly
          80x25 characters fill the screen, whatever the font resolves to */
-      font-family: "Consolas", "Lucida Console", "DejaVu Sans Mono", ui-monospace, monospace;
+      font-family: "Less Perfect DOS VGA", "Consolas", "Lucida Console", ui-monospace, monospace;
       color: #aaa;
       text-shadow: 0 0 3px rgba(170,170,170,.45);
+      /* it is a pixel font -- smoothing only blurs it */
+      -webkit-font-smoothing: none;
+      font-smooth: never;
       white-space: pre;
       letter-spacing: 0;
     }
@@ -478,7 +492,9 @@
   <p class="credit">
     CRT case adapted from
     <a href="https://codepen.io/manz/pen/yLbrpGV" target="_blank" rel="noopener">Manz's
-    pure-CSS CRT monitor</a>.
+    pure-CSS CRT monitor</a>. Terminal set in
+    <a href="http://laemeur.sdf.org/fonts/" target="_blank" rel="noopener">Less Perfect
+    DOS VGA</a> by laemeur, after Zeh Fernando's Perfect DOS VGA 437.
   </p>
 
   <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>

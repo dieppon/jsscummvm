@@ -63,7 +63,7 @@
 
   /* --- state ----------------------------------------------------------- */
 
-  var root, screenEl, out, field, powerBtn;
+  var root, screenEl, viewEl, out, field, powerBtn;
   var cwd = "C:\\";
   var lines = [];
   var current = "";
@@ -389,7 +389,7 @@
   /* --- fitting 80x25 to the screen ------------------------------------- */
 
   function fit() {
-    var box = screenEl.getBoundingClientRect();
+    var box = (viewEl || screenEl).getBoundingClientRect();
     if (!box.width) return;
 
     var probe = document.createElement("span"), ruler = [], i;
@@ -410,6 +410,7 @@
   function init() {
     root = document.getElementById("crt");
     screenEl = document.querySelector(".screen-container");
+    viewEl = document.querySelector(".screen-view");
     out = document.getElementById("dos-out");
     field = document.getElementById("dos-input");
     powerBtn = document.getElementById("crt-power");
@@ -420,7 +421,15 @@
     });
 
     fit();
-    window.addEventListener("resize", fit);
+    // measure on the next frame: during a resize the box has not reflowed
+    // yet, so fitting immediately sizes the grid to the old dimensions
+    window.addEventListener("resize", function () {
+      if (window.requestAnimationFrame) window.requestAnimationFrame(fit);
+      else fit();
+    });
+    // fit() measures the resolved font, so it has to run again once the
+    // webfont arrives -- otherwise the grid is sized to the fallback
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
 
     field.addEventListener("keydown", onKeyDown);
     field.addEventListener("input", onInput);
