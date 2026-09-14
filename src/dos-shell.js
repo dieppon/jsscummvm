@@ -297,6 +297,18 @@
     }, ON_MS);
   }
 
+  // ?game=monkey (or monkey1) boots straight into the game, skipping the
+  // prompt. Handy for linking to it, and for testing without walking the
+  // terminal every time.
+  var ALIASES = { monkey: "monkey1", mi: "monkey1", mi1: "monkey1" };
+
+  function requestedGame() {
+    var m = /[?&]game=([A-Za-z0-9_-]+)/.exec(window.location.search);
+    if (!m) return null;
+    var name = m[1].toLowerCase();
+    return ALIASES[name] || name;
+  }
+
   /* --- boot ------------------------------------------------------------ */
 
   var BOOT = [
@@ -443,6 +455,16 @@
     screenEl.addEventListener("touchstart", function () {
       if (!running && !off) field.focus();
     }, { passive: true });
+
+    var auto = requestedGame();
+    if (auto) {
+      booting = false;
+      running = true;
+      root.classList.add("is-running");
+      render();
+      ScummVM.load(auto);
+      return;
+    }
 
     try { field.focus(); } catch (err) {}
 
