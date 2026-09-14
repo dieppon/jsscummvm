@@ -32,10 +32,11 @@
         -1px -1px 1px #493e2a33 inset,
         0 2px 30px #ddd inset;
 
-      /* The whole monitor is derived from this: 640x400 is the engine's
-         320x200 at scale 2. At 640px the canvas maps 1:1 to its backing
-         store, so no resampling. The case adds ~28% on top of it, hence
-         70vw rather than something closer to 100. */
+      /* The whole monitor is derived from this: 640x480 is the engine's
+         320x200 at scale 2, stretched 1.2x vertically because 320x200 was
+         drawn for 4:3 screens with non-square pixels. At 640px wide the
+         canvas maps 1:1 horizontally. The case adds ~28% on top, hence 70vw
+         rather than something closer to 100. */
       --screen-w: min(640px, 70vw);
       --bezel: calc(var(--screen-w) * 0.028);
       --pad: calc(var(--screen-w) * 0.11);
@@ -129,7 +130,7 @@
       display: block;
       width: var(--screen-w);
       height: auto;
-      aspect-ratio: 640 / 400;
+      aspect-ratio: 640 / 480;
       background: #000;
       /* keep the pixels sharp when the canvas is scaled on narrow screens */
       image-rendering: pixelated;
@@ -431,7 +432,7 @@
       <div class="monitor-inner">
         <div class="screen-container">
           <div class="screen-view">
-            <canvas id="jsscummvm" width="640" height="400"></canvas>
+            <canvas id="jsscummvm" width="640" height="480"></canvas>
             <div class="dos" id="dos">
               <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
               <input class="dos-input" id="dos-input" type="text"

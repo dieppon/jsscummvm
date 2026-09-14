@@ -4,6 +4,10 @@ var ScummVM = {
   // The engine always renders at the logical 320x200 above; `scale` only
   // enlarges the visible canvas. Set it to 1 for the previous behaviour.
   scale: 2,
+  // 320x200 was shown on 4:3 monitors, so its pixels were not square. This
+  // stretches the picture back to the shape it was drawn for: 200 * 1.2 = 240
+  // rows, i.e. a 640x480 canvas at scale 2. Set it to 1 for square pixels.
+  pixelAspect: 1.2,
   engines: {},
   engine: null,
   canvas: null,
@@ -75,7 +79,7 @@ function assert(condition) {
     t.context = t.buffer.getContext('2d');
 
     t.canvas.width = t.width * t.scale;
-    t.canvas.height = t.height * t.scale;
+    t.canvas.height = Math.round(t.height * t.scale * t.pixelAspect);
     t.displayContext = t.canvas.getContext('2d');
     // Nearest-neighbour, so upscaled pixel art stays crisp rather than blurry.
     t.displayContext.imageSmoothingEnabled = false;
