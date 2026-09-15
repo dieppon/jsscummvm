@@ -591,6 +591,36 @@
     try { return t.getObjectXYPos(object); } catch (e) { return null; }
   };
 
+  var kObjectClassUntouchable = 32;
+
+  // object.cpp findObject: what is under the cursor. This was a stub that
+  // always returned 0, so the game could never identify anything you clicked
+  // on -- including the exits, which is why a room could not be left.
+  s.findObject = function(x, y) {
+    var t = this, i, b, a, od, mask = 0xF;
+
+    for (i = 1; i < t._nums['local_objects']; i++) {
+      od = t._objs[i];
+      if (!od || od.obj_nr < 1) continue;
+      if (t.getClass(od.obj_nr, kObjectClassUntouchable)) continue;
+
+      // walk up the parent chain: a child only counts while its parent is in
+      // the state the child was declared for
+      b = i;
+      do {
+        a = t._objs[b].parentstate;
+        b = t._objs[b].parent;
+        if (b == 0) {
+          if (od.x_pos <= x && od.width + od.x_pos > x &&
+              od.y_pos <= y && od.height + od.y_pos > y)
+            return od.obj_nr;
+          break;
+        }
+      } while ((t.getState(t._objs[b].obj_nr) & mask) == a);
+    }
+    return 0;
+  };
+
   s.getObjX = function(obj) {
     var t = this, p;
     if (obj < 1) return 0;
@@ -773,6 +803,57 @@
     // or every hit lands on the neighbouring column.
     vs.curRect.right = vs.curRect.left + (vs.center ? Math.floor(w / 2) : w);
     vs.curRect.bottom = vs.curRect.top + h;
+  };
+
+
+  /* --- sentences, ported from ScummVM's script.cpp ---------------------- */
+  /* The verb script works out what you clicked and queues it here as a
+     sentence; the engine then runs VAR_SENTENCE_SCRIPT on it, which is what
+     walks the actor over and fires the object's own script. doSentence used
+     to parse its arguments and discard them, so every click was dropped and
+     nothing an object did -- including leaving the room -- could happen. */
+
+  var NUM_SENTENCE = 6;
+
+  s.doSentence = function(verb, objectA, objectB) {
+    var t = this, st;
+    if (t._sentenceNum >= NUM_SENTENCE) return;
+    st = t._sentence[t._sentenceNum++] || (t._sentence[t._sentenceNum - 1] = {});
+    st.verb = verb;
+    st.objectA = objectA;
+    st.objectB = objectB;
+    st.preposition = (objectB != 0);
+    st.freezeCount = 0;
+  };
+
+  s.checkAndRunSentenceScript = function() {
+    var t = this, i, args = [], st,
+        sentenceScript = t.scummVar("sentence_script");
+
+    for (i = 0; i < 16; i++) args[i] = 0;
+
+    // don't stack a second run on top of one already going
+    if (t.isScriptRunning(sentenceScript)) {
+      for (i = 0; i < t._vm.slot.length; i++) {
+        var ss = t._vm.slot[i];
+        if (ss.number == sentenceScript && ss.status != "dead" && ss.freezeCount == 0)
+          return;
+      }
+    }
+
+    if (!t._sentenceNum) return;
+    st = t._sentence[t._sentenceNum - 1];
+    if (!st || st.freezeCount) return;
+
+    t._sentenceNum--;
+
+    if (st.preposition && st.objectB == st.objectA) return;
+
+    args[0] = st.verb;
+    args[1] = st.objectA;
+    args[2] = st.objectB;
+
+    if (sentenceScript) t.runScript(sentenceScript, 0, 0, args);
   };
 
   s.getOwner = function(obj) {
@@ -1974,11 +2055,10 @@
       if(verb == 0xFE) {
         s._sentenceNum = 0;
         s.stopScript(s.scummVar("sentence_script"));
-        // s.clearClickedStatus();
         return;
       }
       var objectA = s.getVarOrDirectWord(PARAM_2), objectB = s.getVarOrDirectWord(PARAM_3);
-      // s.doSetence(ver, objectA, objectB);
+      s.doSentence(verb, objectA, objectB);
     },
     delay: function() {
       var delay = s.fetchScriptByte();
@@ -2101,7 +2181,7 @@
       s.getResultPos();
       x = s.getVarOrDirectByte(PARAM_1);
       y = s.getVarOrDirectByte(PARAM_2);
-      s.setResult(0); // findObject(x, y);
+      s.setResult(s.findObject(x, y));
     },
     actorFromPos: function() {
       s.getResultPos();
