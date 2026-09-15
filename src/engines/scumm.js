@@ -18,6 +18,8 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
     _lastLoadedRoom: -1,
     _nums: {},
     _objs: [],
+    _inventory: [],
+    _egoPositioned: false,
     _objectRoomTable: [],
     _objectOwnerTable: [],
     _objectStateTable: [],

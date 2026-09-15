@@ -534,6 +534,111 @@
     return pos;
   };
 
+
+  /* --- object helpers, ported from ScummVM's object.cpp ----------------- */
+
+  var OF_OWNER_ROOM = 0x0F;
+  var WIO_NOT_FOUND = -1, WIO_INVENTORY = 0, WIO_ROOM = 1, WIO_FLOBJECT = 3;
+
+  s.objIsActor = function(obj) {
+    // in v5 an object number below the actor count refers to that actor
+    return obj < this._nums['actors'];
+  };
+
+  s.getClass = function(obj, cls) {
+    var t = this;
+    cls &= 0x7F;
+    if (cls < 1 || cls > 32) return false;
+    return (t._classData[obj] & (1 << (cls - 1))) != 0;
+  };
+
+  s.whereIsObject = function(object) {
+    var t = this, i;
+    if (object >= t._nums['global_objects']) return WIO_NOT_FOUND;
+    if (object < 1) return WIO_NOT_FOUND;
+
+    if (t._objectOwnerTable[object] != OF_OWNER_ROOM) {
+      for (i = 0; i < t._nums['inventory']; i++)
+        if (t._inventory[i] == object) return WIO_INVENTORY;
+      return WIO_NOT_FOUND;
+    }
+
+    for (i = t._nums['local_objects'] - 1; i > 0; i--) {
+      if (t._objs[i] && t._objs[i].obj_nr == object) {
+        return t._objs[i].fl_object_index ? WIO_FLOBJECT : WIO_ROOM;
+      }
+    }
+    return WIO_NOT_FOUND;
+  };
+
+  s.getObjectOrActorXY = function(object) {
+    var t = this, act;
+    if (t.objIsActor(object)) {
+      act = t.getActor(object);
+      if (act && act.isInCurrentRoom()) return {x: act.pos.x, y: act.pos.y};
+      return null;
+    }
+    switch (t.whereIsObject(object)) {
+      case WIO_NOT_FOUND:
+        return null;
+      case WIO_INVENTORY:
+        if (t.objIsActor(t._objectOwnerTable[object])) {
+          act = t.getActor(t._objectOwnerTable[object]);
+          if (act && act.isInCurrentRoom()) return {x: act.pos.x, y: act.pos.y};
+        }
+        return null;
+    }
+    try { return t.getObjectXYPos(object); } catch (e) { return null; }
+  };
+
+  s.getObjX = function(obj) {
+    var t = this, p;
+    if (obj < 1) return 0;
+    if (t.objIsActor(obj)) return t.getActor(obj).pos.x;
+    if (t.whereIsObject(obj) == WIO_NOT_FOUND) return -1;
+    p = t.getObjectOrActorXY(obj);
+    return p ? p.x : -1;
+  };
+
+  s.getObjY = function(obj) {
+    var t = this, p;
+    if (obj < 1) return 0;
+    if (t.objIsActor(obj)) return t.getActor(obj).pos.y;
+    if (t.whereIsObject(obj) == WIO_NOT_FOUND) return -1;
+    p = t.getObjectOrActorXY(obj);
+    return p ? p.y : -1;
+  };
+
+
+  /* --- inventory, ported from ScummVM's object.cpp ---------------------- */
+
+  s.getInventoryCount = function(owner) {
+    var t = this, i, obj, count = 0;
+    for (i = 0; i < t._nums['inventory']; i++) {
+      obj = t._inventory[i];
+      if (obj && t.getOwner(obj) == owner) count++;
+    }
+    return count;
+  };
+
+  s.findInventory = function(owner, idx) {
+    var t = this, i, obj, count = 1;
+    for (i = 0; i < t._nums['inventory']; i++) {
+      obj = t._inventory[i];
+      if (obj && t.getOwner(obj) == owner && count++ == idx) return obj;
+    }
+    return 0;
+  };
+
+  /* --- walk boxes ------------------------------------------------------- */
+  /* Not implemented. These exist so matrixOps consumes its operands and the
+     instruction stream stays in sync, rather than throwing mid-script.
+     Until boxes are real, actors walk in straight lines through walls. */
+
+  s.setBoxFlags = function(box, val) {};
+  s.setBoxScale = function(box, scale) {};
+  s.createBoxMatrix = function() {};
+
   s.getOwner = function(obj) {
     var t = this;
     return t._objectOwnerTable[obj];
@@ -1081,6 +1186,183 @@
       var a = s.getVar(), b = s.getVarOrDirectWord(PARAM_1);
       s.jumpRelative(b != a);
     },
+    /* --- ported from ScummVM script_v5.cpp -------------------------------- */
+
+    multiply: function() {
+      s.getResultPos();
+      var a = s.getVarOrDirectWord(PARAM_1);
+      s.setResult(s.readVar(s._resultVarNumber) * a);
+    },
+    divide: function() {
+      s.getResultPos();
+      var a = s.getVarOrDirectWord(PARAM_1);
+      if (a == 0) { error("Divide by zero"); s.setResult(0); }
+      else s.setResult(Math.floor(s.readVar(s._resultVarNumber) / a));
+    },
+    or: function() {
+      s.getResultPos();
+      var a = s.getVarOrDirectWord(PARAM_1);
+      s.setResult(s.readVar(s._resultVarNumber) | a);
+    },
+    decrement: function() {
+      s.getResultPos();
+      s.setResult(s.readVar(s._resultVarNumber) - 1);
+    },
+    isGreaterEqual: function() {
+      var a = s.getVar(), b = s.getVarOrDirectWord(PARAM_1);
+      s.jumpRelative(b >= a);
+    },
+
+    ifState: function() {
+      var a = s.getVarOrDirectWord(PARAM_1), b = s.getVarOrDirectByte(PARAM_2);
+      s.jumpRelative(s.getState(a) == b);
+    },
+    ifNotState: function() {
+      var a = s.getVarOrDirectWord(PARAM_1), b = s.getVarOrDirectByte(PARAM_2);
+      s.jumpRelative(s.getState(a) != b);
+    },
+    ifClassOfIs: function() {
+      var obj = s.getVarOrDirectWord(PARAM_1), cls, b, cond = true;
+      while ((s._opcode = s.fetchScriptByte()) != 0xFF) {
+        cls = s.getVarOrDirectWord(PARAM_1);
+        b = s.getClass(obj, cls);
+        if (((cls & 0x80) && !b) || (!(cls & 0x80) && b)) cond = false;
+      }
+      s.jumpRelative(cond);
+    },
+
+    getActorX: function() {
+      s.getResultPos();
+      s.setResult(s.getObjX(s.getVarOrDirectWord(PARAM_1)));
+    },
+    getActorY: function() {
+      s.getResultPos();
+      s.setResult(s.getObjY(s.getVarOrDirectWord(PARAM_1)));
+    },
+    getActorWidth: function() {
+      s.getResultPos();
+      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).width);
+    },
+    getActorScale: function() {
+      s.getResultPos();
+      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).scalex);
+    },
+    getActorCostume: function() {
+      s.getResultPos();
+      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).costume);
+    },
+    getActorWalkBox: function() {
+      s.getResultPos();
+      var a = s.getActor(s.getVarOrDirectByte(PARAM_1));
+      s.setResult(a.ignoreBoxes ? 0 : a.walkbox);
+    },
+    getAnimCounter: function() {
+      s.getResultPos();
+      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).cost.animCounter);
+    },
+    isActorInBox: function() {
+      var a = s.getActor(s.getVarOrDirectByte(PARAM_1)),
+          box = s.getVarOrDirectByte(PARAM_2);
+      s.jumpRelative(a.walkbox == box);
+    },
+
+    putActorAtObject: function() {
+      var a = s.getActor(s.getVarOrDirectByte(PARAM_1)),
+          obj = s.getVarOrDirectWord(PARAM_2), p = null;
+      if (s.whereIsObject(obj) != -1) p = s.getObjectOrActorXY(obj);
+      if (!p) p = {x: 240, y: 120};
+      a.putActor(p.x, p.y);
+    },
+
+    loadRoomWithEgo: function() {
+      var obj = s.getVarOrDirectWord(PARAM_1),
+          room = s.getVarOrDirectByte(PARAM_2),
+          a = s.getActor(s.scummVar("ego")), x, y;
+
+      a.putActor(-1, -1, room);
+      s._egoPositioned = false;
+
+      x = s.fetchScriptWordSigned();
+      y = s.fetchScriptWordSigned();
+
+      s.scummVar("walkto_obj", obj);
+      s.startScene(a.room, a, obj);
+      s.scummVar("walkto_obj", 0);
+
+      s._camera.cur.x = s._camera.dest.x = a.pos.x;
+      s.setCameraFollows(a);
+      s._fullRedraw = true;
+
+      if (x != -1) a.startWalkActor(x, y, -1);
+    },
+
+    stopObjectScript: function() {
+      s.stopObjectScript(s.getVarOrDirectWord(PARAM_1));
+    },
+    stopMusic: function() {
+      // no sound engine
+    },
+
+    getInventoryCount: function() {
+      s.getResultPos();
+      s.setResult(s.getInventoryCount(s.getVarOrDirectByte(PARAM_1)));
+    },
+    findInventory: function() {
+      s.getResultPos();
+      var owner = s.getVarOrDirectByte(PARAM_1),
+          idx = s.getVarOrDirectByte(PARAM_2);
+      s.setResult(s.findInventory(owner, idx));
+    },
+    getStringWidth: function() {
+      s.getResultPos();
+      // the charset renderer measures this; 0 until a string is set up
+      s.setResult(0);
+    },
+
+    delayVariable: function() {
+      s._vm.slot[s._currentScript].delay = s.getVar();
+      s._vm.slot[s._currentScript].status = "paused";
+      s._opcodeCommands.breakHere();
+    },
+
+    matrixOps: function() {
+      var a, b;
+      s._opcode = s.fetchScriptByte();
+      switch (s._opcode & 0x1F) {
+        case 1: a = s.getVarOrDirectByte(PARAM_1); b = s.getVarOrDirectByte(PARAM_2);
+                s.setBoxFlags(a, b); break;
+        case 2: a = s.getVarOrDirectByte(PARAM_1); b = s.getVarOrDirectByte(PARAM_2);
+                s.setBoxScale(a, b); break;
+        case 3: a = s.getVarOrDirectByte(PARAM_1); b = s.getVarOrDirectByte(PARAM_2);
+                s.setBoxScale(a, (b - 1) | 0x8000); break;
+        case 4: s.createBoxMatrix(); break;
+      }
+    },
+
+    getClosestObjActor: function() {
+      // ScummVM walks the object list looking for the nearest; without the
+      // object list wired up this returns "none" rather than a wrong answer
+      s.getResultPos();
+      s.getVarOrDirectWord(PARAM_1);
+      s.setResult(-1);
+    },
+
+    oldRoomEffect: function() {
+      s._opcode = s.fetchScriptByte();
+      s.getVarOrDirectWord(PARAM_1);
+    },
+    pickupObjectOld: function() {
+      s.getVarOrDirectWord(PARAM_1);
+    },
+    debug: function() {
+      s.getVarOrDirectWord(PARAM_1);
+    },
+    dummy: function() {
+    },
+    move_segafix: function() {
+      s.getVarOrDirectByte(PARAM_1);
+    },
+
     unimplementedOpcode: unimplementedOpcode,
     getActorMoving: function() {
       var act;
@@ -1646,11 +1928,25 @@
     }
   };
 
+  // The full 256-entry table, generated from ScummVM's own OPCODE list in
+  // script_v5.cpp. The high bits of the opcode select whether each argument
+  // is a literal or a variable, so one instruction occupies several slots and
+  // every one of them has to be registered -- executeOpcode kills the running
+  // script on an unregistered byte, which is what used to happen whenever a
+  // script walked an actor with a variable argument.
+  // The full 256-entry table, generated from the base v5 OPCODE list in
+  // ScummVM's script_v5.cpp (that file also carries a Sega CD override block
+  // further down, which must NOT be folded in -- it remaps 0x1a away from
+  // o5_move). The high bits of an opcode select whether each argument is a
+  // literal or a variable, so one instruction occupies several slots and all
+  // of them must be registered: executeOpcode kills the running script on an
+  // unregistered byte.
   s._opcodes = {
     0x00: s._opcodeCommands.stopObjectCode,
     0x01: s._opcodeCommands.putActor,
     0x02: s._opcodeCommands.startMusic,
     0x03: s._opcodeCommands.getActorRoom,
+    0x04: s._opcodeCommands.isGreaterEqual,
     0x05: s._opcodeCommands.drawObject,
     0x06: s._opcodeCommands.getActorElevation,
     0x07: s._opcodeCommands.setState,
@@ -1659,97 +1955,249 @@
     0x0a: s._opcodeCommands.startScript,
     0x0b: s._opcodeCommands.getVerbEntryPoint,
     0x0c: s._opcodeCommands.resourceRoutines,
+    0x0d: s._opcodeCommands.walkActorToActor,
+    0x0e: s._opcodeCommands.putActorAtObject,
     0x0f: s._opcodeCommands.getObjectState,
     0x10: s._opcodeCommands.getObjectOwner,
     0x11: s._opcodeCommands.animateActor,
     0x12: s._opcodeCommands.panCameraTo,
     0x13: s._opcodeCommands.actorOps,
     0x14: s._opcodeCommands.print,
+    0x15: s._opcodeCommands.actorFromPos,
     0x16: s._opcodeCommands.getRandomNr,
     0x17: s._opcodeCommands.and,
     0x18: s._opcodeCommands.jumpRelative,
     0x19: s._opcodeCommands.doSentence,
     0x1a: s._opcodeCommands.move,
+    0x1b: s._opcodeCommands.multiply,
     0x1c: s._opcodeCommands.startSound,
-    0x20: s._opcodeCommands.unimplementedOpcode,
+    0x1d: s._opcodeCommands.ifClassOfIs,
+    0x1e: s._opcodeCommands.walkActorTo,
+    0x1f: s._opcodeCommands.isActorInBox,
+    0x20: s._opcodeCommands.stopMusic,
+    0x21: s._opcodeCommands.putActor,
+    0x22: s._opcodeCommands.getAnimCounter,
+    0x23: s._opcodeCommands.getActorY,
+    0x24: s._opcodeCommands.loadRoomWithEgo,
     0x25: s._opcodeCommands.pickupObject,
-    0x29: s._opcodeCommands.setOwnerOf,
-    0x2a: s._opcodeCommands.startScript,
-    0x2c: s._opcodeCommands.cursorCommand,
-    0x2d: s._opcodeCommands.putActorInRoom,
-    0x2e: s._opcodeCommands.delay,
     0x26: s._opcodeCommands.setVarRange,
     0x27: s._opcodeCommands.stringOps,
     0x28: s._opcodeCommands.equalZero,
+    0x29: s._opcodeCommands.setOwnerOf,
+    0x2a: s._opcodeCommands.startScript,
+    0x2b: s._opcodeCommands.delayVariable,
+    0x2c: s._opcodeCommands.cursorCommand,
+    0x2d: s._opcodeCommands.putActorInRoom,
+    0x2e: s._opcodeCommands.delay,
+    0x2f: s._opcodeCommands.ifNotState,
+    0x30: s._opcodeCommands.matrixOps,
+    0x31: s._opcodeCommands.getInventoryCount,
     0x32: s._opcodeCommands.setCameraAt,
     0x33: s._opcodeCommands.roomOps,
+    0x34: s._opcodeCommands.getDist,
+    0x35: s._opcodeCommands.findObject,
+    0x36: s._opcodeCommands.walkActorToObject,
     0x37: s._opcodeCommands.startObject,
     0x38: s._opcodeCommands.isLessEqual,
+    0x39: s._opcodeCommands.doSentence,
     0x3a: s._opcodeCommands.subtract,
+    0x3b: s._opcodeCommands.getActorScale,
     0x3c: s._opcodeCommands.stopSound,
+    0x3d: s._opcodeCommands.findInventory,
+    0x3e: s._opcodeCommands.walkActorTo,
+    0x3f: s._opcodeCommands.drawBox,
     0x40: s._opcodeCommands.cutscene,
+    0x41: s._opcodeCommands.putActor,
     0x42: s._opcodeCommands.chainScript,
+    0x43: s._opcodeCommands.getActorX,
     0x44: s._opcodeCommands.isLess,
+    0x45: s._opcodeCommands.drawObject,
     0x46: s._opcodeCommands.increment,
+    0x47: s._opcodeCommands.setState,
     0x48: s._opcodeCommands.isEqual,
     0x49: s._opcodeCommands.faceActor,
     0x4a: s._opcodeCommands.startScript,
+    0x4b: s._opcodeCommands.getVerbEntryPoint,
     0x4c: s._opcodeCommands.soundKludge,
     0x4d: s._opcodeCommands.walkActorToActor,
-    0x4f: s._opcodeCommands.unimplementedOpcode,
+    0x4e: s._opcodeCommands.putActorAtObject,
+    0x4f: s._opcodeCommands.ifState,
+    0x50: s._opcodeCommands.pickupObjectOld,
+    0x51: s._opcodeCommands.animateActor,
     0x52: s._opcodeCommands.actorFollowCamera,
     0x53: s._opcodeCommands.actorOps,
     0x54: s._opcodeCommands.setObjectName,
+    0x55: s._opcodeCommands.actorFromPos,
     0x56: s._opcodeCommands.getActorMoving,
+    0x57: s._opcodeCommands.or,
     0x58: s._opcodeCommands.beginOverride,
+    0x59: s._opcodeCommands.doSentence,
     0x5a: s._opcodeCommands.add,
+    0x5b: s._opcodeCommands.divide,
+    0x5c: s._opcodeCommands.oldRoomEffect,
     0x5d: s._opcodeCommands.setClass,
+    0x5e: s._opcodeCommands.walkActorTo,
+    0x5f: s._opcodeCommands.isActorInBox,
     0x60: s._opcodeCommands.freezeScripts,
+    0x61: s._opcodeCommands.putActor,
     0x62: s._opcodeCommands.stopScript,
     0x63: s._opcodeCommands.getActorFacing,
-    0x65: s._opcodeCommands.unimplementedOpcode,
+    0x64: s._opcodeCommands.loadRoomWithEgo,
+    0x65: s._opcodeCommands.pickupObject,
+    0x66: s._opcodeCommands.getClosestObjActor,
+    0x67: s._opcodeCommands.getStringWidth,
     0x68: s._opcodeCommands.isScriptRunning,
     0x69: s._opcodeCommands.setOwnerOf,
+    0x6a: s._opcodeCommands.startScript,
+    0x6b: s._opcodeCommands.debug,
+    0x6c: s._opcodeCommands.getActorWidth,
+    0x6d: s._opcodeCommands.putActorInRoom,
+    0x6e: s._opcodeCommands.stopObjectScript,
+    0x6f: s._opcodeCommands.ifNotState,
     0x70: s._opcodeCommands.lights,
+    0x71: s._opcodeCommands.getActorCostume,
     0x72: s._opcodeCommands.loadRoom,
+    0x73: s._opcodeCommands.roomOps,
     0x74: s._opcodeCommands.getDist,
+    0x75: s._opcodeCommands.findObject,
     0x76: s._opcodeCommands.walkActorToObject,
+    0x77: s._opcodeCommands.startObject,
     0x78: s._opcodeCommands.isGreater,
+    0x79: s._opcodeCommands.doSentence,
     0x7a: s._opcodeCommands.verbOps,
+    0x7b: s._opcodeCommands.getActorWalkBox,
     0x7c: s._opcodeCommands.isSoundRunning,
+    0x7d: s._opcodeCommands.findInventory,
+    0x7e: s._opcodeCommands.walkActorTo,
+    0x7f: s._opcodeCommands.drawBox,
     0x80: s._opcodeCommands.breakHere,
     0x81: s._opcodeCommands.putActor,
+    0x82: s._opcodeCommands.startMusic,
     0x83: s._opcodeCommands.getActorRoom,
+    0x84: s._opcodeCommands.isGreaterEqual,
+    0x85: s._opcodeCommands.drawObject,
+    0x86: s._opcodeCommands.getActorElevation,
+    0x87: s._opcodeCommands.setState,
     0x88: s._opcodeCommands.isNotEqual,
     0x89: s._opcodeCommands.faceActor,
     0x8a: s._opcodeCommands.startScript,
+    0x8b: s._opcodeCommands.getVerbEntryPoint,
+    0x8c: s._opcodeCommands.resourceRoutines,
+    0x8d: s._opcodeCommands.walkActorToActor,
+    0x8e: s._opcodeCommands.putActorAtObject,
+    0x8f: s._opcodeCommands.getObjectState,
+    0x90: s._opcodeCommands.getObjectOwner,
     0x91: s._opcodeCommands.animateActor,
+    0x92: s._opcodeCommands.panCameraTo,
     0x93: s._opcodeCommands.actorOps,
+    0x94: s._opcodeCommands.print,
+    0x95: s._opcodeCommands.actorFromPos,
     0x96: s._opcodeCommands.getRandomNr,
+    0x97: s._opcodeCommands.and,
     0x98: s._opcodeCommands.systemOps,
+    0x99: s._opcodeCommands.doSentence,
     0x9a: s._opcodeCommands.move,
+    0x9b: s._opcodeCommands.multiply,
+    0x9c: s._opcodeCommands.startSound,
+    0x9d: s._opcodeCommands.ifClassOfIs,
     0x9e: s._opcodeCommands.walkActorTo,
+    0x9f: s._opcodeCommands.isActorInBox,
     0xa0: s._opcodeCommands.stopObjectCode,
+    0xa1: s._opcodeCommands.putActor,
+    0xa2: s._opcodeCommands.getAnimCounter,
+    0xa3: s._opcodeCommands.getActorY,
+    0xa4: s._opcodeCommands.loadRoomWithEgo,
+    0xa5: s._opcodeCommands.pickupObject,
+    0xa6: s._opcodeCommands.setVarRange,
+    0xa7: s._opcodeCommands.dummy,
     0xa8: s._opcodeCommands.notEqualZero,
+    0xa9: s._opcodeCommands.setOwnerOf,
+    0xaa: s._opcodeCommands.startScript,
     0xab: s._opcodeCommands.saveRestoreVerbs,
     0xac: s._opcodeCommands.expression,
     0xad: s._opcodeCommands.putActorInRoom,
     0xae: s._opcodeCommands.wait,
+    0xaf: s._opcodeCommands.ifNotState,
+    0xb0: s._opcodeCommands.matrixOps,
+    0xb1: s._opcodeCommands.getInventoryCount,
+    0xb2: s._opcodeCommands.setCameraAt,
+    0xb3: s._opcodeCommands.roomOps,
+    0xb4: s._opcodeCommands.getDist,
+    0xb5: s._opcodeCommands.findObject,
     0xb6: s._opcodeCommands.walkActorToObject,
+    0xb7: s._opcodeCommands.startObject,
+    0xb8: s._opcodeCommands.isLessEqual,
+    0xb9: s._opcodeCommands.doSentence,
+    0xba: s._opcodeCommands.subtract,
+    0xbb: s._opcodeCommands.getActorScale,
+    0xbc: s._opcodeCommands.stopSound,
+    0xbd: s._opcodeCommands.findInventory,
+    0xbe: s._opcodeCommands.walkActorTo,
+    0xbf: s._opcodeCommands.drawBox,
     0xc0: s._opcodeCommands.endCutscene,
     0xc1: s._opcodeCommands.putActor,
+    0xc2: s._opcodeCommands.chainScript,
+    0xc3: s._opcodeCommands.getActorX,
     0xc4: s._opcodeCommands.isLess,
+    0xc5: s._opcodeCommands.drawObject,
+    0xc6: s._opcodeCommands.decrement,
+    0xc7: s._opcodeCommands.setState,
+    0xc8: s._opcodeCommands.isEqual,
+    0xc9: s._opcodeCommands.faceActor,
+    0xca: s._opcodeCommands.startScript,
+    0xcb: s._opcodeCommands.getVerbEntryPoint,
     0xcc: s._opcodeCommands.pseudoRoom,
+    0xcd: s._opcodeCommands.walkActorToActor,
+    0xce: s._opcodeCommands.putActorAtObject,
+    0xcf: s._opcodeCommands.ifState,
+    0xd0: s._opcodeCommands.pickupObjectOld,
     0xd1: s._opcodeCommands.animateActor,
     0xd2: s._opcodeCommands.actorFollowCamera,
+    0xd3: s._opcodeCommands.actorOps,
+    0xd4: s._opcodeCommands.setObjectName,
     0xd5: s._opcodeCommands.actorFromPos,
+    0xd6: s._opcodeCommands.getActorMoving,
+    0xd7: s._opcodeCommands.or,
     0xd8: s._opcodeCommands.printEgo,
+    0xd9: s._opcodeCommands.doSentence,
+    0xda: s._opcodeCommands.add,
+    0xdb: s._opcodeCommands.divide,
+    0xdc: s._opcodeCommands.oldRoomEffect,
+    0xdd: s._opcodeCommands.setClass,
+    0xde: s._opcodeCommands.walkActorTo,
+    0xdf: s._opcodeCommands.isActorInBox,
+    0xe0: s._opcodeCommands.freezeScripts,
     0xe1: s._opcodeCommands.putActor,
+    0xe2: s._opcodeCommands.stopScript,
+    0xe3: s._opcodeCommands.getActorFacing,
+    0xe4: s._opcodeCommands.loadRoomWithEgo,
+    0xe5: s._opcodeCommands.pickupObject,
+    0xe6: s._opcodeCommands.getClosestObjActor,
+    0xe7: s._opcodeCommands.getStringWidth,
     0xe8: s._opcodeCommands.isScriptRunning,
+    0xe9: s._opcodeCommands.setOwnerOf,
+    0xea: s._opcodeCommands.startScript,
+    0xeb: s._opcodeCommands.debug,
+    0xec: s._opcodeCommands.getActorWidth,
     0xed: s._opcodeCommands.putActorInRoom,
+    0xee: s._opcodeCommands.stopObjectScript,
+    0xef: s._opcodeCommands.ifNotState,
+    0xf0: s._opcodeCommands.lights,
+    0xf1: s._opcodeCommands.getActorCostume,
+    0xf2: s._opcodeCommands.loadRoom,
+    0xf3: s._opcodeCommands.roomOps,
+    0xf4: s._opcodeCommands.getDist,
     0xf5: s._opcodeCommands.findObject,
+    0xf6: s._opcodeCommands.walkActorToObject,
+    0xf7: s._opcodeCommands.startObject,
+    0xf8: s._opcodeCommands.isGreater,
+    0xf9: s._opcodeCommands.doSentence,
     0xfa: s._opcodeCommands.verbOps,
-    0xff: s._opcodeCommands.drawBox
+    0xfb: s._opcodeCommands.getActorWalkBox,
+    0xfc: s._opcodeCommands.isSoundRunning,
+    0xfd: s._opcodeCommands.findInventory,
+    0xfe: s._opcodeCommands.walkActorTo,
+    0xff: s._opcodeCommands.drawBox,
   };
 
 }());
