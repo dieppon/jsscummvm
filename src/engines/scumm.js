@@ -44,8 +44,6 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     _res: null,
     _vars: {},
     _verbs: [],
-    _sentence: [{},{},{},{},{},{}],
-    _sentenceNum: 0,
     _opcodes: {},
     _scriptFile: null,
     _dumpScripts: false,
@@ -188,7 +186,6 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       }
 
       t.runAllScripts();
-      t.checkAndRunSentenceScript();
       // Verbs
 
       if(t.shouldQuit()) {
