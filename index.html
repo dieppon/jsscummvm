@@ -48,7 +48,21 @@
          drawn for 4:3 screens with non-square pixels. At 640px wide the
          canvas maps 1:1 horizontally. The case adds ~28% on top, hence 70vw
          rather than something closer to 100. */
-      --screen-w: min(640px, 70vw);
+      /* Sized so the whole page fits the window without scrolling: capped at
+         640px (where the canvas maps 1:1 and the DOS font lands on its
+         native 16px), by width, and by height.
+
+         The height term: the monitor and its stand come to 1.494 times the
+         screen width (measured -- case 1.08, base slab 0.12, pedestal 0.28),
+         and the masthead, log, hint, credit, gaps and body padding come to
+         about 266px that does not scale with it. Allowing a little slack for
+         text wrapping, the screen can be at most
+         (window height - 275) / 1.494, i.e. x 0.669.
+
+         So the full 640 needs roughly a 1230px-tall window; below that the
+         picture scales down and gives up its 1:1 pixel mapping in order to
+         fit, which is the trade this is making. */
+      --screen-w: max(220px, min(640px, 70vw, calc((100vh - 275px) * 0.669)));
       /* the screen is 4:3, so its height is three quarters of its width */
       --screen-h: calc(var(--screen-w) * 0.75);
       --bezel: calc(var(--screen-w) * 0.028);
@@ -56,16 +70,24 @@
       --pad: calc(var(--screen-w) * 0.11);
     }
 
+    /* 100vh counts browser chrome that is not actually on screen on mobile;
+       dvh is the real visible height. */
+    @supports (height: 100dvh) {
+      :root {
+        --screen-w: max(220px, min(640px, 70vw, calc((100dvh - 275px) * 0.669)));
+      }
+    }
+
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
       min-height: 100vh;
-      padding: clamp(16px, 4vw, 44px) 16px clamp(28px, 5vw, 56px);
+      padding: clamp(12px, 3vw, 26px) 16px clamp(14px, 3vw, 30px);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: clamp(16px, 3vw, 28px);
+      gap: clamp(10px, 2vw, 18px);
       background: #336;
       color: #b9b5d4;
       font: 14px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -576,8 +598,8 @@
     <div id="console"></div>
   </details>
 
-  <p class="hint">Click the screen, then try <kbd>dir</kbd>, <kbd>cd games</kbd>, <kbd>monkey1.exe</kbd><br>
-    The power button switches the monitor off and on.</p>
+  <p class="hint">Click the screen, then try <kbd>dir</kbd>, <kbd>cd games</kbd>,
+    <kbd>monkey1.exe</kbd>. The power button switches the monitor off and on.</p>
 
   <p class="credit">
     CRT case adapted from
