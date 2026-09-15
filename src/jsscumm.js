@@ -92,10 +92,22 @@ function assert(condition) {
   };
 
   ScummVM.present = function() {
-    var t = this;
+    var t = this, drew = false, e = t.engine;
     t.displayContext.drawImage(t.buffer,
       0, 0, t.width, t.height,
       0, 0, t.canvas.width, t.canvas.height);
+
+    // The cursor goes on last, onto the visible canvas rather than the
+    // buffer, so it can be moved by calling present() again without
+    // smearing and without waiting for the next engine frame.
+    if (e && e.drawCursorTo) {
+      drew = e.drawCursorTo(t.displayContext,
+                            t.canvas.width / t.width,
+                            t.canvas.height / t.height);
+    }
+    // Only hide the browser pointer when we actually put something there,
+    // otherwise there would be no cursor at all.
+    t.canvas.style.cursor = drew ? "none" : "crosshair";
   };
 
   // --- mouse ------------------------------------------------------------
@@ -116,9 +128,18 @@ function assert(condition) {
     if (!p || !eng) return;
     eng._mouse.x = p.x;
     eng._mouse.y = p.y;
+    // repaint immediately: the engine frame rate is far too low to move a
+    // cursor at
+    if (ScummVM.buffer) ScummVM.present();
   }
 
   canvas.addEventListener("mousemove", track);
+
+  // Keep the cursor pulsing (and present) even when neither the pointer nor
+  // the engine is moving -- the engine's own frame rate is far too low.
+  window.setInterval(function () {
+    if (ScummVM.buffer && ScummVM.engine) ScummVM.present();
+  }, 60);
 
   canvas.addEventListener("mousedown", function(e) {
     var eng = ScummVM.engine;

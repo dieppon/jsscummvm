@@ -569,23 +569,38 @@
   // cross pulse
   var CURSOR_COLORS = [15, 15, 7, 8];
 
-  // cursor.cpp animateCursor: advance every other frame, so the colour
-  // changes at half the frame rate
-  s.animateCursor = function() {
+  // cursor.cpp advances this once per frame and takes the colour at half that
+  // rate, which at the original 60fps is a fast shimmer. This engine runs at a
+  // few frames a second, so doing the same left the cross sitting in its dark
+  // grey phase for a second at a time -- effectively invisible against a night
+  // scene. Drive it off the wall clock instead so the pulse keeps the
+  // original's speed whatever the engine is managing.
+  var CURSOR_STEP_MS = 60;
+
+  s.cursorColorIndex = function() {
     var t = this;
-    if (!t._cursorAnimate) return;
-    t._cursorAnimateIndex = (t._cursorAnimateIndex + 1) & 7;
+    if (!t._cursorAnimate) return 0;
+    return (Math.floor(Date.now() / CURSOR_STEP_MS)) & 3;
   };
 
-  s.drawCursor = function() {
-    var t = this, ctx = ScummVM.context, x, y, row, px, py, rgb, color;
+  s.animateCursor = function() {};
 
-    // SCUMM hides the pointer during cutscenes; mirror that
-    if (t._cursorState <= 0) return;
+  // Painted onto the visible canvas by present(), not into the 320x200
+  // buffer. Two reasons: the buffer is only redrawn once per engine frame, so
+  // a cursor in it would lag the pointer badly at the rate this runs at; and
+  // keeping it out of the buffer means present() can be called on mousemove
+  // to move the cursor without smearing the previous one.
+  // Returns true if it drew, so the caller knows whether to hide the
+  // browser's own pointer.
+  s.drawCursorTo = function(ctx, scaleX, scaleY) {
+    var t = this, x, y, row, px, py, rgb, color;
 
-    color = CURSOR_COLORS[(t._cursorAnimateIndex >> 1) & 3];
+    // SCUMM takes the pointer away during cutscenes; mirror that
+    if (t._cursorState <= 0) return false;
+
+    color = CURSOR_COLORS[t.cursorColorIndex()];
     rgb = t._currentPalette[color];
-    if (!rgb) return;
+    if (!rgb) return false;
     ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
 
     for (y = 0; y < 16; y++) {
@@ -597,9 +612,11 @@
         if (!(row & (1 << (15 - x)))) continue;
         px = t._mouse.x - CURSOR_HOTSPOT_X + x;
         if (px < 0 || px >= ScummVM.width) continue;
-        ctx.fillRect(px, py, 1, 1);
+        ctx.fillRect(Math.round(px * scaleX), Math.round(py * scaleY),
+                     Math.ceil(scaleX), Math.ceil(scaleY));
       }
     }
+    return true;
   };
 
   s.drawDirtyScreenParts = function() {
@@ -621,7 +638,6 @@
     t.renderTexts();
 
     t.animateCursor();
-    t.drawCursor();
 
     ScummVM.present();
   };

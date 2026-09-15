@@ -195,10 +195,9 @@
     }
     .crt.is-running .dos { display: none; }
 
-    /* While the game runs the engine draws the original 16x16 cross into the
-       picture itself, so it scales with the CRT and picks up the scanlines.
-       The browser pointer would be a second cursor on top of it. */
-    .crt.is-running #jsscummvm { cursor: none; }
+    /* present() sets cursor:none on the canvas only when it actually drew the
+       engine's cross, and puts it back to crosshair when it did not -- so
+       there is never a moment with no cursor at all. */
 
     .dos-out {
       margin: 0;
