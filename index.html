@@ -180,6 +180,9 @@
       /* keep the pixels sharp when the canvas is scaled on narrow screens */
       image-rendering: pixelated;
       image-rendering: crisp-edges;
+      /* Fallback: before the game starts, and if the engine's own cursor is
+         ever not drawn. */
+      cursor: crosshair;
     }
 
     /* the DOS shell that owns the screen until the game launches -------- */
@@ -191,6 +194,11 @@
       overflow: hidden;
     }
     .crt.is-running .dos { display: none; }
+
+    /* While the game runs the engine draws the original 16x16 cross into the
+       picture itself, so it scales with the CRT and picks up the scanlines.
+       The browser pointer would be a second cursor on top of it. */
+    .crt.is-running #jsscummvm { cursor: none; }
 
     .dos-out {
       margin: 0;

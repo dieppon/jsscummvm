@@ -554,6 +554,54 @@
     }
   };
 
+
+  /* --- cursor, ported from ScummVM's cursor.cpp -------------------------- */
+
+  // The built-in cross-hair: 16x16, one bit per pixel, MSB leftmost. Note the
+  // gap either side of centre on row 7 -- that is the original shape, not a
+  // rounding error.
+  var CURSOR_CROSS = [
+    0x0080, 0x0080, 0x0080, 0x0080, 0x0080, 0x0080, 0x0000, 0x7e3f,
+    0x0000, 0x0080, 0x0080, 0x0080, 0x0080, 0x0080, 0x0080, 0x0000
+  ];
+  var CURSOR_HOTSPOT_X = 8, CURSOR_HOTSPOT_Y = 7;
+  // cursor.cpp default_cursor_colors -- cycling these is what makes the
+  // cross pulse
+  var CURSOR_COLORS = [15, 15, 7, 8];
+
+  // cursor.cpp animateCursor: advance every other frame, so the colour
+  // changes at half the frame rate
+  s.animateCursor = function() {
+    var t = this;
+    if (!t._cursorAnimate) return;
+    t._cursorAnimateIndex = (t._cursorAnimateIndex + 1) & 7;
+  };
+
+  s.drawCursor = function() {
+    var t = this, ctx = ScummVM.context, x, y, row, px, py, rgb, color;
+
+    // SCUMM hides the pointer during cutscenes; mirror that
+    if (t._cursorState <= 0) return;
+
+    color = CURSOR_COLORS[(t._cursorAnimateIndex >> 1) & 3];
+    rgb = t._currentPalette[color];
+    if (!rgb) return;
+    ctx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+
+    for (y = 0; y < 16; y++) {
+      row = CURSOR_CROSS[y];
+      if (!row) continue;
+      py = t._mouse.y - CURSOR_HOTSPOT_Y + y;
+      if (py < 0 || py >= ScummVM.height) continue;
+      for (x = 0; x < 16; x++) {
+        if (!(row & (1 << (15 - x)))) continue;
+        px = t._mouse.x - CURSOR_HOTSPOT_X + x;
+        if (px < 0 || px >= ScummVM.width) continue;
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+  };
+
   s.drawDirtyScreenParts = function() {
     var t = this,
         ctx = ScummVM.context, width = ScummVM.width, height = ScummVM.height, scale = ScummVM.scale;
@@ -571,6 +619,9 @@
     }
 
     t.renderTexts();
+
+    t.animateCursor();
+    t.drawCursor();
 
     ScummVM.present();
   };

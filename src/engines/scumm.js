@@ -94,6 +94,8 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     _mouseAndKeyboardStat: 0,
     _userPut: 0,
     _cursorState: 0,
+    _cursorAnimate: 1,
+    _cursorAnimateIndex: 0,
     _currentCursor: 0,
     _camera: {cur: Point(0,0), dest: Point(0,0), accel: Point(0,0), last: Point(0,0), follows: 0, mode: "normal", movingToActor:false},
     init: function(game) {
