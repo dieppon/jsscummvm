@@ -52,6 +52,7 @@
       /* the screen is 4:3, so its height is three quarters of its width */
       --screen-h: calc(var(--screen-w) * 0.75);
       --bezel: calc(var(--screen-w) * 0.028);
+      --case-w: calc(var(--screen-w) + var(--bezel) * 2 + var(--pad) * 2 + 6px);
       --pad: calc(var(--screen-w) * 0.11);
     }
 
@@ -89,7 +90,13 @@
 
     /* ---- monitor ------------------------------------------------------ */
 
-    .crt { display: flex; flex-direction: column; align-items: center; }
+    .crt {
+      position: relative;
+      z-index: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
     .monitor {
       position: relative;
@@ -363,43 +370,105 @@
 
     /* stand ------------------------------------------------------------- */
 
-    /* Widths are a fraction of the screen, which works out at roughly the
-       pen's proportions of the case: a broad shoulder under the monitor,
-       narrowing to the pivot, then flaring back out to a foot that is the
-       widest thing on the desk. Getting these too small is what made the
-       stand look like a spindly wedge. */
-    .monitor-neck {
-      width: calc(var(--screen-w) * 0.92);
-      height: calc(var(--screen-w) * 0.075);
-      clip-path: polygon(0 0, 100% 0, 94% 100%, 6% 100%);
-      background: linear-gradient(to bottom, var(--monitor-dark), var(--shadow-medium));
-    }
-
-    .monitor-pivot {
-      width: calc(var(--screen-w) * 0.5);
-      height: calc(var(--screen-w) * 0.07);
-      margin-top: calc(var(--screen-w) * -0.022);
-      border-radius: 50%;
-      background: radial-gradient(ellipse at 50% 32%,
-        var(--shadow-light) 0%, var(--shadow-dark) 62%, var(--shadow-very-dark) 100%);
-    }
+    /* Ported from the pen's .monitor-base / .monitor-holder-*, which is not
+       a stack of flat trapezoids (my first attempt) but a light slab under
+       the case with castors, then a pedestal built as a plane rotated back
+       in 3D -- perspective plus rotateX(44deg) -- with an elliptical inner.
+       The foreshortening is what makes it read as a base sitting on a desk.
+       The pen's fixed pixel values are fractions of --case-w here so the
+       whole assembly scales with the monitor. */
 
     .monitor-base {
-      width: calc(var(--screen-w) * 0.74);
-      height: calc(var(--screen-w) * 0.06);
-      /* only a light overlap -- pulling this up further swallowed the
-         swivel ellipse entirely */
-      margin-top: calc(var(--screen-w) * -0.012);
-      clip-path: polygon(6% 0, 94% 0, 100% 100%, 0 100%);
-      background: linear-gradient(to bottom, var(--shadow-dark), var(--shadow-very-dark));
+      position: relative;
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+      width: calc(var(--case-w) * 0.75);
+      height: calc(var(--case-w) * 0.09);
+      border-radius: 0 0 3px 3px;
+      background: linear-gradient(to bottom, var(--monitor-light), var(--monitor-dark));
+    }
+    /* The shadow the case casts down onto the slab. The pen uses a solid
+       block behind a filter: blur(); that is replaced here with a gradient
+       that fades out over the same distance. It looks the same and costs
+       nothing -- the blurred version made the page expensive enough to
+       rasterise that screenshots of it timed out. */
+    .monitor-base::before {
+      content: "";
+      display: block;
+      position: absolute;
+      top: 0;
+      z-index: 5;
+      width: 100%;
+      height: calc(var(--case-w) * 0.055);
+      background: linear-gradient(to bottom,
+        #0008 0%, #0006 30%, #00000026 70%, #0000 100%);
     }
 
-    .monitor-foot {
-      width: calc(var(--screen-w) * 0.8);
-      height: calc(var(--screen-w) * 0.026);
-      border-radius: 0 0 4px 4px;
-      background: linear-gradient(to bottom, var(--shadow-light), var(--shadow-medium));
-      box-shadow: 0 22px 30px -14px #0009;
+    .wheels-parent {
+      display: flex;
+      width: calc(var(--case-w) * 0.25);
+      height: calc(var(--case-w) * 0.04);
+    }
+    .wheel {
+      width: calc(var(--case-w) * 0.06);
+      height: calc(var(--case-w) * 0.06);
+      margin: 0 calc(var(--case-w) * 0.008);
+      border-radius: 50%;
+      background: var(--shadow-light);
+      box-shadow: 0 1px 5px #0009;
+      transform: translate(calc(var(--case-w) * 0.19), calc(var(--case-w) * -0.052));
+    }
+
+    .monitor-holder-container {
+      position: relative;
+      z-index: -1;
+      width: calc(var(--case-w) * 0.6);
+      perspective: calc(var(--case-w) * 0.56);
+      transform: translateY(calc(var(--case-w) * -0.02));
+    }
+    .monitor-holder {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      height: calc(var(--case-w) * 0.18);
+      background: linear-gradient(to top,
+        var(--shadow-medium) 5%, var(--shadow-very-dark) 40%);
+      box-shadow: 0 calc(var(--case-w) * -0.02) calc(var(--case-w) * 0.04) #0007 inset;
+      transform: rotateX(44deg) translateY(calc(var(--case-w) * -0.066));
+    }
+    .monitor-holder-inner {
+      width: calc(var(--case-w) * 0.45);
+      height: calc(var(--case-w) * 0.2);
+      border-radius: 50%;
+      background: linear-gradient(to top,
+        var(--shadow-medium) 1%, var(--shadow-dark) 15%);
+      box-shadow: 0 -2px 20px #000a inset;
+      transform: translate(0, calc(var(--case-w) * -0.11));
+    }
+    .monitor-holder-inner-front {
+      display: block;
+      position: absolute;
+      z-index: -1;
+      width: calc(var(--case-w) * 0.45);
+      height: calc(var(--case-w) * 0.2);
+      border-radius: 28% 28% 50% 50%;
+      background: #0001;
+      box-shadow: 0 -2px 10px #0004 inset;
+      transform: translate(0, calc(var(--case-w) * -0.064));
+    }
+    .monitor-holder-inner-front.bottom {
+      z-index: 0;
+      background: var(--shadow-dark);
+      box-shadow: 0 -12px 10px #fff4 inset, 0 -6px 10px #0001 inset;
+      transform: translate(0, calc(var(--case-w) * -0.108));
+    }
+    .monitor-holder-front {
+      width: calc(var(--case-w) * 0.62);
+      height: calc(var(--case-w) * 0.04);
+      margin: 0 auto;
+      background: var(--shadow-light);
+      transform: translate(calc(var(--case-w) * -0.01), calc(var(--case-w) * -0.072));
     }
 
     /* log --------------------------------------------------------------- */
@@ -486,10 +555,20 @@
         <span class="power-led" aria-hidden="true"></span>
       </div>
     </div>
-    <div class="monitor-neck" aria-hidden="true"></div>
-    <div class="monitor-pivot" aria-hidden="true"></div>
-    <div class="monitor-base" aria-hidden="true"></div>
-    <div class="monitor-foot" aria-hidden="true"></div>
+    <div class="monitor-base" aria-hidden="true">
+      <div class="wheels-parent">
+        <div class="wheel"></div>
+        <div class="wheel"></div>
+      </div>
+    </div>
+    <div class="monitor-holder-container" aria-hidden="true">
+      <div class="monitor-holder">
+        <div class="monitor-holder-inner"></div>
+        <div class="monitor-holder-inner-front"></div>
+        <div class="monitor-holder-inner-front bottom"></div>
+      </div>
+      <div class="monitor-holder-front"></div>
+    </div>
   </div>
 
   <details class="log">
