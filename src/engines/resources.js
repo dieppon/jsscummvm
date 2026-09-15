@@ -331,11 +331,14 @@
     res.allocResTypeData("script", MKID_BE('SCRP'), nums['scripts'], "script", 1);
     // charset
     res.allocResTypeData("object_name", 0, nums['new_names'], "new name", 0);
-    // inventory
+    res.allocResTypeData("inventory", 0, nums['inventory'], "inventory", 0);
     // temp ?
     // scale_table
     res.allocResTypeData("actor_name", 0, nums['actors'], "actor name", 0);
-    // verb
+    // Without this the verb names are stored but every lookup fails
+    // validateResource (num stays 0), so verbs end up with no text and a
+    // zero-width hit rect -- nothing is clickable.
+    res.allocResTypeData("verb", 0, nums['verbs'], "verb", 0);
     res.allocResTypeData("string", 0, nums['array'], "array", 0);
     res.allocResTypeData("fl_object", 0, nums['fl_object'], "flobject", 0);
     // matrix

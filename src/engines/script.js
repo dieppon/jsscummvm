@@ -639,6 +639,142 @@
   s.setBoxScale = function(box, scale) {};
   s.createBoxMatrix = function() {};
 
+
+  /* --- verbs, ported from ScummVM's verbs.cpp / o5_verbOps ---------------- */
+
+  var kTextVerbType = 0, kImageVerbType = 1;
+  // verbs.h: the area a click happened in, passed to the verb script
+  var kVerbClickArea = 1, kSceneClickArea = 2, kInventoryClickArea = 3,
+      kKeyClickArea = 4, kSentenceClickArea = 5;
+
+  s.VerbSlot = function() {
+    var t = this;
+    t.curRect = {left: 0, top: 0, right: 0, bottom: 0};
+    t.verbid = 0;
+    t.color = 2; t.hicolor = 0; t.dimcolor = 8; t.bkcolor = 0;
+    t.type = kTextVerbType;
+    t.charset_nr = 0; t.curmode = 0;
+    t.saveid = 0; t.key = 0; t.center = false;
+    t.imgindex = 0; t.origLeft = 0;
+    t.text = "";
+  };
+
+  s.initVerbs = function() {
+    var t = this, i;
+    t._verbs = [];
+    for (i = 0; i < t._nums['verbs']; i++) t._verbs[i] = new t.VerbSlot();
+  };
+
+  s.getVerbSlot = function(verbid, mode) {
+    var t = this, i;
+    for (i = 1; i < t._nums['verbs']; i++) {
+      if (t._verbs[i].verbid == verbid && t._verbs[i].saveid == mode) return i;
+    }
+    return 0;
+  };
+
+  s.killVerb = function(slot) {
+    var t = this, vs;
+    if (slot == 0) return;
+    vs = t._verbs[slot];
+    vs.verbid = 0;
+    vs.curmode = 0;
+    vs.text = "";
+  };
+
+  // verbs.cpp findVerbAtPos: walk the slots backwards, first hit wins
+  s.findVerbAtPos = function(x, y) {
+    var t = this, i, vs;
+    for (i = t._nums['verbs'] - 1; i > 0; i--) {
+      vs = t._verbs[i];
+      if (vs.curmode != 1 || !vs.verbid || vs.saveid) continue;
+      if (y < vs.curRect.top || y >= vs.curRect.bottom) continue;
+      if (vs.center) {
+        if (x < -(vs.curRect.right - 2 * vs.curRect.left) || x >= vs.curRect.right) continue;
+      } else {
+        if (x < vs.curRect.left || x >= vs.curRect.right) continue;
+      }
+      return i;
+    }
+    return 0;
+  };
+
+  // script.cpp runInputScript: hand the click to the game's verb script
+  s.runInputScript = function(clickArea, val, mode) {
+    var t = this, args = [], i, verbScript = t.scummVar("verb_script");
+    for (i = 0; i < 16; i++) args[i] = 0;
+    args[0] = clickArea;
+    args[1] = val;
+    args[2] = mode;
+    if (verbScript) t.runScript(verbScript, 0, 0, args);
+  };
+
+  // verbs.cpp checkExecVerbs, the mouse half -- keyboard verbs are not wired up
+  s.checkExecVerbs = function() {
+    var t = this, over, zone;
+
+    if (t.scummVar("userput") <= 0 || t._mouseAndKeyboardStat == 0) return;
+
+    if (t._mouseAndKeyboardStat & MBS_MOUSE_MASK) {
+      var code = (t._mouseAndKeyboardStat & MBS_LEFT_CLICK) ? 1 : 2;
+      zone = t.findVirtScreen(t._mouse.y);
+      if (zone == null) return;
+
+      over = t.findVerbAtPos(t._mouse.x, t._mouse.y);
+      if (over != 0) {
+        t.runInputScript(kVerbClickArea, t._verbs[over].verbid, code);
+      } else {
+        t.runInputScript(zone == 0 ? kSceneClickArea : kVerbClickArea, 0, code);
+      }
+    }
+  };
+
+  // which virtual screen a y coordinate falls in; 0 is the main picture
+  s.findVirtScreen = function(y) {
+    var t = this, i, vs;
+    for (i = 0; i < t._virtscreens.length; i++) {
+      vs = t._virtscreens[i];
+      if (!vs) continue;
+      if (y >= vs.topline && y < vs.topline + vs.h) return i;
+    }
+    return null;
+  };
+
+
+  // The verb's name is stored as a resource by loadPtrToResource; pull it back
+  // out as the raw bytes the charset renderer wants.
+  s.getVerbText = function(slot) {
+    var t = this, r, out = "", i, b;
+    try { r = t.getResourceAddress("verb", slot); } catch (e) { return ""; }
+    if (!r) return "";
+    for (i = 0; i < r.length; i++) {
+      b = r.seek(i, true).readUI8();
+      if (b === 0) break;
+      out += String.fromCharCode(b);
+    }
+    return out;
+  };
+
+  // verbs.cpp sizes a text verb's box from the string it draws
+  s.setVerbRect = function(vs) {
+    var t = this, cs, w = 0, h = 8, codes;
+    if (!vs || vs.type != kTextVerbType) return;
+    cs = t._charset || (t._charset = new t.CharsetRenderer(t));
+    if (cs.setCurID(t._curCharset) || cs.setCurID(1)) {
+      codes = [];
+      for (var i = 0; i < vs.text.length; i++) codes.push(vs.text.charCodeAt(i) & 0xFF);
+      w = cs.getStringWidth(codes);
+      h = cs.fontHeight;
+    }
+    // ScummVM draws a centred verb starting at left - width/2 and records
+    // where it ended, so curRect.right comes out at left + width/2. That is
+    // the convention findVerbAtPos decodes with its
+    // "x < -(right - 2*left)" test, so the rect has to be built the same way
+    // or every hit lands on the neighbouring column.
+    vs.curRect.right = vs.curRect.left + (vs.center ? Math.floor(w / 2) : w);
+    vs.curRect.bottom = vs.curRect.top + h;
+  };
+
   s.getOwner = function(obj) {
     var t = this;
     return t._objectOwnerTable[obj];
@@ -1064,10 +1200,25 @@
     cursorCommand: function() {
       s._opcode = s.fetchScriptByte();
       switch(s._opcode & 0x1F) {
-        case 1: // on
-        case 2: // off
-        case 3: // userput on
-        case 4: // userput off
+        // These were no-ops, so _userPut never became 1 and checkExecVerbs
+        // bailed out on every click -- the whole interface was dead.
+        case 1: s._cursorState = 1; break;              // cursor on
+        case 2: s._cursorState = 0; break;              // cursor off
+        case 3: s._userPut = 1; break;                  // userput on
+        case 4: s._userPut = 0; break;                  // userput off
+        case 5: s._cursorState++; break;                // cursor soft on
+        case 6: s._cursorState--; break;                // cursor soft off
+        case 7: s._userPut++; break;                    // userput soft on
+        case 8: s._userPut--; break;                    // userput soft off
+        case 10: // cursor image
+          s.getVarOrDirectByte(PARAM_1); s.getVarOrDirectByte(PARAM_2);
+        break;
+        case 11: // cursor hotspot
+          s.getVarOrDirectByte(PARAM_1); s.getVarOrDirectByte(PARAM_2);
+          s.getVarOrDirectByte(PARAM_3);
+        break;
+        case 12: // cursor set
+          s._currentCursor = s.getVarOrDirectByte(PARAM_1);
         break;
         case 13: // charset set
           no = s.getVarOrDirectByte(PARAM_1);
@@ -1083,7 +1234,8 @@
             log("unimplemented cursorCommand opcode " + (s._opcode & 0x1F));
         break;
       }
-      s.scummVar("cursorstate", 1);
+      s.scummVar("cursorstate", s._cursorState);
+      s.scummVar("userput", s._userPut);
     },
     setVarRange : function() {
       var a, b;
@@ -1433,41 +1585,72 @@
       }
     },
     verbOps: function() {
-      var verb
+      // ported from o5_verbOps -- it used to parse all of this and throw it
+      // away, which is why _verbs stayed empty and nothing was ever clickable
+      var verb = s.getVarOrDirectByte(PARAM_1),
+          slot = s.getVerbSlot(verb, 0), vs, a;
 
-      verb = s.getVarOrDirectByte(PARAM_1);
-      slot = 0;
-      while((s._opcode = s.fetchScriptByte()) != 0xFF) {
-        switch(s._opcode & 0x1F) {
-          case 6: // on
-          case 7: // off
-          case 9: // new
-          case 17: // dim
-          case 19: // center
-          break;
-          case 2: // name
-            s.loadPtrToResource("verb", slot++);
-          break;
-          case 5: // verb at
-            left = s.getVarOrDirectWord(PARAM_1);
-            top = s.getVarOrDirectWord(PARAM_2);
-          break;
-          case 22: // assign object
+      if (slot < 0 || slot >= s._nums['verbs']) { error("bad verb slot " + slot); return; }
+      vs = s._verbs[slot];
+      vs.verbid = verb;
+
+      while ((s._opcode = s.fetchScriptByte()) != 0xFF) {
+        switch (s._opcode & 0x1F) {
+          case 1:  // image
+            a = s.getVarOrDirectWord(PARAM_1);
+            if (slot) vs.type = kImageVerbType;
+            break;
+          case 2:  // name
+            s.loadPtrToResource("verb", slot);
+            vs.text = s.getVerbText(slot);
+            vs.type = kTextVerbType;
+            vs.imgindex = 0;
+            break;
+          case 3:  vs.color = s.getVarOrDirectByte(PARAM_1); break;
+          case 4:  vs.hicolor = s.getVarOrDirectByte(PARAM_1); break;
+          case 5:  // verb at
+            vs.curRect.left = s.getVarOrDirectWord(PARAM_1);
+            vs.curRect.top = s.getVarOrDirectWord(PARAM_2);
+            vs.origLeft = vs.curRect.left;
+            break;
+          case 6:  vs.curmode = 1; break;                 // on
+          case 7:  vs.curmode = 0; break;                 // off
+          case 8:  s.killVerb(slot); break;               // delete
+          case 9:  // new
+            slot = s.getVerbSlot(verb, 0);
+            if (slot == 0) {
+              for (slot = 1; slot < s._nums['verbs']; slot++)
+                if (s._verbs[slot].verbid == 0) break;
+              if (slot == s._nums['verbs']) { error("Too many verbs"); return; }
+            }
+            vs = s._verbs[slot];
+            vs.verbid = verb;
+            vs.color = 2; vs.hicolor = 0; vs.dimcolor = 8;
+            vs.type = kTextVerbType;
+            vs.charset_nr = s._string[0] ? (s._string[0].charset || 0) : 0;
+            vs.curmode = 0; vs.saveid = 0; vs.key = 0;
+            vs.center = false; vs.imgindex = 0; vs.text = "";
+            break;
+          case 16: vs.dimcolor = s.getVarOrDirectByte(PARAM_1); break;
+          case 17: vs.curmode = 2; break;                 // dim
+          case 18: vs.key = s.getVarOrDirectByte(PARAM_1); break;
+          case 19: vs.center = true; break;
+          case 20: // name from string resource
             s.getVarOrDirectWord(PARAM_1);
+            vs.type = kTextVerbType;
+            vs.imgindex = 0;
+            break;
+          case 22: // assign object
+            a = s.getVarOrDirectWord(PARAM_1);
             s.getVarOrDirectByte(PARAM_2);
-          break;
-          case 3: // verb color
-          case 4: // verb hicolor
-          case 16: // verb dimcolor
-          case 18: // verb key
-          case 23: // set back color
-            s.getVarOrDirectByte(PARAM_1);
-          break;
+            break;
+          case 23: vs.bkcolor = s.getVarOrDirectByte(PARAM_1); break;
           default:
             log("unimplemented verbOps opcode " + (s._opcode & 0x1F));
-          break;
+            break;
         }
       }
+      s.setVerbRect(vs);
     },
     wait: function() {
       var oldoffset = s._scriptPointer.offset - 1;

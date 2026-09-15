@@ -1,5 +1,10 @@
 var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
 
+// mouse button state, from input.cpp / scumm.h
+var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
+    MBS_MOUSE_MASK = MBS_LEFT_CLICK | MBS_RIGHT_CLICK,
+    MS_DOWN = 1, MS_CLICKED = 2;
+
 (function(){
   var _system = ScummVM.system, Point = _system.Point;
 
@@ -79,6 +84,17 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
     _actors: [],
     _sortedActors: [],
     _lastKeyHit: "",
+    // input.cpp: _mouse is in screen coords, _virtualMouse is offset by the
+    // main virtual screen's scroll and topline. msDown/msClicked mirror
+    // ScummVM's left/right button state machine.
+    _mouse: {x: 0, y: 0},
+    _virtualMouse: {x: 0, y: 0},
+    _leftBtnPressed: 0,
+    _rightBtnPressed: 0,
+    _mouseAndKeyboardStat: 0,
+    _userPut: 0,
+    _cursorState: 0,
+    _currentCursor: 0,
     _camera: {cur: Point(0,0), dest: Point(0,0), accel: Point(0,0), last: Point(0,0), follows: 0, mode: "normal", movingToActor:false},
     init: function(game) {
       this._game = game;
@@ -112,6 +128,7 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
         t.runBootscript();
 
         t._timer = window.setInterval(function() {
+
           t.scummVar("timer", Math.floor(diff * 60 / 1000));
           t.scummVar("timer_total", t.scummVar("timer_total") + Math.floor(diff * 60 / 1000));
           delta = t.scummVar("timer_next");
@@ -201,8 +218,10 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
     updateScummVars: function() {
       var t = this;
       t.scummVar("have_msg", t._haveMsg);
-      t.scummVar("mouse_x", 10);
-      t.scummVar("mouse_y", 10);
+      t.scummVar("virt_mouse_x", t._virtualMouse.x);
+      t.scummVar("virt_mouse_y", t._virtualMouse.y);
+      t.scummVar("mouse_x", t._mouse.x);
+      t.scummVar("mouse_y", t._mouse.y);
     },
     shouldQuit: function() {
       var t = ScummVM.engines.SCUMM;
@@ -210,11 +229,33 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
       return false;
     },
     processInput: function() {
-      var t = this;
+      var t = this, vs;
+
       if(t._lastKeyHit == "ESC") {
         t.abortCutscene();
       }
       t._lastKeyHit = "";
+
+      // clip the pointer, then derive the virtual (room-space) position
+      if(t._mouse.x < 0) t._mouse.x = 0;
+      if(t._mouse.x > t._screenWidth - 1) t._mouse.x = t._screenWidth - 1;
+      if(t._mouse.y < 0) t._mouse.y = 0;
+      if(t._mouse.y > t._screenHeight - 1) t._mouse.y = t._screenHeight - 1;
+
+      vs = t._virtscreens[0];
+      t._virtualMouse.x = t._mouse.x + (vs ? vs.xstart : 0);
+      t._virtualMouse.y = t._mouse.y - (vs ? vs.topline : 0);
+      if(vs && (t._virtualMouse.y < 0 || t._virtualMouse.y >= vs.h))
+        t._virtualMouse.y = -1;
+
+      // button state for this frame, then clear the edge-triggered bits
+      t._mouseAndKeyboardStat = 0;
+      if(t._leftBtnPressed & MS_CLICKED)  t._mouseAndKeyboardStat = MBS_LEFT_CLICK;
+      if(t._rightBtnPressed & MS_CLICKED) t._mouseAndKeyboardStat = MBS_RIGHT_CLICK;
+      t._leftBtnPressed  &= ~MS_CLICKED;
+      t._rightBtnPressed &= ~MS_CLICKED;
+
+      t.checkExecVerbs();
     },
     setupScumm: function() {
       var t = this, res = t._res;
@@ -231,6 +272,7 @@ var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
         t._roomPalette[i] = i;
       t.resetPalette();
       t.initCharset(1);
+      t.initVerbs();
       // t._cursor.animate = 1;
       for(i = 0; i < t._nums['actors']; i++)
         t._actors[i] =  new t.Actor(i);

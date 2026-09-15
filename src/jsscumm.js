@@ -98,6 +98,48 @@ function assert(condition) {
       0, 0, t.canvas.width, t.canvas.height);
   };
 
+  // --- mouse ------------------------------------------------------------
+  // The canvas is displayed at an arbitrary size; the engine thinks in
+  // 320x200. Map through the element's rect rather than its backing store,
+  // since CSS scales it to fit the window.
+  function toScreen(e) {
+    var t = ScummVM, r = t.canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    return {
+      x: Math.floor((e.clientX - r.left) / r.width  * t.width),
+      y: Math.floor((e.clientY - r.top)  / r.height * t.height)
+    };
+  }
+
+  function track(e) {
+    var p = toScreen(e), eng = ScummVM.engine;
+    if (!p || !eng) return;
+    eng._mouse.x = p.x;
+    eng._mouse.y = p.y;
+  }
+
+  canvas.addEventListener("mousemove", track);
+
+  canvas.addEventListener("mousedown", function(e) {
+    var eng = ScummVM.engine;
+    track(e);
+    if (!eng) return;
+    // MS_DOWN | MS_CLICKED: processInput consumes the CLICKED bit each frame
+    if (e.button === 0) eng._leftBtnPressed  |= MS_DOWN | MS_CLICKED;
+    if (e.button === 2) eng._rightBtnPressed |= MS_DOWN | MS_CLICKED;
+    e.preventDefault();
+  });
+
+  canvas.addEventListener("mouseup", function(e) {
+    var eng = ScummVM.engine;
+    if (!eng) return;
+    if (e.button === 0) eng._leftBtnPressed  &= ~MS_DOWN;
+    if (e.button === 2) eng._rightBtnPressed &= ~MS_DOWN;
+  });
+
+  // right click is a verb action in SCUMM, not a context menu
+  canvas.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+
   window.document.addEventListener("keypress", function(e) {
     var c = String.fromCharCode(e.keyCode)
     ScummVM.engine._lastKeyHit = "ESC";
