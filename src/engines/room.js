@@ -136,8 +136,10 @@
   };
 
   s.resetRoomSubBlocks = function() {
-    var t = this;
+    var t = this,
+        roomptr = t.getResourceAddress("room", t._roomResource);
 
+    t.loadBoxes(roomptr);
     t.setCurrentPalette(0);
   };
 

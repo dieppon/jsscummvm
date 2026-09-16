@@ -3,6 +3,10 @@
       s = ScummVM.engines.SCUMM;
 
   var MF_NEW_LEG = 1, MF_IN_LEG = 2, MF_TURN = 4, MF_LAST_LEG = 8, MF_FROZEN = 0x80;
+  // boxes.h
+  var kBoxXFlip = 0x08, kBoxYFlip = 0x10, kBoxIgnoreScale = 0x20,
+      kBoxPlayerOnly = 0x20, kBoxLocked = 0x40, kBoxInvisible = 0x80;
+  var actorTurnInterpolateTable = [0, 2, 2, 3, 2, 1, 2, 3, 0, 1, 2, 1, 0, 1, 0, 3];
   var kObjectClassNeverClip = 20, kObjectClassAlwaysClip = 21, kObjectClassIgoreBoxes = 22, kObjectClassYFlip = 29, kObjectClassXFlip = 30, kObjectClassPlayer = 31, kObjectClassUntoucable = 32;
 
   var scale_table = [
@@ -132,7 +136,7 @@
         t.speedx = 8;
         t.speedy = 2;
         t.frame = 0;
-        t.walkbox = 0;
+        t.walkbox = s.kInvalidBox;
         t.animProgress = 0;
         t.cost = new s.CostumeData();
         for(var i = 0; i < 256; i++) {
@@ -208,7 +212,24 @@
       }
     };
     t.adjustActorPos = function() {
-      // var abr = adjustXYToBeInBox(t.pos.x, t.pos.y);
+      var abr = t.adjustXYToBeInBox(t.pos.x, t.pos.y), flags;
+
+      t.pos.x = abr.x;
+      t.pos.y = abr.y;
+      t.walkdata.destbox = abr.box;
+
+      t.setBox(abr.box);
+
+      t.walkdata.dest.x = -1;
+
+      t.stopActorMoving();
+      t.cost.soundCounter = 0;
+      t.cost.soundPos = 0;
+
+      if(!s.isInvalidBox(t.walkbox)) {
+        flags = s.getBoxFlags(t.walkbox);
+        if(flags & 7) t.turnToDirection(t.facing);
+      }
     };
     t.isInCurrentRoom = function() {
       return t.room == s._currentRoom;
@@ -233,6 +254,9 @@
     };
     t.setupActorScale = function() {
       if(t.ignoreBoxes) return;
+
+      t.boxscale = s.getBoxScale(t.walkbox);
+      t.scalex = t.scaley = s.getScale(t.walkbox, t.pos.x, t.pos.y);
     };
     t.prepareDrawActorCostume = function(bcr) {
       bcr.actorId = t.number;
@@ -350,81 +374,303 @@
         t.calcMovementFactor(t.walkdata.next);
       }
     };
+    /* Ported from ScummVM's Actor::calcMovementFactor (actor.cpp). Movement
+       is fixed point: deltaXFactor/deltaYFactor are 16.16 per-frame deltas,
+       scaled down by the actor's own scale so distant actors step smaller. */
     t.calcMovementFactor = function(next) {
       var diffX, diffY, deltaXFactor, deltaYFactor;
 
       if(t.pos.x == next.x && t.pos.y == next.y) return 0;
 
-      t.walkdata.cur = t.pos;
-      t.walkdata.next = next;
+      diffX = next.x - t.pos.x;
+      diffY = next.y - t.pos.y;
 
-      if(t.targetFacing != t.facing) t.facing = t.targetFacing;
+      deltaYFactor = t.speedy * 65536;
+      if(diffY < 0) deltaYFactor = -deltaYFactor;
 
-      t.actorWalkStep();
+      deltaXFactor = deltaYFactor * diffX;
+      if(diffY != 0) deltaXFactor = (deltaXFactor / diffY) | 0;
+      else deltaYFactor = 0;
+
+      if(Math.abs((deltaXFactor / 65536) | 0) > t.speedx) {
+        deltaXFactor = t.speedx * 65536;
+        if(diffX < 0) deltaXFactor = -deltaXFactor;
+
+        deltaYFactor = deltaXFactor * diffY;
+        if(diffX != 0) deltaYFactor = (deltaYFactor / diffX) | 0;
+        else deltaXFactor = 0;
+      }
+
+      t.walkdata.xfrac = 0;
+      t.walkdata.yfrac = 0;
+      t.walkdata.cur = _system.Point(t.pos.x, t.pos.y);
+      t.walkdata.next = _system.Point(next.x, next.y);
+      t.walkdata.deltaXFactor = deltaXFactor;
+      t.walkdata.deltaYFactor = deltaYFactor;
+
+      t.targetFacing = (Math.abs(diffY) * 3 > Math.abs(diffX))
+        ? (deltaYFactor > 0 ? 180 : 0)
+        : (deltaXFactor > 0 ? 90 : 270);
+
+      return t.actorWalkStep();
     };
+
     t.actorWalkStep = function() {
-      var tmpX, tmpY, distX, distY, nextFacing;
+      var nextFacing, distX, distY, tmpX, tmpY;
+
       t.needRedraw = true;
 
-      distX = Math.abs(t.walkdata.dest.x - t.pos.x);
-      distY = Math.abs(t.walkdata.dest.y - t.pos.y);
+      nextFacing = t.updateActorDirection(true);
+      if((t.walkFrame != t.frame && !(t.moving & MF_IN_LEG)) || t.facing != nextFacing)
+        t.startWalkAnim(1, nextFacing);
+      t.moving |= MF_IN_LEG;
 
-      // log("walk to "+t.walkdata.dest.x+"/"+t.walkdata.dest.y);
+      if(t.walkbox != t.walkdata.curbox &&
+         s.checkXYInBoxBounds(t.walkdata.curbox, t.pos.x, t.pos.y))
+        t.setBox(t.walkdata.curbox);
 
-      // log("before step "+t.pos.x+"/"+t.pos.y+" dist "+distX+"/"+distY);
+      distX = Math.abs(t.walkdata.next.x - t.walkdata.cur.x);
+      distY = Math.abs(t.walkdata.next.y - t.walkdata.cur.y);
 
-      if(distX < t.speedx) t.pos.x = t.walkdata.dest.x;
-      else if(t.pos.x > t.walkdata.dest.x) t.pos.x -= t.speedx;
-      else if(t.pos.x < t.walkdata.dest.x) t.pos.x += t.speedx;
-
-      if(distY < t.speedy) t.pos.y = t.walkdata.dest.y;
-      else if(t.pos.y > t.walkdata.dest.y) t.pos.y -= t.speedy;
-      else if(t.pos.y < t.walkdata.dest.y) t.pos.y += t.speedy;
-
-      // log("after step "+t.pos.x+"/"+t.pos.y);
-
-      if(t.pos.x == t.walkdata.dest.x && t.pos.y == t.walkdata.dest.y) {
-        t.moving = false;
+      if(Math.abs(t.pos.x - t.walkdata.cur.x) >= distX &&
+         Math.abs(t.pos.y - t.walkdata.cur.y) >= distY) {
+        t.moving &= ~MF_IN_LEG;
+        return 0;
       }
+
+      tmpX = t.pos.x * 65536 + t.walkdata.xfrac + ((t.walkdata.deltaXFactor / 256) | 0) * t.scalex;
+      t.walkdata.xfrac = tmpX & 0xFFFF;
+      t.pos.x = Math.floor(tmpX / 65536);
+
+      tmpY = t.pos.y * 65536 + t.walkdata.yfrac + ((t.walkdata.deltaYFactor / 256) | 0) * t.scaley;
+      t.walkdata.yfrac = tmpY & 0xFFFF;
+      t.pos.y = Math.floor(tmpY / 65536);
+
+      if(Math.abs(t.pos.x - t.walkdata.cur.x) > distX) t.pos.x = t.walkdata.next.x;
+      if(Math.abs(t.pos.y - t.walkdata.cur.y) > distY) t.pos.y = t.walkdata.next.y;
+
+      if(t.pos.x == t.walkdata.next.x && t.pos.y == t.walkdata.next.y) {
+        t.moving &= ~MF_IN_LEG;
+        return 0;
+      }
+
+      return 1;
     };
+
+    /* The next point to head for in a straight line, going from box1 to box3
+       via box2. Returns true when box2 is already reachable directly.
+       Ported from Actor::findPathTowards (boxes.cpp). */
+    t.findPathTowards = function(box1nr, box2nr, box3nr, foundPath) {
+      var box1 = s.getBoxCoordinates(box1nr),
+          box2 = s.getBoxCoordinates(box2nr),
+          tmp, i, j, flag, q, pos, diffX, diffY, boxDiffX, boxDiffY, v;
+
+      if(!box1 || !box2) return false;
+
+      for(i = 0; i < 4; i++) {
+        for(j = 0; j < 4; j++) {
+          // Both upper sides on one vertical line?
+          if(box1.ul.x == box1.ur.x && box1.ul.x == box2.ul.x && box1.ul.x == box2.ur.x) {
+            flag = 0;
+            if(box1.ul.y > box1.ur.y) { v = box1.ul.y; box1.ul.y = box1.ur.y; box1.ur.y = v; flag |= 1; }
+            if(box2.ul.y > box2.ur.y) { v = box2.ul.y; box2.ul.y = box2.ur.y; box2.ur.y = v; flag |= 2; }
+
+            if(box1.ul.y > box2.ur.y || box2.ul.y > box1.ur.y ||
+               ((box1.ur.y == box2.ul.y || box2.ur.y == box1.ul.y) &&
+                box1.ul.y != box1.ur.y && box2.ul.y != box2.ur.y)) {
+              if(flag & 1) { v = box1.ul.y; box1.ul.y = box1.ur.y; box1.ur.y = v; }
+              if(flag & 2) { v = box2.ul.y; box2.ul.y = box2.ur.y; box2.ur.y = v; }
+            } else {
+              pos = t.pos.y;
+              if(box2nr == box3nr) {
+                diffX = t.walkdata.dest.x - t.pos.x;
+                diffY = t.walkdata.dest.y - t.pos.y;
+                boxDiffX = box1.ul.x - t.pos.x;
+
+                if(diffX != 0) {
+                  var n;
+                  diffY *= boxDiffX;
+                  n = (diffY / diffX) | 0;
+                  if(n == 0 && (diffY <= 0 || diffX <= 0) && (diffY >= 0 || diffX >= 0))
+                    n = -1;
+                  pos = t.pos.y + n;
+                }
+              }
+
+              q = pos;
+              if(q < box2.ul.y) q = box2.ul.y;
+              if(q > box2.ur.y) q = box2.ur.y;
+              if(q < box1.ul.y) q = box1.ul.y;
+              if(q > box1.ur.y) q = box1.ur.y;
+              if(q == pos && box2nr == box3nr) return true;
+              foundPath.y = q;
+              foundPath.x = box1.ul.x;
+              return false;
+            }
+          }
+
+          // Both upper sides on one horizontal line?
+          if(box1.ul.y == box1.ur.y && box1.ul.y == box2.ul.y && box1.ul.y == box2.ur.y) {
+            flag = 0;
+            if(box1.ul.x > box1.ur.x) { v = box1.ul.x; box1.ul.x = box1.ur.x; box1.ur.x = v; flag |= 1; }
+            if(box2.ul.x > box2.ur.x) { v = box2.ul.x; box2.ul.x = box2.ur.x; box2.ur.x = v; flag |= 2; }
+
+            if(box1.ul.x > box2.ur.x || box2.ul.x > box1.ur.x ||
+               ((box1.ur.x == box2.ul.x || box2.ur.x == box1.ul.x) &&
+                box1.ul.x != box1.ur.x && box2.ul.x != box2.ur.x)) {
+              if(flag & 1) { v = box1.ul.x; box1.ul.x = box1.ur.x; box1.ur.x = v; }
+              if(flag & 2) { v = box2.ul.x; box2.ul.x = box2.ur.x; box2.ur.x = v; }
+            } else {
+              if(box2nr == box3nr) {
+                diffX = t.walkdata.dest.x - t.pos.x;
+                diffY = t.walkdata.dest.y - t.pos.y;
+                boxDiffY = box1.ul.y - t.pos.y;
+
+                pos = t.pos.x;
+                if(diffY != 0) pos += ((diffX * boxDiffY) / diffY) | 0;
+              } else {
+                pos = t.pos.x;
+              }
+
+              q = pos;
+              if(q < box2.ul.x) q = box2.ul.x;
+              if(q > box2.ur.x) q = box2.ur.x;
+              if(q < box1.ul.x) q = box1.ul.x;
+              if(q > box1.ur.x) q = box1.ur.x;
+              if(q == pos && box2nr == box3nr) return true;
+              foundPath.x = q;
+              foundPath.y = box1.ul.y;
+              return false;
+            }
+          }
+
+          tmp = box1.ul; box1.ul = box1.ur; box1.ur = box1.lr; box1.lr = box1.ll; box1.ll = tmp;
+        }
+        tmp = box2.ul; box2.ul = box2.ur; box2.ur = box2.lr; box2.lr = box2.ll; box2.ll = tmp;
+      }
+      return false;
+    };
+
+    t.setBox = function(box) {
+      t.walkbox = box;
+      t.setupActorScale();
+    };
+
+    /* Ported from ScummVM's Actor::startWalkActor (actor.cpp). */
     t.startWalkActor = function(destX, destY, dir) {
       var abr = t.adjustXYToBeInBox(destX, destY);
 
       if(!t.isInCurrentRoom()) {
         t.pos.x = abr.x;
         t.pos.y = abr.y;
-        if(!t.ignoreTurns && dir != -1)
-          t.facing = dir;
+        if(!t.ignoreTurns && dir != -1) t.facing = dir;
         return;
       }
 
       if(t.ignoreBoxes) {
-        abr.box = "invalid";
-        t.walkbox = "invalid";
+        abr.box = s.kInvalidBox;
+        t.walkbox = s.kInvalidBox;
       } else {
+        if(s.checkXYInBoxBounds(t.walkdata.destbox, abr.x, abr.y)) {
+          abr.box = t.walkdata.destbox;
+        } else {
+          abr = t.adjustXYToBeInBox(abr.x, abr.y);
+        }
+        if(t.moving && t.walkdata.destdir == dir &&
+           t.walkdata.dest.x == abr.x && t.walkdata.dest.y == abr.y)
+          return;
+      }
+
+      if(t.pos.x == abr.x && t.pos.y == abr.y) {
+        if(dir != t.facing) t.turnToDirection(dir);
+        return;
       }
 
       t.walkdata.dest.x = abr.x;
       t.walkdata.dest.y = abr.y;
       t.walkdata.destbox = abr.box;
       t.walkdata.destdir = dir;
-      t.moving = true;
+      t.walkdata.point3.x = 32000;
       t.walkdata.curbox = t.walkbox;
 
-      log("start walk "+destX+"/"+destY);
+      t.moving = (t.moving & MF_IN_LEG) | MF_NEW_LEG;
     };
+
+    t.startWalkAnim = function(cmd, angle) {
+      if(angle == -1) angle = t.facing;
+
+      if(t.walkScript) {
+        s.runScript(t.walkScript, 1, 0, [t.number, cmd, angle]);
+      } else {
+        if(cmd == 3) t.turnToDirection(angle);
+        else t.setDirection(angle);
+
+        if(cmd == 1) t.startAnimActor(t.walkFrame);
+        else if(cmd == 3) t.startAnimActor(t.standFrame);
+      }
+    };
+
+    /* The walk state machine, ported from Actor::walkActor (actor.cpp). Each
+       call advances one leg of the journey: step, or pick the next box on the
+       route and start a new leg toward it. */
     t.walkActor = function() {
+      var newDir, nextBox, foundPath = _system.Point(0, 0);
+
       if(!t.moving) return;
 
-      if(t.moving & MF_TURN) {
-        var dir = t.updateActorDirection();
-        if(t.facing != dir) t.setDirection(dir);
-        else t.moving &= ~MF_TURN;
-        return;
+      if(!(t.moving & MF_NEW_LEG)) {
+        if((t.moving & MF_IN_LEG) && t.actorWalkStep()) return;
+
+        if(t.moving & MF_LAST_LEG) {
+          t.moving = 0;
+          t.setBox(t.walkdata.destbox);
+          t.startAnimActor(t.standFrame);
+          if(t.targetFacing != t.walkdata.destdir)
+            t.turnToDirection(t.walkdata.destdir);
+          return;
+        }
+
+        if(t.moving & MF_TURN) {
+          newDir = t.updateActorDirection(false);
+          if(t.facing != newDir) t.setDirection(newDir);
+          else t.moving = 0;
+          return;
+        }
+
+        t.setBox(t.walkdata.curbox);
+        t.moving &= MF_IN_LEG;
       }
 
-      t.actorWalkStep();
+      t.moving &= ~MF_NEW_LEG;
+
+      for(;;) {
+        if(s.isInvalidBox(t.walkbox)) {
+          t.setBox(t.walkdata.destbox);
+          t.walkdata.curbox = t.walkdata.destbox;
+          break;
+        }
+
+        if(t.walkbox == t.walkdata.destbox) break;
+
+        nextBox = s.getNextBox(t.walkbox, t.walkdata.destbox);
+        if(nextBox < 0) {
+          t.walkdata.destbox = t.walkbox;
+          t.moving |= MF_LAST_LEG;
+          return;
+        }
+
+        t.walkdata.curbox = nextBox;
+
+        if(t.findPathTowards(t.walkbox, nextBox, t.walkdata.destbox, foundPath)) break;
+        if(t.calcMovementFactor(foundPath)) return;
+
+        t.setBox(t.walkdata.curbox);
+      }
+
+      t.moving |= MF_LAST_LEG;
+      t.calcMovementFactor(t.walkdata.dest);
     };
+
     t.setActorCostume = function(c) {
       var i;
       t.costumeNeedsInit = true;
@@ -486,15 +732,56 @@
       t.moving = (t.moving | 0) | MF_TURN;
     };
 
-    // One step of the turn, 45 degrees at a time, the short way round.
-    t.updateActorDirection = function() {
-      var from = _system.toSimpleDir(_system.normalizeAngle(t.facing)),
-          to = _system.toSimpleDir(_system.normalizeAngle(t.targetFacing)),
-          diff = to - from;
+    /* Ported from Actor::remapDirection (actor.cpp). A box can force the
+       direction an actor faces while standing on it -- that is how the game
+       keeps Guybrush facing along a jetty or up a flight of stairs rather
+       than straight at whatever he is walking towards. */
+    t.remapDirection = function(dir, isWalking) {
+      var flags, flipX, flipY;
 
-      if(from === to) return t.targetFacing;
-      if(Math.abs(diff) > 4) diff = -diff;
-      return ((from + (diff > 0 ? 1 : -1)) & 7) * 45;
+      if(!t.ignoreBoxes) {
+        flags = s.getBoxFlags(t.walkbox);
+
+        flipX = (t.walkdata.deltaXFactor > 0);
+        flipY = (t.walkdata.deltaYFactor > 0);
+
+        if((flags & kBoxXFlip) || s.getClass(t.number, kObjectClassXFlip)) {
+          dir = 360 - dir;
+          flipX = !flipX;
+        }
+        if((flags & kBoxYFlip) || s.getClass(t.number, kObjectClassYFlip)) {
+          dir = 180 - dir;
+          flipY = !flipY;
+        }
+
+        switch(flags & 7) {
+          case 1:
+            return isWalking ? (flipX ? 90 : 270) : (dir == 90 ? 90 : 270);
+          case 2:
+            return isWalking ? (flipY ? 180 : 0) : (dir == 0 ? 0 : 180);
+          case 3: return 270;
+          case 4: return 90;
+          case 5: return 0;
+          case 6: return 180;
+        }
+      }
+
+      dir = (dir + 360) % 360;
+      // 0x400 asks updateActorDirection to interpolate rather than snap.
+      return dir | 0x400;
+    };
+
+    // One step of the turn, taking the short way round, via ScummVM's
+    // interpolation table (Actor::updateActorDirection).
+    t.updateActorDirection = function(isWalking) {
+      var dir = t.remapDirection(t.targetFacing, isWalking);
+
+      if(dir & 0x400)
+        dir = _system.oldDirToNewDir(
+          actorTurnInterpolateTable[_system.newDirToOldDir(dir & 0x3FF) |
+                                    (_system.newDirToOldDir(t.facing) << 2)]);
+
+      return dir;
     };
 
     t.showActor = function() {
@@ -516,11 +803,64 @@
       t.needRedraw = false;
       t.needBgReset = true;
     };
+    /* Clamp a destination into the walkable area, and say which box it landed
+       in. Ported from Actor::adjustXYToBeInBox (actor.cpp). The three passes
+       widen the search: prefer a box within 30 pixels, then 80, then any.
+       This is what stops actors walking through scenery. */
     t.adjustXYToBeInBox = function(dstX, dstY) {
-      var abr = {x: 0, y: 0, box: "invalid"};
+      var thresholdTable = [30, 80, 0],
+          abr = {x: dstX, y: dstY, box: s.kInvalidBox},
+          tIdx, threshold, numBoxes, bestDist, bestBox, box, flags, closest,
+          firstValidBox = 1;
 
-      abr.x = dstX;
-      abr.y = dstY;
+      if(t.ignoreBoxes) return abr;
+
+      for(tIdx = 0; tIdx < thresholdTable.length; tIdx++) {
+        threshold = thresholdTable[tIdx];
+
+        numBoxes = s.getNumBoxes() - 1;
+        if(numBoxes < firstValidBox) return abr;
+
+        bestDist = 0xFFFF;
+        bestBox = s.kInvalidBox;
+
+        for(box = numBoxes; box >= firstValidBox; box--) {
+          flags = s.getBoxFlags(box);
+
+          // Skip invisible boxes, unless they are player-only and we are one.
+          if((flags & kBoxInvisible) &&
+             !((flags & kBoxPlayerOnly) && !s.getClass(t.number, kObjectClassPlayer)))
+            continue;
+
+          if(threshold > 0 &&
+             s.inBoxQuickReject(s.getBoxCoordinates(box), dstX, dstY, threshold))
+            continue;
+
+          if(s.checkXYInBoxBounds(box, dstX, dstY)) {
+            abr.x = dstX; abr.y = dstY; abr.box = box;
+            return abr;
+          }
+
+          closest = s.getClosestPtOnBox(s.getBoxCoordinates(box), dstX, dstY);
+
+          if(closest.dist < bestDist) {
+            abr.x = closest.x;
+            abr.y = closest.y;
+
+            if(closest.dist == 0) {
+              abr.box = box;
+              return abr;
+            }
+            bestDist = closest.dist;
+            bestBox = box;
+          }
+        }
+
+        if(threshold == 0 || threshold * threshold >= bestDist) {
+          abr.box = bestBox;
+          return abr;
+        }
+      }
 
       return abr;
     }

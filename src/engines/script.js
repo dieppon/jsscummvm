@@ -773,14 +773,7 @@
   };
 
   /* --- walk boxes ------------------------------------------------------- */
-  /* Not implemented. These exist so matrixOps consumes its operands and the
-     instruction stream stays in sync, rather than throwing mid-script.
-     Until boxes are real, actors walk in straight lines through walls. */
-
-  s.setBoxFlags = function(box, val) {};
-  s.setBoxScale = function(box, scale) {};
-  s.createBoxMatrix = function() {};
-
+  /* setBoxFlags, setBoxScale and createBoxMatrix live in boxes.js. */
 
   /* --- verbs, ported from ScummVM's verbs.cpp / o5_verbOps ---------------- */
 
