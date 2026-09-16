@@ -1808,6 +1808,17 @@
             break;
           return;
         break;
+        case 3: // wait for camera
+          if(Math.floor(s._camera.cur.x / 8) != Math.floor(s._camera.dest.x / 8))
+            break;
+          return;
+        break;
+        case 4: // wait for sentence
+          // The sentence queue is not ported; with nothing queued the only
+          // thing left to wait on is the sentence script itself.
+          if(!s.isScriptRunning(s.scummVar("sentence_script")))
+            return;
+        break;
         default:
           log("unknown wait opcode 0x"+(s._opcode & 0x1F));
       }
@@ -2011,9 +2022,7 @@
       if(act) act.putActor(x, y);
     },
     actorFollowCamera: function() {
-      var a = s.getVarOrDirectByte(PARAM_1), act = s.getActor(a);
-      window.console.log(a);
-      s.actorFollowCamera(act);
+      s.actorFollowCamera(s.getVarOrDirectByte(PARAM_1));
     },
     animateActor: function() {
       var act = s.getActor(s.getVarOrDirectByte(PARAM_1)), anim = s.getVarOrDirectByte(PARAM_2);
@@ -2079,8 +2088,7 @@
       s.setResult(1);
     },
     panCameraTo: function() {
-      var a = s.getVarOrDirectWord(PARAM_1);
-      // panCameraTo(a, 0);
+      s.panCameraTo(s.getVarOrDirectWord(PARAM_1), 0);
     },
     pickupObject: function() {
       var obj = s.getVarOrDirectWord(PARAM_1), room = s.getVarOrDirectByte(PARAM_2);

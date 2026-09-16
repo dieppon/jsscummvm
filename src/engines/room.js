@@ -80,7 +80,16 @@
     t.resetRoomSubBlocks();
     t.initBGBuffers(t._roomHeight)
     t.resetRoomObjects();
-    // setCamera
+
+    // How far the camera may scroll in this room, and a neutral starting view.
+    t.scummVar("camera_min_x", Math.floor(t._screenWidth / 2));
+    t.scummVar("camera_max_x", t._roomWidth - Math.floor(t._screenWidth / 2));
+    t._camera.mode = "normal";
+    t._camera.cur.x = t._camera.dest.x = Math.floor(t._screenWidth / 2);
+    t._camera.cur.y = t._camera.dest.y = Math.floor(t._screenHeight / 2);
+    t._camera.last.x = -1;
+    t._camera.movingToActor = false;
+
     if(t._roomResource == 0)
       return;
 
