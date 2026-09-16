@@ -186,7 +186,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       }
 
       t.runAllScripts();
-      // Verbs
+      t.checkExecVerbs();
 
       if(t.shouldQuit()) {
         window.clearInterval(t._timer);
@@ -256,8 +256,6 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       if(t._rightBtnPressed & MS_CLICKED) t._mouseAndKeyboardStat = MBS_RIGHT_CLICK;
       t._leftBtnPressed  &= ~MS_CLICKED;
       t._rightBtnPressed &= ~MS_CLICKED;
-
-      t.checkExecVerbs();
     },
     setupScumm: function() {
       var t = this, res = t._res;
