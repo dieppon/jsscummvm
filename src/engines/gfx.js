@@ -82,7 +82,7 @@
       if(limit > numstrip)
         limit = numstrip;
       if(limit > t.numStrips - sx)
-        limit = t.numstrips - sx;
+        limit = t.numStrips - sx;
 
       for(k = 0; k < limit; ++k, ++stripnr, ++sx, ++x) {
         offset = y * vs.pitch + (x * 8);
@@ -519,14 +519,14 @@
       t.initVirtScreen(3, 80, width, 13, false);
     }
 
-    t.initVirtScreen(0, b + adj, width, h, -b, true);
+    t.initVirtScreen(0, b + adj, width, h, true, true);
     // t.initVirtScreen("text")
     t.initVirtScreen(2, h + adj, width, height - h - adj, false);
     t._screenB = b;
     t._screenH = h;
   };
 
-  s.initVirtScreen = function(slot, top, width, height, scrollable) {
+  s.initVirtScreen = function(slot, top, width, height, twobufs, scrollable) {
     var t = this, vs, size,
             res = t._res;
 
@@ -544,12 +544,16 @@
 
     size = vs.pitch * vs.h;
     if(scrollable) {
+      // Scrolling moves the window into the buffer rather than the pixels, so
+      // the buffer needs room beyond one screen: one byte per pixel of scroll.
+      // Without this the sliding window runs off the end as soon as the camera
+      // leaves the left edge of a wide room.
       size += vs.pitch * 4;
     }
 
     res.createResource("buffer", slot+1, size, -1);
     vs.pixels = t.getResourceAddress("buffer", slot+1);
-    if(slot == 0) {
+    if(twobufs) {
       vs.backBuf = res.createResource("buffer", slot + 5, size, -1);
     }
   };
@@ -662,8 +666,13 @@
 
     if(width <= 0 || height <= 0) return;
 
-    src = vs.pixels.newRelativeStream(0);
-    // src = (vs.number == 0 ? vs.backBuf : vs.pixels).newRelativeStream(0);
+    // Scrolling works by moving the window into the buffer, not by moving the
+    // pixels: drawBitmap writes each strip at its ABSOLUTE room offset, so the
+    // screen has to be read back from xstart. getPixels adds it, the way
+    // ScummVM's drawStripToScreen does (gfx.cpp: vs->getPixels(x, top)).
+    // Reading from 0 instead showed the room split and wrapped at a vertical
+    // seam once the camera left the left edge.
+    src = vs.getPixels(x, top);
     dst = ctx.getImageData(x, y, width, height);
     var vsPitch = vs.pitch - width, pitch = vs.pitch, h, w;
 
