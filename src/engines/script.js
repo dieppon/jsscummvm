@@ -301,6 +301,67 @@
     }
   };
 
+  s.isScriptInUse = function(script) {
+    var t = this, i;
+    for(i = 0; i < t._vm.slot.length; i++)
+      if(t._vm.slot[i] && t._vm.slot[i].number == script) return true;
+    return false;
+  };
+
+  s.clearClickedStatus = function() {
+    var t = this;
+    t._lastKeyHit = "";
+    t._mouseAndKeyboardStat = 0;
+    t._leftBtnPressed  &= ~MS_CLICKED;
+    t._rightBtnPressed &= ~MS_CLICKED;
+  };
+
+  /* The sentence queue, from ScummVM's doSentence / checkAndRunSentenceScript
+     (script.cpp). A click builds a sentence (verb + one or two objects) and
+     pushes it here; one is popped per frame and handed to VAR_SENTENCE_SCRIPT,
+     which is the game script that acts on it and writes the sentence line. */
+  var NUM_SENTENCE = 6;
+
+  s.doSentence = function(verb, objectA, objectB) {
+    var t = this, st;
+    if(t._sentenceNum >= NUM_SENTENCE) return;
+    st = t._sentence[t._sentenceNum] || (t._sentence[t._sentenceNum] = {});
+    t._sentenceNum++;
+    st.verb = verb;
+    st.objectA = objectA;
+    st.objectB = objectB;
+    st.preposition = (objectB != 0);
+    st.freezeCount = 0;
+  };
+
+  s.checkAndRunSentenceScript = function() {
+    var t = this, i, ss, st, args = [],
+        sentenceScript = t.scummVar("sentence_script");
+
+    for(i = 0; i < 25; i++) args[i] = 0;
+
+    // Don't start another one while the script is still working on the last
+    for(i = 0; i < t._vm.slot.length; i++) {
+      ss = t._vm.slot[i];
+      if(ss && ss.number == sentenceScript && ss.status != "dead" && ss.freezeCount == 0)
+        return;
+    }
+
+    if(!t._sentenceNum || t._sentence[t._sentenceNum - 1].freezeCount) return;
+
+    t._sentenceNum--;
+    st = t._sentence[t._sentenceNum];
+
+    if(st.preposition && st.objectB == st.objectA) return;
+
+    args[0] = st.verb;
+    args[1] = st.objectA;
+    args[2] = st.objectB;
+
+    t._currentScript = 0xFF;
+    if(sentenceScript) t.runScript(sentenceScript, 0, 0, args);
+  };
+
   s.isScriptRunning = function(script) {
     var t = this, slots = t._vm.slot, i;
     for(i = 0; i < slots.length; i++) {
@@ -680,6 +741,7 @@
   /* --- object helpers, ported from ScummVM's object.cpp ----------------- */
 
   var OF_OWNER_ROOM = 0x0F;
+  var kObjectClassUntouchable = 32;
   var WIO_NOT_FOUND = -1, WIO_INVENTORY = 0, WIO_ROOM = 1, WIO_FLOBJECT = 3;
 
   s.objIsActor = function(obj) {
@@ -711,6 +773,37 @@
       }
     }
     return WIO_NOT_FOUND;
+  };
+
+  /* Which object is at (x, y), from ScummVM's findObject (object.cpp). The
+     game's sentence script calls this with VAR_VIRT_MOUSE_X/Y to work out what
+     the pointer is over -- it is what fills in the sentence line ("Walk to
+     door"), so with it stubbed to 0 the line stayed blank.
+
+     The do/while walks up the parent chain: a child object is only hittable
+     while its parent is in the state the child was defined for. */
+  s.findObject = function(x, y) {
+    var t = this, i, b, a, od, mask = 0xF;
+
+    for (i = 1; i < t._nums['local_objects']; i++) {
+      od = t._objs[i];
+      if (!od || od.obj_nr < 1) continue;
+      if (t.getClass(od.obj_nr, kObjectClassUntouchable)) continue;
+
+      b = i;
+      do {
+        a = t._objs[b].parentstate;
+        b = t._objs[b].parent;
+        if (b == 0) {
+          if (od.x_pos <= x && od.width + od.x_pos > x &&
+              od.y_pos <= y && od.height + od.y_pos > y)
+            return od.obj_nr;
+          break;
+        }
+      } while ((t._objectStateTable[t._objs[b].obj_nr] & mask) == a);
+    }
+
+    return 0;
   };
 
   s.getObjectOrActorXY = function(object) {
@@ -875,6 +968,68 @@
     return null;
   };
 
+
+  /* Draw the verb panel and the sentence line, from ScummVM's redrawVerbs and
+     drawVerb (verbs.cpp). ScummVM draws verbs into the virtual screen and uses
+     restoreVerbBG to clear the previous text; our canvas is repainted from
+     scratch every frame, so this just redraws them all each time.
+
+     The sentence line above the panel ("Walk to door") is not special-cased --
+     it is a centred verb like any other, which is why it appears as soon as
+     verbs are drawn at all. */
+  s.drawVerbs = function() {
+    var t = this, ctx = ScummVM.context,
+        width = ScummVM.width, height = ScummVM.height,
+        charset, img, data, i, j, vs, color, codes, lw, x, over = 0, any = false;
+
+    if(!t._verbs || !t._verbs.length) return;
+
+    for(i = 1; i < t._verbs.length; i++) {
+      vs = t._verbs[i];
+      if(vs && vs.verbid && !vs.saveid && vs.curmode &&
+         vs.type == kTextVerbType && vs.text) { any = true; break; }
+    }
+    if(!any) return;
+
+    charset = t._charset || (t._charset = new t.CharsetRenderer(t));
+    if(!charset.setCurID(t._curCharset) && !charset.setCurID(1)) return;
+
+    // ScummVM only highlights the verb under the pointer while the cursor is on
+    if(t._cursorState > 0)
+      over = t.findVerbAtPos(t._mouse.x, t._mouse.y);
+
+    img = ctx.getImageData(0, 0, width, height);
+    data = img.data;
+
+    for(i = 1; i < t._verbs.length; i++) {
+      vs = t._verbs[i];
+      if(!vs || !vs.verbid || vs.saveid || !vs.curmode) continue;
+      if(vs.type != kTextVerbType || !vs.text) continue;
+
+      if(vs.curmode == 2) color = vs.dimcolor;
+      else if(i == over && vs.hicolor) color = vs.hicolor;
+      else color = vs.color;
+
+      codes = [];
+      for(j = 0; j < vs.text.length; j++)
+        codes.push(vs.text.charCodeAt(j) & 0xFF);
+
+      lw = charset.getStringWidth(codes);
+      // A centred verb is positioned by its middle, the same convention
+      // setVerbRect and findVerbAtPos use.
+      x = vs.center ? vs.curRect.left - Math.floor(lw / 2) : vs.curRect.left;
+      if(x + lw > width) x = width - lw;
+      if(x < 0) x = 0;
+
+      // Multi-bit glyphs look their pixels up in the colour map, so the
+      // colour has to be published there too (ScummVM's setColor).
+      t._charsetColorMap[1] = color;
+      charset.drawLine(data, width, height, codes, x, vs.curRect.top, color);
+    }
+
+    ctx.putImageData(img, 0, 0);
+    t._verbMouseOver = over;
+  };
 
   // The verb's name is stored as a resource by loadPtrToResource; pull it back
   // out as the raw bytes the charset renderer wants.
@@ -2119,11 +2274,11 @@
       if(verb == 0xFE) {
         s._sentenceNum = 0;
         s.stopScript(s.scummVar("sentence_script"));
-        // s.clearClickedStatus();
+        s.clearClickedStatus();
         return;
       }
       var objectA = s.getVarOrDirectWord(PARAM_2), objectB = s.getVarOrDirectWord(PARAM_3);
-      // s.doSetence(ver, objectA, objectB);
+      s.doSentence(verb, objectA, objectB);
     },
     delay: function() {
       var delay = s.fetchScriptByte();
@@ -2246,7 +2401,7 @@
       s.getResultPos();
       x = s.getVarOrDirectByte(PARAM_1);
       y = s.getVarOrDirectByte(PARAM_2);
-      s.setResult(0); // findObject(x, y);
+      s.setResult(s.findObject(x, y));
     },
     actorFromPos: function() {
       s.getResultPos();

@@ -93,6 +93,10 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     _rightBtnPressed: 0,
     _mouseAndKeyboardStat: 0,
     _userPut: 0,
+    // sentence queue (script.cpp). doSentence pushes, checkAndRunSentenceScript
+    // pops one per frame and hands it to VAR_SENTENCE_SCRIPT.
+    _sentence: [],
+    _sentenceNum: 0,
     _cursorState: 0,
     _cursorAnimate: 1,
     _cursorAnimateIndex: 0,
@@ -187,6 +191,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
 
       t.runAllScripts();
       t.checkExecVerbs();
+      t.checkAndRunSentenceScript();
 
       if(t.shouldQuit()) {
         window.clearInterval(t._timer);

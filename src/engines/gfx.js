@@ -639,6 +639,7 @@
       t.updateDirtyScreen(0); // Main
     }
 
+    t.drawVerbs();
     t.renderTexts();
 
     t.animateCursor();
