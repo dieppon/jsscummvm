@@ -196,7 +196,30 @@
     t._currentScript = 0xFF;
   };
 
-  s.stopObjectScript = function(slot) {
+  s.stopObjectScript = function(script) {
+    var t = this, vm = t._vm, i, ss;
+    if(!script) return;
+
+    for(i = 0; i < vm.slot.length; i++) {
+      ss = vm.slot[i];
+      if(!ss) continue;
+      if(ss.number == script && ss.status != "dead" &&
+         (ss.where == "room" || ss.where == "inventory" || ss.where == "flobject")) {
+        ss.number = 0;
+        ss.status = "dead";
+        ss.where = "";
+        if(t._currentScript == i) t._currentScript = 0xFF;
+      }
+    }
+
+    for(i = 0; i < vm.numNestedScripts; i++) {
+      if(vm.nest[i].number == script &&
+         (vm.nest[i].where == "room" || vm.nest[i].where == "inventory" || vm.nest[i].where == "flobject")) {
+        vm.nest[i].number = 0xFF;
+        vm.nest[i].slot = 0xFF;
+        vm.nest[i].where = "";
+      }
+    }
   };
 
   s.runExitScript = function() {
@@ -365,6 +388,15 @@
           log("FAIL!");
         t._lastCodePointer = t._scriptOrgPointer.newRelativeStream();
       break;
+      case "flobject":
+        t._scriptOrgPointer = t.getResourceAddress("fl_object",
+          t._objs[t.getObjectIndex(slot.number)].fl_object_index);
+        t._lastCodePointer = t._scriptOrgPointer.newRelativeStream();
+      break;
+      case "inventory":
+        t._scriptOrgPointer = t.getResourceAddress("inventory", t.getInventorySlot(slot.number));
+        t._lastCodePointer = t._scriptOrgPointer.newRelativeStream();
+      break;
       default:
         log("Unknown script location "+slot.where);
       break;
@@ -381,7 +413,117 @@
       t._scriptPointer = t._scriptOrgPointer.newRelativeStream(t._vm.slot[t._currentScript].offs);
   };
 
+  /* Locate an object's OBCD block, ported from ScummVM's getOBCDFromObject /
+     getOBCDOffs (object.cpp). Returns the resource the code lives in together
+     with the absolute offset of the OBCD inside it, in the same coordinate
+     space the script slots use for "offs". */
+  s.getOBCDAddress = function(obj) {
+    var t = this, where, idx, od, res;
+
+    where = t.whereIsObject(obj);
+    if(where == WIO_NOT_FOUND) return null;
+
+    if(where == WIO_INVENTORY) {
+      idx = t.getInventorySlot(obj);
+      if(idx < 0) return null;
+      res = t.getResourceAddress("inventory", idx);
+      if(!res) return null;
+      return { res: res, abs: res.offset, where: "inventory" };
+    }
+
+    idx = t.getObjectIndex(obj);
+    if(idx < 0) return null;
+    od = t._objs[idx];
+
+    if(od.fl_object_index) {
+      res = t.getResourceAddress("fl_object", od.fl_object_index);
+      if(!res) return null;
+      // the FLOB wrapper is one header long, the OBCD follows it
+      return { res: res, abs: res.offset + t._resourceHeaderSize, where: "flobject" };
+    }
+
+    if(!od.OBCDoffset) return null;
+    res = t.getResourceAddress("room", t._roomResource);
+    if(!res) return null;
+    return { res: res, abs: od.OBCDoffset, where: "room" };
+  };
+
+  s.getInventorySlot = function(obj) {
+    var t = this, i;
+    for(i = 0; i < t._nums['inventory']; i++)
+      if(t._inventory[i] == obj) return i;
+    return -1;
+  };
+
+  /* Ported from ScummVM's getVerbEntrypoint (object.cpp). The offsets stored
+     in the VERB table are relative to the start of the VERB block, not to the
+     OBCD, so the block's own position has to be added back on. */
   s.getVerbEntryPoint = function(obj, entry) {
+    var t = this, loc = t.getOBCDAddress(obj), ptr, total, cur, tag, size,
+        verbOffs = 0, code, rel, MKID_BE = ScummVM.system.MKID_BE;
+
+    if(!loc) return 0;
+
+    ptr = loc.res.newAbsoluteStream(loc.abs + 4);
+    total = ptr.readUI32(true);
+    cur = t._resourceHeaderSize;
+
+    while(cur < total) {
+      ptr.seek(loc.abs + cur, true);
+      tag = ptr.readUI32(true);
+      size = ptr.readUI32(true);
+      if(size <= t._resourceHeaderSize) return 0;
+      if(tag == MKID_BE('VERB')) { verbOffs = cur; break; }
+      cur += size;
+    }
+    if(!verbOffs) return 0;
+
+    ptr.seek(loc.abs + verbOffs + t._resourceHeaderSize, true);
+    for(;;) {
+      code = ptr.readUI8();
+      if(!code) return 0;              // end of table, no handler
+      rel = ptr.readUI16();
+      if(code == entry || code == 0xFF) // 0xFF is the catch-all entry
+        return verbOffs + rel;
+    }
+  };
+
+  /* Ported from ScummVM's runObjectScript (script.cpp). */
+  s.runObjectScript = function(object, entry, freezeResistant, recursive, vars, slotIdx) {
+    var t = this, loc, offs, slot;
+
+    if(!object) return;
+    if(!recursive) t.stopObjectScript(object);
+
+    loc = t.getOBCDAddress(object);
+    if(!loc) {
+      log("runObjectScript: object "+object+" not found");
+      return;
+    }
+
+    offs = t.getVerbEntryPoint(object, entry);
+    if(!offs) return;
+
+    slot = (slotIdx >= 0) ? t._vm.slot[slotIdx] : t.getScriptSlot();
+    if(!slot) {
+      log("runObjectScript: no free script slot for object "+object);
+      return;
+    }
+
+    slot.number = object;
+    slot.offs = loc.abs + offs;
+    slot.status = "running";
+    slot.where = loc.where;
+    slot.freezeResistant = !!freezeResistant;
+    slot.recursive = !!recursive;
+    slot.freezeCount = 0;
+    slot.frozen = false;
+    slot.delayFrameCount = 0;
+    slot.ptr = null;
+    slot.cycle = 1;
+
+    t.initializeLocals(slot.slot, vars);
+    t.runScriptNested(slot);
   };
 
   s.executeScript = function() {
@@ -1152,10 +1294,12 @@
       s.runScript(script, (op & 0x20) != 0, (op & 0x40) != 0, data);
     },
     startObject: function() {
-      var obj = s.getVarOrDirectWord(PARAM_1), script = s.getVarOrDirectByte(PARAM_2), data;
+      var op = s._opcode,
+          obj = s.getVarOrDirectWord(PARAM_1),
+          script = s.getVarOrDirectByte(PARAM_2),
+          data = s.getWordVararg();
 
-      data = s.getWordVararg();
-      // s.runObjectScript(obj, script, 0, 0, data);
+      s.runObjectScript(obj, script, (op & 0x20) != 0, (op & 0x40) != 0, data, -1);
     },
     resourceRoutines: function() {
      var resType = ["script", "sound", "costume", "room"], resid = 0;
