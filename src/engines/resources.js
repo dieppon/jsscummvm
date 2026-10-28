@@ -307,7 +307,7 @@
     t._nums['local_objects'] = file.readUI16();
     t._nums['array'] = 50;
     t._nums['verbs'] = 100;
-    t._nums['new_names'] = 130;
+    t._nums['new_names'] = 150;
     t._objectRoomTable = null;
     file.readUI16(); // Skip
     t._nums['charsets'] = file.readUI16();

@@ -75,14 +75,19 @@
   s.freezeScripts = function(flag) {
     var t = this, vm = t._vm, i;
     for(i = 0; i < vm.slot.length; i++) {
-      if(t._currentScript != i && vm.slot[i].status != "dead" && !vm.slot[i].freezeResistant) {
+      if(t._currentScript != i && vm.slot[i].status != "dead" &&
+         (!vm.slot[i].freezeResistant || flag >= 0x80)) {
         // Only the freeze flag -- leave `status` alone, so a script that was
         // mid-delay still is one when it thaws.
         vm.slot[i].frozen = true;
         vm.slot[i].freezeCount++;
       }
     }
-    // sentence stuff
+    // queued sentences wait out the freeze too
+    for(i = 0; i < NUM_SENTENCE; i++) {
+      if(!t._sentence[i]) t._sentence[i] = {};
+      t._sentence[i].freezeCount = (t._sentence[i].freezeCount || 0) + 1;
+    }
     if(vm.cutSceneScriptIndex != 0xFF) {
       vm.slot[vm.cutSceneScriptIndex].frozen = false;
       vm.slot[vm.cutSceneScriptIndex].freezeCount = 0;
@@ -98,7 +103,10 @@
         vm.slot[i].frozen = false;
       }
     }
-    // sentence stuff
+    for(i = 0; i < NUM_SENTENCE; i++) {
+      if(t._sentence[i] && t._sentence[i].freezeCount > 0)
+        t._sentence[i].freezeCount--;
+    }
   };
 
   s.runAllScripts = function() {
@@ -167,11 +175,15 @@
     nest = t._vm.nest[t._vm.numNestedScripts];
 
     if(t._currentScript == 0xFF) {
-      nest.number = 0xFF;
+      nest.number = 0;
       nest.where = "";
     } else {
-      nest.number = slot.number;
-      nest.where = slot.where;
+      // the CALLER's identity, as ScummVM stores it -- this recorded the
+      // callee's number and where, which the resume check below compares
+      // against the caller's slot
+      var callerSlot = t._vm.slot[t._currentScript];
+      nest.number = callerSlot.number;
+      nest.where = callerSlot.where;
       nest.slot = t._currentScript;
     }
 
@@ -180,17 +192,27 @@
 
     t.getScriptBaseAddress();
     t.getScriptEntryPoint();
-    t.executeScript();
+    try {
+      t.executeScript();
+    } finally {
+      // even when a script throws, or the nesting depth leaks
+      if(t._vm.numNestedScripts > 0)
+        t._vm.numNestedScripts--;
+    }
 
-
-    if(t._vm.numNestedScripts > 0)
-      t._vm.numNestedScripts--;
-
-    if(nest.number != 0xFF) {
-      t._currentScript = nest.slot;
-      t.getScriptBaseAddress();
-      t.getScriptEntryPoint();
-      return;
+    // Resume the caller only if it is still the script that called us: not
+    // stopped, not frozen, and not replaced in its slot. A room change kills
+    // room scripts, and the slot can be reused by the new room's entry
+    // script before we get back here; resuming then ran the wrong code.
+    if(nest.number) {
+      var caller = t._vm.slot[nest.slot];
+      if(caller.number == nest.number && caller.where == nest.where &&
+         caller.status != "dead" && caller.freezeCount == 0) {
+        t._currentScript = nest.slot;
+        t.getScriptBaseAddress();
+        t.getScriptEntryPoint();
+        return;
+      }
     }
 
     t._currentScript = 0xFF;
@@ -215,7 +237,7 @@
     for(i = 0; i < vm.numNestedScripts; i++) {
       if(vm.nest[i].number == script &&
          (vm.nest[i].where == "room" || vm.nest[i].where == "inventory" || vm.nest[i].where == "flobject")) {
-        vm.nest[i].number = 0xFF;
+        vm.nest[i].number = 0;
         vm.nest[i].slot = 0xFF;
         vm.nest[i].where = "";
       }
@@ -275,14 +297,25 @@
   };
 
   s.killScriptsAndResources = function() {
-    var i, slot, vm = s._vm;
+    var i, slot, vm = s._vm, obj, owner;
     for(i = 0; i < vm.slot.length; i++) {
       slot = vm.slot[i];
-      if(slot.where == "room" || slot.where == "local") { // || flobject
+      if(slot.where == "room" || slot.where == "local" || slot.where == "flobject") {
         if(slot.cutSceneOverride) {
           slot.cutSceneOverride = 0;
         }
         slot.status = "dead";
+      }
+    }
+    // script.cpp: names given to this room's objects go with the room
+    for(i = 0; i < s._nums['new_names']; i++) {
+      obj = s._newNames[i];
+      if(obj) {
+        owner = s.getOwner(obj);
+        if(owner == 0 || owner == OF_OWNER_ROOM) {
+          s._newNames[i] = 0;
+          s._res.nukeResource("object_name", i);
+        }
       }
     }
   };
@@ -290,8 +323,10 @@
   s.decreaseScriptDelay = function(amount) {
     var t = this, slots = t._vm.slot, i;
     for(i = 0; i < slots.length; i++) {
-      slot = slots[i];
-      if(slot.status == "paused") {
+      var slot = slots[i];
+      // a frozen script's delay waits too: in ScummVM freezing takes the
+      // slot out of ssPaused
+      if(slot.status == "paused" && !slot.frozen) {
         slot.delay -= amount;
         if(slot.delay < 0) {
           slot.status = "running";
@@ -310,7 +345,7 @@
 
   s.clearClickedStatus = function() {
     var t = this;
-    t._lastKeyHit = "";
+    t._keyHit = null;
     t._mouseAndKeyboardStat = 0;
     t._leftBtnPressed  &= ~MS_CLICKED;
     t._rightBtnPressed &= ~MS_CLICKED;
@@ -399,7 +434,7 @@
       nest = t._vm.nest[i];
       if(script == nest.number && (nest.where == "global" || nest.where == "local")) {
         // nukeArrays(nest.slot);
-        nest.number = 0xFF;
+        nest.number = 0;
         nest.slot = 0xFF;
         nest.where = "";
       }
@@ -650,7 +685,7 @@
       virt_mouse_y: 21,
       room_resource: 22,
       last_sound: 23,
-      cutseneexit_key: 24,
+      cutsceneexit_key: 24,
       talk_actor: 25,
       camera_fast_x: 26,
       scroll_script: 27,
@@ -717,7 +752,6 @@
     t.scummVar("debugmode", t._debugMode);
     t.scummVar("fade_delay", 3);
     t.scummVar("charinc", 4);
-    t.scummVar("machine_speed", 0xFF);
 
     t.setTalkingActor(0);
 
@@ -737,7 +771,10 @@
   };
 
   s.getObjectXYPos = function(object) {
-    var idx = s.getObjectIndex(object), od = s._objs[idx], pos = _system.Point(od.walk_x, od.walk_y);
+    var idx = s.getObjectIndex(object), od, pos;
+    if(idx < 0) return null;
+    od = s._objs[idx];
+    pos = _system.Point(od.walk_x, od.walk_y);
     pos.dir = _system.oldDirToNewDir(od.actordir & 3);
 
     return pos;
@@ -830,6 +867,44 @@
         return null;
     }
     try { return t.getObjectXYPos(object); } catch (e) { return null; }
+  };
+
+  // object.cpp getDist / getObjActToObjActDist: 0xFF when either is missing
+  s.getDist = function(x, y, x2, y2) {
+    return Math.max(Math.abs(y - y2), Math.abs(x - x2));
+  };
+
+  s.getObjActToObjActDist = function(a, b) {
+    var t = this, acta = null, actb = null, p1, p2, r;
+    if (t.objIsActor(a)) acta = t.getActor(a);
+    if (t.objIsActor(b)) actb = t.getActor(b);
+    if (acta && actb && acta.room == actb.room && acta.room && !acta.isInCurrentRoom())
+      return 0;
+    p1 = t.getObjectOrActorXY(a);
+    if (!p1) return 0xFF;
+    p2 = t.getObjectOrActorXY(b);
+    if (!p2) return 0xFF;
+    // an actor measures to the nearest point it could actually walk to
+    if (acta && !actb) {
+      r = acta.adjustXYToBeInBox(p2.x, p2.y);
+      p2 = {x: r.x, y: r.y};
+    }
+    return t.getDist(p1.x, p1.y, p2.x, p2.y);
+  };
+
+  // actor.cpp getActorFromPos. ScummVM tests per-strip "gfx usage" bits
+  // recording which actors drew where; this uses each actor's last drawn
+  // extent instead.
+  s.getActorFromPos = function(x, y) {
+    var t = this, i, a;
+    for (i = 1; i < t._nums['actors']; i++) {
+      a = t._actors[i];
+      if (!a || !a.visible || !a.isInCurrentRoom()) continue;
+      if (a.drawLeft === undefined || x < a.drawLeft || x >= a.drawRight) continue;
+      if (t.getClass(i, kObjectClassUntouchable)) continue;
+      if (y >= a.top && y <= a.bottom) return i;
+    }
+    return 0;
   };
 
   s.getObjX = function(obj) {
@@ -1054,7 +1129,21 @@
   s.checkExecVerbs = function() {
     var t = this, over, zone;
 
-    if (t.scummVar("userput") <= 0 || t._mouseAndKeyboardStat == 0) return;
+    if (t._userPut <= 0 || t._mouseAndKeyboardStat == 0) return;
+
+    // verbs.cpp: a key press is a verb's shortcut, or goes to the input
+    // script as a key click
+    if (t._mouseAndKeyboardStat < MBS_MAX_KEY) {
+      for (var i = 1; i < t._nums['verbs']; i++) {
+        var v = t._verbs[i];
+        if (v && v.verbid && v.saveid == 0 && v.curmode == 1 && t._mouseAndKeyboardStat == v.key) {
+          t.runInputScript(kVerbClickArea, v.verbid, 1);
+          return;
+        }
+      }
+      t.runInputScript(kKeyClickArea, t._mouseAndKeyboardStat, 1);
+      return;
+    }
 
     if (t._mouseAndKeyboardStat & MBS_MOUSE_MASK) {
       var code = (t._mouseAndKeyboardStat & MBS_LEFT_CLICK) ? 1 : 2;
@@ -1641,7 +1730,7 @@
 
   s.beginCutscene = function(args) {
     var t = this, scr = t._currentScript, vm = t._vm;
-    vm.slot[scr].cutsceneOverride++;
+    vm.slot[scr].cutSceneOverride++;
     vm.cutSceneStackPointer++;
     vm.cutSceneData[vm.cutSceneStackPointer] = args[0];
     vm.cutSceneScript[vm.cutSceneStackPointer] = 0;
@@ -1656,14 +1745,14 @@
   s.endCutscene = function() {
     var t = this, vm = t._vm, slot = vm.slot[t._currentScript], args = [];
 
-    if(slot.cutsceneOverride > 0)
-      slot.cutsceneOverride--;
+    if(slot.cutSceneOverride > 0)
+      slot.cutSceneOverride--;
     for(var i = 0; i < 16; i++) { args[i] = 0; }
     args[0] = vm.cutSceneData[vm.cutSceneStackPointer];
     t.scummVar("override", 0);
     log("end cutscene");
-    if(vm.cutScenePtr[vm.cutSceneStackPointer] && slot.cutsceneOverride > 0)
-      slot.cutsceneOverride--;
+    if(vm.cutScenePtr[vm.cutSceneStackPointer] && slot.cutSceneOverride > 0)
+      slot.cutSceneOverride--;
 
     vm.cutSceneScript[vm.cutSceneStackPointer] = 0;
     vm.cutScenePtr[vm.cutSceneStackPointer] = 0;
@@ -1714,7 +1803,9 @@
           script = s.getVarOrDirectByte(PARAM_2),
           data = s.getWordVararg();
 
-      s.runObjectScript(obj, script, (op & 0x20) != 0, (op & 0x40) != 0, data, -1);
+      // o5_startObject: never freeze-resistant or recursive -- the opcode
+      // bits that startScript reads that way mean "variable operand" here
+      s.runObjectScript(obj, script, 0, 0, data, -1);
     },
     resourceRoutines: function() {
      var resType = ["script", "sound", "costume", "room"], resid = 0;
@@ -1732,20 +1823,20 @@
        case 4: // room
          s.ensureResourceLoaded("room", resid);
          break;
-       case 9: // lock script
-       break;
-       case 10: // lock sound
-       break;
-       case 11: // lock costume
-       break;
-       case 13: // unlock script
-       break;
-       case 15: // unlock costume
-       break;
-       case 17:
+       // nuking, locking and unlocking only manage memory, which a browser
+       // does for us
+       case 5: case 6: case 7: case 8:       // nuke script/sound/costume/room
+       case 9: case 10: case 11: case 12:    // lock
+       case 13: case 14: case 15: case 16:   // unlock
+       case 17:                              // clear heap
+       case 19:                              // nuke charset
        break;
        case 18: // charset
          s.loadCharset(resid);
+       break;
+       case 20: // load object -- loadFlObject; flobjects are not supported yet
+         s.getVarOrDirectWord(PARAM_2);
+         log("resourceRoutines: load object " + resid + " not supported");
        break;
        default:
          log("unimplemented resourceRoutines opcode "+op);
@@ -1784,13 +1875,16 @@
           s.initCharset(no);
         break;
         case 14: // unknown
+          // the charset's colour table, kept in _charsetData too so the next
+          // initCharset does not undo it
           table = s.getWordVararg();
+          var cs = s._string[1]._default.charset;
+          if(!s._charsetData[cs]) s._charsetData[cs] = [];
           for(var i = 0; i < 16; i++)
-            s._charsetColorMap[i] = parseInt(table[i]) ? parseInt(table[i]) : 0;
+            s._charsetColorMap[i] = s._charsetData[cs][i] = table[i] & 0xFF;
         break;
         default:
-          if(s._opcodeCommands & 0x1F <= 14)
-            log("unimplemented cursorCommand opcode " + (s._opcode & 0x1F));
+          log("unimplemented cursorCommand opcode " + (s._opcode & 0x1F));
         break;
       }
       s.scummVar("cursorstate", s._cursorState);
@@ -1853,10 +1947,24 @@
         break;
       }
     },
+    // o5_roomOps. The palette effects (8, 11, 12, 15, 16) and the screen
+    // transitions are not implemented yet, but every sub-op reads its
+    // operands -- the ones that did not used to leave them in the stream to
+    // be executed as opcodes.
     roomOps: function() {
-      var a = 0, b = 0, c, d, e;
+      var a = 0, b = 0, c, d, e, half = Math.floor(s._screenWidth / 2);
       s._opcode = s.fetchScriptByte();
       switch(s._opcode & 0x1F) {
+        case 1: // room scroll: how far the camera may go
+          a = s.getVarOrDirectWord(PARAM_1);
+          b = s.getVarOrDirectWord(PARAM_2);
+          if(a < half) a = half;
+          if(b < half) b = half;
+          if(a > s._roomWidth - half) a = s._roomWidth - half;
+          if(b > s._roomWidth - half) b = s._roomWidth - half;
+          s.scummVar("camera_min_x", a);
+          s.scummVar("camera_max_x", b);
+        break;
         case 3: // room screen
           a = s.getVarOrDirectWord(PARAM_1);
           b = s.getVarOrDirectWord(PARAM_2);
@@ -1870,16 +1978,64 @@
           d = s.getVarOrDirectByte(PARAM_1);
           s.setPalColor(d, a, b, c);
         break;
-        case 10: // room fase
+        case 5: // shake on
+        case 6: // shake off
+        break;
+        case 7: // room scale
+          a = s.getVarOrDirectByte(PARAM_1);
+          b = s.getVarOrDirectByte(PARAM_2);
+          s._opcode = s.fetchScriptByte();
+          c = s.getVarOrDirectByte(PARAM_1);
+          d = s.getVarOrDirectByte(PARAM_2);
+          s._opcode = s.fetchScriptByte();
+          e = s.getVarOrDirectByte(PARAM_2);
+          s.setScaleSlot(e - 1, 0, b, a, 0, d, c);
+        break;
+        case 8: // room intensity -- darkenPalette, not implemented yet
+          s.getVarOrDirectByte(PARAM_1);
+          s.getVarOrDirectByte(PARAM_2);
+          s.getVarOrDirectByte(PARAM_3);
+        break;
+        case 9: // savegame
+          s.getVarOrDirectByte(PARAM_1);
+          s.getVarOrDirectByte(PARAM_2);
+        break;
+        case 10: // fade
           a = s.getVarOrDirectWord(PARAM_1);
           if(a) {
-            // _switchRoomEffect
-          } else {
-            // fadeIn
+            s._switchRoomEffect = a & 0xFF;
+            s._switchRoomEffect2 = a >> 8;
           }
+          // else fadeIn
+        break;
+        case 11: // RGB room intensity -- not implemented yet
+        case 12: // room shadow -- not implemented yet
+          s.getVarOrDirectWord(PARAM_1);
+          s.getVarOrDirectWord(PARAM_2);
+          s.getVarOrDirectWord(PARAM_3);
+          s._opcode = s.fetchScriptByte();
+          s.getVarOrDirectByte(PARAM_1);
+          s.getVarOrDirectByte(PARAM_2);
+        break;
+        case 13: // save string
+        case 14: // load string
+          s.getVarOrDirectByte(PARAM_1);
+          while(s.fetchScriptByte()) {}
+        break;
+        case 15: // room transform -- palManipulate, not implemented yet
+          s.getVarOrDirectByte(PARAM_1);
+          s._opcode = s.fetchScriptByte();
+          s.getVarOrDirectByte(PARAM_1);
+          s.getVarOrDirectByte(PARAM_2);
+          s._opcode = s.fetchScriptByte();
+          s.getVarOrDirectByte(PARAM_1);
+        break;
+        case 16: // cycle speed -- not implemented yet
+          s.getVarOrDirectByte(PARAM_1);
+          s.getVarOrDirectByte(PARAM_2);
         break;
         default:
-          log("unimplemented roomOps opcode " + (s._opcode & 0x1F));
+          error("roomOps: unknown sub-op " + (s._opcode & 0x1F));
         break;
       }
     },
@@ -1921,7 +2077,7 @@
       s.getResultPos();
       var a = s.getVarOrDirectWord(PARAM_1);
       if (a == 0) { error("Divide by zero"); s.setResult(0); }
-      else s.setResult(Math.floor(s.readVar(s._resultVarNumber) / a));
+      else s.setResult(Math.trunc(s.readVar(s._resultVarNumber) / a));   // C division
     },
     or: function() {
       s.getResultPos();
@@ -1987,7 +2143,8 @@
     isActorInBox: function() {
       var a = s.getActor(s.getVarOrDirectByte(PARAM_1)),
           box = s.getVarOrDirectByte(PARAM_2);
-      s.jumpRelative(a.walkbox == box);
+      // the box's geometry, not the box the actor was last assigned
+      s.jumpRelative(s.checkXYInBoxBounds(box, a.pos.x, a.pos.y));
     },
 
     putActorAtObject: function() {
@@ -2038,9 +2195,14 @@
       s.setResult(s.findInventory(owner, idx));
     },
     getStringWidth: function() {
+      var str, cs, msg, codes = [], i;
       s.getResultPos();
-      // the charset renderer measures this; 0 until a string is set up
-      s.setResult(0);
+      str = s.getVarOrDirectByte(PARAM_1);
+      msg = s.getResourceMessage("string", str) || "";
+      for(i = 0; i < msg.length; i++) codes.push(msg.charCodeAt(i) & 0xFF);
+      codes.push(0);
+      cs = s.getCharsetRenderer(s._string[0].charset);
+      s.setResult(cs ? s.textWidth(cs, codes, 0) : 0);
     },
 
     delayVariable: function() {
@@ -2066,9 +2228,18 @@
     getClosestObjActor: function() {
       // ScummVM walks the object list looking for the nearest; without the
       // object list wired up this returns "none" rather than a wrong answer
+      var act, obj, dist, closest = 0xFF, closestDist = 0xFF;
       s.getResultPos();
-      s.getVarOrDirectWord(PARAM_1);
-      s.setResult(-1);
+      act = s.getVarOrDirectWord(PARAM_1);
+      obj = s.scummVar("actor_range_max");
+      do {
+        dist = s.getObjActToObjActDist(act, obj);
+        if(dist < closestDist) {
+          closestDist = dist;
+          closest = obj;
+        }
+      } while(--obj >= s.scummVar("actor_range_min"));
+      s.setResult(closest);
     },
 
     oldRoomEffect: function() {
@@ -2099,7 +2270,7 @@
       var act;
       s.getResultPos();
       act = s.getActor(s.getVarOrDirectByte(PARAM_1));
-      s.setResult(act.facing);
+      s.setResult(_system.newDirToOldDir(act.facing));   // 0-3, not degrees
     },
     stopObjectCode: function() {
       s.stopObjectCode();
@@ -2266,10 +2437,13 @@
             break;
           return;
         break;
-        case 4: // wait for sentence
-          // The sentence queue is not ported; with nothing queued the only
-          // thing left to wait on is the sentence script itself.
-          if(!s.isScriptRunning(s.scummVar("sentence_script")))
+        case 4: // wait for sentence: until the queue is empty and the
+                // sentence script has finished
+          if(s._sentenceNum) {
+            if(s._sentence[s._sentenceNum - 1].freezeCount &&
+               !s.isScriptInUse(s.scummVar("sentence_script")))
+              return;
+          } else if(!s.isScriptInUse(s.scummVar("sentence_script")))
             return;
         break;
         default:
@@ -2280,7 +2454,7 @@
       s._opcodeCommands.breakHere();
     },
     drawObject: function() {
-      var state = 1, obj, idx, i, xpos = 255, ypos = 255, x, y, w, h, od;
+      var state = 1, obj, idx, i, xpos = 255, ypos = 255, x, y, w, h, od, o;
 
       obj = s.getVarOrDirectWord(PARAM_1);
       s._opcode = s.fetchScriptByte();
@@ -2309,7 +2483,11 @@
 
       od = s._objs[idx];
       if(xpos != 0xFF) {
-        // Pos stuff
+        // draw at: move the object (and where you walk to for it), in strips
+        od.walk_x += (xpos * 8) - od.x_pos;
+        od.x_pos = xpos * 8;
+        od.walk_y += (ypos * 8) - od.y_pos;
+        od.y_pos = ypos * 8;
       }
       s.addObjectToDrawQueue(idx);
 
@@ -2336,8 +2514,8 @@
     getActorElevation: function() {
       var act;
       s.getResultPos();
-      act = s.getVarOrDirectByte(PARAM_1);
-      s.setResult(act.elevation);
+      act = s.getActor(s.getVarOrDirectByte(PARAM_1));
+      s.setResult(act ? act.elevation : 0);
     },
     drawBox: function() {
       var x,y,x2,y2, color;
@@ -2364,7 +2542,8 @@
     },
     getRandomNr: function() {
       s.getResultPos();
-      s.setResult(Math.floor(Math.random()*s.getVarOrDirectByte(PARAM_1)));
+      // inclusive of the maximum, as ScummVM's getRandomNumber is
+      s.setResult(Math.floor(Math.random()*(s.getVarOrDirectByte(PARAM_1) + 1)));
     },
     // o5_actorOps. Every sub-op has to consume its operands, or the rest of
     // the list is read out of step.
@@ -2513,7 +2692,7 @@
     animateActor: function() {
       var act = s.getActor(s.getVarOrDirectByte(PARAM_1)), anim = s.getVarOrDirectByte(PARAM_2);
 
-      act.animateActor(anim);
+      if(act) act.animateActor(anim);
     },
     cutscene: function() {
       var args = s.getWordVararg();
@@ -2541,7 +2720,7 @@
     },
     faceActor: function() {
       var act = s.getActor(s.getVarOrDirectByte(PARAM_1)), obj = s.getVarOrDirectWord(PARAM_2);
-      act.faceToObject(obj);
+      if(act) act.faceToObject(obj);
     },
     systemOps: function() {
       var subOp = s.fetchScriptByte();
@@ -2569,8 +2748,7 @@
       s.getResultPos();
       a = s.getVarOrDirectWord(PARAM_1);
       b = s.getVarOrDirectWord(PARAM_2);
-      // getObjActToObjActDist
-      s.setResult(1);
+      s.setResult(s.getObjActToObjActDist(a, b));
     },
     panCameraTo: function() {
       s.panCameraTo(s.getVarOrDirectWord(PARAM_1), 0);
@@ -2630,15 +2808,28 @@
     walkActorToActor: function() {
       var nr = s.getVarOrDirectByte(PARAM_1),
           nr2 = s.getVarOrDirectByte(PARAM_2),
-          dist = s.fetchScriptByte();
+          dist = s.fetchScriptByte(), a, to, x, y;
 
-      log("walkActorToActor");
+      // o5_walkActorToActor / walkActorToActor
+      a = s.getActor(nr);
+      to = s.getActor(nr2);
+      if(!a || !a.isInCurrentRoom() || !to || !to.isInCurrentRoom()) return;
+      if(dist == 0xFF) {
+        dist = Math.trunc(a.scalex * a.width / 0xFF);
+        dist += Math.trunc(Math.trunc(to.scalex * to.width / 0xFF) / 2);
+      }
+      x = to.pos.x;
+      y = to.pos.y;
+      if(x < a.pos.x) x += dist;
+      else x -= dist;
+      a.startWalkActor(x, y, -1);
     },
     walkActorToObject: function() {
       var a, obj, act, pos;
       a = s.getVarOrDirectByte(PARAM_1);
       obj = s.getVarOrDirectWord(PARAM_2);
       act = s.getActor(a);
+      if(s.whereIsObject(obj) == WIO_NOT_FOUND) return;
       pos = s.getObjectXYPos(obj);
       act.startWalkActor(pos.x, pos.y, pos.dir);
     },
@@ -2767,10 +2958,11 @@
       s.setResult(s.findObject(x, y));
     },
     actorFromPos: function() {
+      var x, y;
       s.getResultPos();
-      x = s.getVarOrDirectByte(PARAM_1);
-      y = s.getVarOrDirectByte(PARAM_2);
-      s.setResult(0); // findObject(x, y);
+      x = s.getVarOrDirectWord(PARAM_1);
+      y = s.getVarOrDirectWord(PARAM_2);
+      s.setResult(s.getActorFromPos(x, y));
     }
   };
 
@@ -2786,7 +2978,10 @@
   // o5_move). The high bits of an opcode select whether each argument is a
   // literal or a variable, so one instruction occupies several slots and all
   // of them must be registered: executeOpcode kills the running script on an
-  // unregistered byte.
+  // unregistered byte. The entries ScummVM comments out for v5 (0x2f/0x6f/
+  // 0xaf/0xef, 0x4f/0xcf, 0x45/0xc5, 0x50/0xd0, 0x5c/0xdc) are left out too:
+  // a valid script never uses them, so reaching one means the stream is out
+  // of step, and stopping says so.
   s._opcodes = {
     0x00: s._opcodeCommands.stopObjectCode,
     0x01: s._opcodeCommands.putActor,
@@ -2835,7 +3030,6 @@
     0x2c: s._opcodeCommands.cursorCommand,
     0x2d: s._opcodeCommands.putActorInRoom,
     0x2e: s._opcodeCommands.delay,
-    0x2f: s._opcodeCommands.ifNotState,
     0x30: s._opcodeCommands.matrixOps,
     0x31: s._opcodeCommands.getInventoryCount,
     0x32: s._opcodeCommands.setCameraAt,
@@ -2857,7 +3051,6 @@
     0x42: s._opcodeCommands.chainScript,
     0x43: s._opcodeCommands.getActorX,
     0x44: s._opcodeCommands.isLess,
-    0x45: s._opcodeCommands.drawObject,
     0x46: s._opcodeCommands.increment,
     0x47: s._opcodeCommands.setState,
     0x48: s._opcodeCommands.isEqual,
@@ -2867,8 +3060,6 @@
     0x4c: s._opcodeCommands.soundKludge,
     0x4d: s._opcodeCommands.walkActorToActor,
     0x4e: s._opcodeCommands.putActorAtObject,
-    0x4f: s._opcodeCommands.ifState,
-    0x50: s._opcodeCommands.pickupObjectOld,
     0x51: s._opcodeCommands.animateActor,
     0x52: s._opcodeCommands.actorFollowCamera,
     0x53: s._opcodeCommands.actorOps,
@@ -2880,7 +3071,6 @@
     0x59: s._opcodeCommands.doSentence,
     0x5a: s._opcodeCommands.add,
     0x5b: s._opcodeCommands.divide,
-    0x5c: s._opcodeCommands.oldRoomEffect,
     0x5d: s._opcodeCommands.setClass,
     0x5e: s._opcodeCommands.walkActorTo,
     0x5f: s._opcodeCommands.isActorInBox,
@@ -2899,7 +3089,6 @@
     0x6c: s._opcodeCommands.getActorWidth,
     0x6d: s._opcodeCommands.putActorInRoom,
     0x6e: s._opcodeCommands.stopObjectScript,
-    0x6f: s._opcodeCommands.ifNotState,
     0x70: s._opcodeCommands.lights,
     0x71: s._opcodeCommands.getActorCostume,
     0x72: s._opcodeCommands.loadRoom,
@@ -2963,7 +3152,6 @@
     0xac: s._opcodeCommands.expression,
     0xad: s._opcodeCommands.putActorInRoom,
     0xae: s._opcodeCommands.wait,
-    0xaf: s._opcodeCommands.ifNotState,
     0xb0: s._opcodeCommands.matrixOps,
     0xb1: s._opcodeCommands.getInventoryCount,
     0xb2: s._opcodeCommands.setCameraAt,
@@ -2985,7 +3173,6 @@
     0xc2: s._opcodeCommands.chainScript,
     0xc3: s._opcodeCommands.getActorX,
     0xc4: s._opcodeCommands.isLess,
-    0xc5: s._opcodeCommands.drawObject,
     0xc6: s._opcodeCommands.decrement,
     0xc7: s._opcodeCommands.setState,
     0xc8: s._opcodeCommands.isEqual,
@@ -2995,8 +3182,6 @@
     0xcc: s._opcodeCommands.pseudoRoom,
     0xcd: s._opcodeCommands.walkActorToActor,
     0xce: s._opcodeCommands.putActorAtObject,
-    0xcf: s._opcodeCommands.ifState,
-    0xd0: s._opcodeCommands.pickupObjectOld,
     0xd1: s._opcodeCommands.animateActor,
     0xd2: s._opcodeCommands.actorFollowCamera,
     0xd3: s._opcodeCommands.actorOps,
@@ -3008,7 +3193,6 @@
     0xd9: s._opcodeCommands.doSentence,
     0xda: s._opcodeCommands.add,
     0xdb: s._opcodeCommands.divide,
-    0xdc: s._opcodeCommands.oldRoomEffect,
     0xdd: s._opcodeCommands.setClass,
     0xde: s._opcodeCommands.walkActorTo,
     0xdf: s._opcodeCommands.isActorInBox,
@@ -3027,7 +3211,6 @@
     0xec: s._opcodeCommands.getActorWidth,
     0xed: s._opcodeCommands.putActorInRoom,
     0xee: s._opcodeCommands.stopObjectScript,
-    0xef: s._opcodeCommands.ifNotState,
     0xf0: s._opcodeCommands.lights,
     0xf1: s._opcodeCommands.getActorCostume,
     0xf2: s._opcodeCommands.loadRoom,

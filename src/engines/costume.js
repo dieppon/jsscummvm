@@ -268,6 +268,12 @@
       if(!hitTestMode) {
         t.top = bcr.draw_top;
         t.bottom = bcr.draw_bottom;
+        // Horizontal extent in room coordinates, for getActorFromPos -- the
+        // stand-in for ScummVM's per-strip gfx usage bits. The renderer
+        // draws offset by xstart & 7.
+        var xs = s._virtscreens[0].xstart;
+        t.drawLeft = bcr.draw_left + xs - (xs & 7);
+        t.drawRight = bcr.draw_right + xs - (xs & 7);
       }
     };
     t.setupActorScale = function() {
@@ -304,6 +310,8 @@
 
       bcr.draw_top = 0x7fffffff;
       bcr.draw_bottom = 0;
+      bcr.draw_left = 0x7fffffff;
+      bcr.draw_right = -0x7fffffff;
     };
     t.animateCostume = function() {
       if(t.costume == 0) return;
@@ -1287,6 +1295,10 @@
         t.draw_top = rect.top;
       if(t.draw_bottom < rect.bottom)
         t.draw_bottom = rect.bottom;
+      if(t.draw_left > rect.left)
+        t.draw_left = rect.left;
+      if(t.draw_right < rect.right)
+        t.draw_right = rect.right;
 
       if(t.height + rect.top > 256) {
         return 2;
