@@ -180,9 +180,9 @@
       /* keep the pixels sharp when the canvas is scaled on narrow screens */
       image-rendering: pixelated;
       image-rendering: crisp-edges;
-      /* Fallback: before the game starts, and if the engine's own cursor is
-         ever not drawn. */
-      cursor: crosshair;
+      /* The game draws its own cursor, and hides it when the game does
+         (cutscenes, conversations) -- the browser's has no place here. */
+      cursor: none;
     }
 
     /* the DOS shell that owns the screen until the game launches -------- */
@@ -194,10 +194,6 @@
       overflow: hidden;
     }
     .crt.is-running .dos { display: none; }
-
-    /* present() sets cursor:none on the canvas only when it actually drew the
-       engine's cross, and puts it back to crosshair when it did not -- so
-       there is never a moment with no cursor at all. */
 
     .dos-out {
       margin: 0;

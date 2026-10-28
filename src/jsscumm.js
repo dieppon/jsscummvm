@@ -92,7 +92,7 @@ function assert(condition) {
   };
 
   ScummVM.present = function() {
-    var t = this, drew = false, e = t.engine;
+    var t = this, e = t.engine;
     t.displayContext.drawImage(t.buffer,
       0, 0, t.width, t.height,
       0, 0, t.canvas.width, t.canvas.height);
@@ -101,13 +101,10 @@ function assert(condition) {
     // buffer, so it can be moved by calling present() again without
     // smearing and without waiting for the next engine frame.
     if (e && e.drawCursorTo) {
-      drew = e.drawCursorTo(t.displayContext,
-                            t.canvas.width / t.width,
-                            t.canvas.height / t.height);
+      e.drawCursorTo(t.displayContext,
+                     t.canvas.width / t.width,
+                     t.canvas.height / t.height);
     }
-    // Only hide the browser pointer when we actually put something there,
-    // otherwise there would be no cursor at all.
-    t.canvas.style.cursor = drew ? "none" : "crosshair";
   };
 
   // --- mouse ------------------------------------------------------------
