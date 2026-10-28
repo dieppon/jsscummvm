@@ -235,6 +235,9 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
 
         t.updatePalette();
         t.drawDirtyScreenParts();
+
+        // scumm.cpp: v5 plays costume sounds after drawing
+        t.playActorSounds();
       }
 
       // scummLoop_handleSound: the sounds the scripts started this frame

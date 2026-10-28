@@ -203,9 +203,18 @@
     if(t._charsetHasMask) {
       t._charsetHasMask = false;
       for(i = 0; i < t._textLayer.length; i++)
-        if(!t._textLayer[i].main) keep.push(t._textLayer[i]);
+        if(!(t._textLayer[i].main && t._textLayer[i].mask)) keep.push(t._textLayer[i]);
       t._textLayer = keep;
     }
+  };
+
+  // Text drawString put on the room is part of the picture in ScummVM, so it
+  // goes when the background is redrawn rather than with the speech
+  s.clearDrawnText = function() {
+    var t = this, i, keep = [];
+    for(i = 0; i < t._textLayer.length; i++)
+      if(!(t._textLayer[i].main && !t._textLayer[i].mask)) keep.push(t._textLayer[i]);
+    t._textLayer = keep;
   };
 
   // All text, wherever it is: a room change starts from a clean screen
@@ -302,20 +311,22 @@
     return c;
   };
 
-  // Put one glyph on the text layer, extending the current run if it carries
-  // straight on from it
-  s.layText = function(cs, c, x, y, color) {
-    var t = this, runs = t._textLayer, last = runs[runs.length - 1], vs = t._virtscreens[0],
-        main = !vs || (y >= vs.topline && y < vs.topline + vs.h);
-    if(last && last.y == y && last.end == x && last.color == color && last.cs == cs.curId) {
-      last.codes.push(c);
-    } else {
-      last = {x: x, y: y, codes: [c], color: color, cs: cs.curId, main: main, end: x};
-      runs.push(last);
-    }
-    last.end = x + cs.getCharWidth(c);
-    if(main) t._charsetHasMask = true;
-    return last.end;
+  // charset.cpp CharsetRendererClassic::printChar: put one glyph on the
+  // text layer at the pen position and return where the pen moves to. The
+  // glyph's x offset is dropped for the first glyph of a stretch and after a
+  // newline (_disableOffsX); a glyph that would cross `right` or start left
+  // of the screen is skipped, though the pen still moves. `mask` marks
+  // speech, which restoreCharsetBg erases; drawString's text is not.
+  s.printGlyph = function(cs, c, x, y, color, right, mask) {
+    var t = this, g = cs.glyphInfo(c), vs = t._virtscreens[0], main;
+    if(!g) return x;
+    if(!t._disableOffsX) x += g.xoff;
+    if(x + g.w > right + 1 || x < 0) return x + g.w;
+    t._disableOffsX = false;
+    main = !vs || (y >= vs.topline && y < vs.topline + vs.h);
+    t._textLayer.push({x: x, y: y, c: c, color: color, cs: cs.curId, main: main, mask: mask});
+    if(main && mask) t._charsetHasMask = true;
+    return x + g.w;
   };
 
   // string.cpp newLine
@@ -327,6 +338,7 @@
       if(t._nextLeft < 0) t._nextLeft = 0;
     }
     t._nextTop += t._string[0].height ? t._string[0].height : cs.fontHeight;
+    t._disableOffsX = true;
   };
 
   // string.cpp displayDialog (CHARSET_1): called every frame while there is
@@ -395,6 +407,7 @@
       if(t._nextLeft < 0) t._nextLeft = 0;
     }
 
+    t._disableOffsX = !t._keepText;
     st = {color: t._charsetColor};
     for(;;) {
       c = t.handleNextCharsetCode(a, st);
@@ -410,7 +423,7 @@
         t.newLine(cs);
         continue;
       }
-      t._nextLeft = t.layText(cs, c, t._nextLeft, t._nextTop, st.color);
+      t._nextLeft = t.printGlyph(cs, c, t._nextLeft, t._nextTop, st.color, str.right, true);
       t._talkDelay += t.scummVar("charinc");
     }
   };
@@ -421,6 +434,10 @@
         codes = [], cs, i, c, left, top, startLeft, color;
 
     for(i = 0; i < buf.length; i++) codes.push(buf.charCodeAt(i) & 0xFF);
+    // string.cpp (v4+): trailing spaces are cut before the text is centred
+    while(codes.length && codes[codes.length - 1] == 32) codes.pop();
+    // and an empty string draws a single space
+    if(!codes.length) codes.push(32);
     codes.push(0);
 
     cs = t.getCharsetRenderer(str.charset);
@@ -432,8 +449,7 @@
 
     if(str.center)
       left -= Math.floor(t.textWidth(cs, codes, 0) / 2);
-    // ScummVM draws a single space for an empty string, which erases nothing
-    if(codes[0] === 0) return;
+    t._disableOffsX = true;
 
     for(i = 0; (c = codes[i++]) !== 0;) {
       if(c == 0xFF || c == 0xFE) {
@@ -454,7 +470,7 @@
           break;
         }
       } else {
-        left = t.layText(cs, c, left, top, color);
+        left = t.printGlyph(cs, c, left, top, color, str.right, false);
       }
     }
 
@@ -467,22 +483,22 @@
 
   // Paint the text layer over the frame
   s.renderTexts = function() {
-    var t = this, runs = t._textLayer, ctx = ScummVM.context,
-        width = ScummVM.width, height = ScummVM.height, img, i, run, cs, data, j;
+    var t = this, glyphs = t._textLayer, ctx = ScummVM.context,
+        width = ScummVM.width, height = ScummVM.height, img, i, g, cs, data, j;
 
-    if(!runs || !runs.length) return;
+    if(!glyphs || !glyphs.length) return;
 
     img = ctx.getImageData(0, 0, width, height);
-    for(i = 0; i < runs.length; i++) {
-      run = runs[i];
-      cs = t.getCharsetRenderer(run.cs);
+    for(i = 0; i < glyphs.length; i++) {
+      g = glyphs[i];
+      cs = t.getCharsetRenderer(g.cs);
       if(!cs) continue;
       // The charset's own colour table, then colour 1 replaced by the
       // text's colour -- displayDialog's memcpy plus setColor
       data = t._charsetData[cs.curId];
       for(j = 0; j < 4; j++) t._charsetColorMap[j] = data ? (data[j] || 0) : 0;
-      t._charsetColorMap[1] = run.color;
-      cs.drawLine(img.data, width, height, run.codes, run.x, run.y, run.color);
+      t._charsetColorMap[1] = g.color;
+      cs.printChar(img.data, width, height, g.c, g.x, g.y, g.color, true);
     }
     ctx.putImageData(img, 0, 0);
   };

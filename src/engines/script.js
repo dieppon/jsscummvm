@@ -39,10 +39,12 @@
     t.nest = [];
     t.numNestedScripts = 0;
     t.localvar = []
-    t.cutSceneStackPointer = -1;
+    // scumm.cpp: level 0 means "no cutscene"; an override outside any
+    // cutscene uses that level's entry
+    t.cutSceneStackPointer = 0;
     t.cutScenePtr = [];
     t.cutSceneScript = [];
-    t.cutSceneScriptIndex = 0;
+    t.cutSceneScriptIndex = 0xFF;
     t.cutSceneData = [];
 
     for(var i = 0; i < 80; i++) {
@@ -61,8 +63,7 @@
   }
 
   s.runBootscript = function() {
-    var t = this, i;
-    args = [];
+    var t = this, i, args = [];
     for(i = 0; i < 16; i++) {
       args[i] = 0;
     }
@@ -250,7 +251,7 @@
       t.runScript(script, 0, 0, 0);
     }
     if(t._gfx["EXCD"]) {
-      slot = t.getScriptSlot();
+      var slot = t.getScriptSlot();
       slot.status = "running";
       slot.number = 10001;
       slot.where = "room";
@@ -276,7 +277,7 @@
       t.runScript(script, 0, 0, 0);
     }
     if(t._gfx["ENCD"]) {
-      slot = t.getScriptSlot();
+      var slot = t.getScriptSlot();
       slot.status = "running";
       slot.number = 10002;
       slot.where = "room";
@@ -343,6 +344,20 @@
     return false;
   };
 
+  s.currentScriptNumber = function() {
+    var slot = this._vm.slot[this._currentScript];
+    return slot ? slot.number : -1;
+  };
+
+  s.inventoryScriptInCutscene = function() {
+    var t = this, i, ss;
+    for(i = 0; i < t._vm.slot.length; i++) {
+      ss = t._vm.slot[i];
+      if(ss.status != "dead" && ss.where == "inventory" && ss.cutSceneOverride) return true;
+    }
+    return false;
+  };
+
   s.clearClickedStatus = function() {
     var t = this;
     t._keyHit = null;
@@ -398,7 +413,7 @@
   };
 
   s.isScriptRunning = function(script) {
-    var t = this, slots = t._vm.slot, i;
+    var t = this, slots = t._vm.slot, i, slot;
     for(i = 0; i < slots.length; i++) {
       slot = slots[i];
       if(slot.number == script && (slot.where == "global" || slot.where == "local") && slot.status != "dead")
@@ -1058,7 +1073,7 @@
     t.verbid = 0;
     t.color = 2; t.hicolor = 0; t.dimcolor = 8; t.bkcolor = 0;
     t.type = kTextVerbType;
-    t.charset_nr = 0; t.curmode = 0;
+    t.charset_nr = 1; t.curmode = 0;   // scumm.cpp resetScumm
     t.saveid = 0; t.key = 0; t.center = false;
     t.imgindex = 0; t.origLeft = 0;
     t.text = "";
@@ -1195,6 +1210,7 @@
 
     charset = t._charset || (t._charset = new t.CharsetRenderer(t));
     if(!charset.setCurID(t._curCharset) && !charset.setCurID(1)) return;
+    var defaultCharset = charset.curId;
 
     // ScummVM only highlights the verb under the pointer while the cursor is on
     if(t._cursorState > 0)
@@ -1215,6 +1231,8 @@
       // The name is expanded every time it is drawn, as ScummVM's drawVerb
       // does: the sentence line is one verb whose name is "\xFF\x05<var>
       // \xFF\x06<var>..." -- the verb and object names held in variables.
+      // each verb in its own charset (verbs.cpp drawVerb)
+      if(!charset.setCurID(vs.charset_nr || defaultCharset)) charset.setCurID(defaultCharset);
       codes = t.verbDisplayCodes(vs);
       // ScummVM records the rect as it draws, so a verb whose text changes
       // (the sentence line) is clickable where it now is
@@ -1341,7 +1359,7 @@
     var t = this, cs, w = 0, h = 8, codes;
     if (!vs || vs.type != kTextVerbType) return;
     cs = t._charset || (t._charset = new t.CharsetRenderer(t));
-    if (cs.setCurID(t._curCharset) || cs.setCurID(1)) {
+    if (cs.setCurID(vs.charset_nr) || cs.setCurID(t._curCharset) || cs.setCurID(1)) {
       codes = t.verbDisplayCodes(vs);
       w = cs.getStringWidth(codes);
       h = cs.fontHeight;
@@ -1732,6 +1750,7 @@
     var t = this, scr = t._currentScript, vm = t._vm;
     vm.slot[scr].cutSceneOverride++;
     vm.cutSceneStackPointer++;
+    if(vm.cutSceneStackPointer >= 5) error("Cutscene stack overflow");   // kMaxCutsceneNum
     vm.cutSceneData[vm.cutSceneStackPointer] = args[0];
     vm.cutSceneScript[vm.cutSceneStackPointer] = 0;
     vm.cutScenePtr[vm.cutSceneStackPointer] = 0;
@@ -1756,6 +1775,10 @@
 
     vm.cutSceneScript[vm.cutSceneStackPointer] = 0;
     vm.cutScenePtr[vm.cutSceneStackPointer] = 0;
+    if(vm.cutSceneStackPointer == 0) {
+      error("Cutscene stack underflow");
+      return;
+    }
     vm.cutSceneStackPointer--;
 
     if(t.scummVar("cutscene_end_script")) {
@@ -2134,7 +2157,8 @@
     getActorWalkBox: function() {
       s.getResultPos();
       var a = s.getActor(s.getVarOrDirectByte(PARAM_1));
-      s.setResult(a.ignoreBoxes ? 0 : a.walkbox);
+      // v5's "no box" is 0; this port keeps 0xFF internally
+      s.setResult(a.ignoreBoxes || s.isInvalidBox(a.walkbox) ? 0 : a.walkbox);
     },
     getAnimCounter: function() {
       s.getResultPos();
@@ -2379,7 +2403,7 @@
             vs.verbid = verb;
             vs.color = 2; vs.hicolor = 0; vs.dimcolor = 8;
             vs.type = kTextVerbType;
-            vs.charset_nr = s._string[0] ? (s._string[0].charset || 0) : 0;
+            vs.charset_nr = s._string[0]._default.charset;
             vs.curmode = 0; vs.saveid = 0; vs.key = 0;
             vs.center = false; vs.imgindex = 0; vs.text = "";
             break;
@@ -2653,7 +2677,6 @@
     },
     breakHere: function() {
       s.updateScriptPtr();
-      slot = s._vm.slot[s._currentScript];
       s._currentScript = 0xFF;
     },
     jumpRelative: function() {
@@ -2705,6 +2728,11 @@
       s.getResultPos();
       var script = s.getVarOrDirectByte(PARAM_1), running = s.isScriptRunning(script);
       s.setResult(running ? 1 : 0);
+      // ScummVM workaround (bug #346, also in the original): in room 25
+      // script 204 can stop an inventory object's script in the middle of
+      // its cutscene. Report "still running" while one is in a cutscene.
+      if(s._currentRoom == 25 && s.currentScriptNumber() == 204 && s.inventoryScriptInCutscene())
+        s.setResult(1);
     },
     setCameraAt: function() {
       s.setCameraAtEx(s.getVarOrDirectWord(PARAM_1));
@@ -2948,6 +2976,14 @@
       s.soundKludge(items);
     },
     setObjectName: function() {
+      // ScummVM workaround (bug #10571, also in the original): script 68
+      // renames the grog mugs, which restarts inventory scripts -- wait out
+      // any that is in a cutscene (the kidnap note) instead of killing it
+      if(s.currentScriptNumber() == 68 && s.inventoryScriptInCutscene()) {
+        s._scriptPointer.seek(-1);
+        s._opcodeCommands.breakHere();
+        return;
+      }
       s.setObjectName(s.getVarOrDirectWord(PARAM_1));
     },
     findObject: function() {

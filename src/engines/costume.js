@@ -473,11 +473,12 @@
         return 0;
       }
 
-      tmpX = t.pos.x * 65536 + t.walkdata.xfrac + ((t.walkdata.deltaXFactor / 256) | 0) * t.scalex;
+      // >> 8 floors, as C's does on the negative steps
+      tmpX = t.pos.x * 65536 + t.walkdata.xfrac + (t.walkdata.deltaXFactor >> 8) * t.scalex;
       t.walkdata.xfrac = tmpX & 0xFFFF;
       t.pos.x = Math.floor(tmpX / 65536);
 
-      tmpY = t.pos.y * 65536 + t.walkdata.yfrac + ((t.walkdata.deltaYFactor / 256) | 0) * t.scaley;
+      tmpY = t.pos.y * 65536 + t.walkdata.yfrac + (t.walkdata.deltaYFactor >> 8) * t.scaley;
       t.walkdata.yfrac = tmpY & 0xFFFF;
       t.pos.y = Math.floor(tmpY / 65536);
 
@@ -1046,7 +1047,10 @@
           if(cost.start[slot] != end)
             continue;
         } else {
+          // 0x78 marks a frame with a sound (footsteps and the like);
+          // playActorSounds plays it
           if(nc == 0x78) {
+            cost.soundCounter = (cost.soundCounter | 0) + 1;
             if(cost.start[slot] != end)
               continue;
           }
@@ -1168,7 +1172,7 @@
         if(t.mirror) {
           startScaleIndexX = t.scaleIndexX = scaletableSize - xmoveCur;
           for(i = 0; i < xmoveCur; i++) {
-            if(scale_table[t.scaleIndexX++] < t.scaleX)
+            if(scale_table[t.scaleIndexX++ & 0xFF] < t.scaleX)
               codec.x -= codec.scaleXstep;
           }
 
@@ -1180,13 +1184,13 @@
               skip++;
               startScaleIndexX = t.scaleIndexX;
             }
-            if(scale_table[t.scaleIndexX++] < t.scaleX)
+            if(scale_table[t.scaleIndexX++ & 0xFF] < t.scaleX)
               rect.right++;
           }
         } else {
           startScaleIndexX = t.scaleIndexX = xmoveCur + scaletableSize;
           for(i = 0; i < xmoveCur; i++) {
-            if(scale_table[t.scaleIndexX--] < t.scaleX)
+            if(scale_table[t.scaleIndexX-- & 0xFF] < t.scaleX)
               codec.x += codec.scaleXstep;
           }
 
@@ -1198,7 +1202,7 @@
               startScaleIndexX = t.scaleIndexX;
               skip++;
             }
-            if(scale_table[t.scaleIndexX--] < t.scaleX)
+            if(scale_table[t.scaleIndexX-- & 0xFF] < t.scaleX)
               rect.left--;
           }
         }
@@ -1215,14 +1219,14 @@
 
         t.scaleIndexY = scaletableSize - ymoveCur;
         for(i = 0; i < ymoveCur; i++) {
-          if(scale_table[t.scaleIndexY++] < t.scaleY)
+          if(scale_table[t.scaleIndexY++ & 0xFF] < t.scaleY)
             codec.y -= step;
         }
 
         rect.top = rect.bottom = codec.y;
         t.scaleIndexY = scaletableSize - ymoveCur;
         for(i = 0; i < t.height; i++) {
-          if(scale_table[t.scaleIndexY++] < t.scaleY)
+          if(scale_table[t.scaleIndexY++ & 0xFF] < t.scaleY)
             rect.bottom++;
         }
 
@@ -1312,7 +1316,7 @@
       if(t.draw_right < rect.right)
         t.draw_right = rect.right;
 
-      if(t.height + rect.top > 256) {
+      if(t.height + rect.top >= 256) {
         return 2;
       }
 
@@ -1370,7 +1374,7 @@
 
         do {
           if(!startpos) {
-            if(t.scaleY == 255 || scale_table[scaleIndexY++] < t.scaleY) {
+            if(t.scaleY == 255 || scale_table[scaleIndexY++ & 0xFF] < t.scaleY) {
               maskval = mask.readUI8();
               mask.seek(-1);
               masked = (y < 0 || y >= t.out.h) || (codec.x < 0 || codec.x >= t.out.w) || (codec.mask_ptr && (maskval & maskbit));
@@ -1391,7 +1395,7 @@
               height = t.height;
               y = codec.y;
               scaleIndexY = t.scaleIndexY;
-              if(t.scaleX == 255 || scale_table[t.scaleIndexX] < t.scaleX) {
+              if(t.scaleX == 255 || scale_table[t.scaleIndexX & 0xFF] < t.scaleX) {
                 codec.x += codec.scaleXstep;
                 if(codec.x < 0 || codec.x >= t.out.w)
                   return;
@@ -1423,6 +1427,22 @@
       return null;
     }
     return t._actors[id];
+  };
+
+  // actor.cpp playActorSounds: the first actor in the room whose costume hit
+  // a sound frame plays its sound; all the counters are then cleared
+  s.playActorSounds = function() {
+    var t = this, i, j, a;
+    for(i = 1; i < t._nums['actors']; i++) {
+      a = t._actors[i];
+      if(a && a.cost && a.cost.soundCounter && a.isInCurrentRoom()) {
+        t._currentScript = 0xFF;
+        if(a.sound) t.startSound(a.sound);
+        for(j = 1; j < t._nums['actors']; j++)
+          if(t._actors[j] && t._actors[j].cost) t._actors[j].cost.soundCounter = 0;
+        return;
+      }
+    }
   };
 
   s.processActors = function() {

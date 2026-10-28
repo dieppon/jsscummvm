@@ -759,7 +759,17 @@
 
     // Blit one glyph into `data`, the RGBA bytes of a dw x dh ImageData.
     // Returns how far to advance x.
-    printChar: function(data, dw, dh, chr, x, y, color) {
+    // A glyph's header: size and the offsets it is drawn at, or null when
+    // the charset has no such glyph
+    glyphInfo: function(chr) {
+      var t = this, offs = t.charOffset(chr);
+      if(!offs) return null;
+      t.ptr.seek(FONT_BASE + offs, true);
+      return {w: t.ptr.readUI8(), h: t.ptr.readUI8(), xoff: t.ptr.readSI8(), yoff: t.ptr.readSI8()};
+    },
+
+    // noXOff: the caller has already applied (or dropped) the x offset
+    printChar: function(data, dw, dh, chr, x, y, color, noXOff) {
       var t = this, offs = t.charOffset(chr);
       if(!offs) return 0;
 
@@ -782,7 +792,7 @@
           numbits -= bpp;
 
           if(!v) continue;                      // 0 is transparent
-          sx = x + xoff + px;
+          sx = x + (noXOff ? 0 : xoff) + px;
           if(sx < 0 || sy < 0 || sx >= dw || sy >= dh) continue;
           // 1bpp glyphs are solid and take the string's colour; deeper ones
           // index the charset colour map, like ScummVM's drawBitsN.
@@ -945,6 +955,10 @@
     // gfx.cpp: text over the room goes when the view scrolls
     if(camera.cur.x != camera.last.x && t._charsetHasMask)
       t.stopTalk();
+    // and printed text, which is part of the picture, goes when it is
+    // repainted
+    if(t._fullRedraw || camera.cur.x != camera.last.x)
+      t.clearDrawnText();
     t.redrawBGStrip(0, t._gdi.numStrips);
 
     // The background was just repainted, so put the objects back -- without

@@ -133,7 +133,10 @@
       return;
     }
     size -= 2;
-    rate = Math.floor(1000000 / (256 - sr));
+    // audio/decoders/voc.cpp getSampleRateFromVOCRate
+    if (sr == 0xA5 || sr == 0xA6) rate = 11025;
+    else if (sr == 0xD2 || sr == 0xD3) rate = 22050;
+    else rate = Math.floor(1000000 / (256 - sr));
     if (!ctx || size <= 0) return;
 
     buffer = ctx.createBuffer(1, size, rate);
@@ -254,8 +257,11 @@
   // sound.cpp updateMusicTimer: with CD audio the timer is the CD's, which
   // counts frames from when the track was started
   s.updateMusicTimer = function(delta) {
-    var t = this;
+    var t = this, a = t._cdAudio, st = t._cdStatus;
     if (t._cdTimerRunning) t._cdMusicTimer += delta;
+    // timeupdate only fires every 15-250 ms; check the segment end each
+    // frame too so a track does not run on into the next cue
+    if (a && st && st.end && a.currentTime >= st.end) t.cdTrackEnded(a, st);
     t.scummVar("music_timer", t._cdMusicTimer);
   };
 

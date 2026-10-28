@@ -17,7 +17,12 @@ var ScummVM = {
 
 function log(message) {
   // window.console.log(message);
-  $("#console").prepend(message+"<br />");
+  var el = document.getElementById("console");
+  if (!el) return;
+  el.insertAdjacentHTML("afterbegin", message + "<br />");
+  // keep the newest few hundred lines; it used to grow for the whole game
+  if (el.childNodes.length > 1000)
+    while (el.childNodes.length > 600) el.removeChild(el.lastChild);
 }
 
 function debug(level, message) {
