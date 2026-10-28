@@ -57,7 +57,7 @@ function assert(condition) {
     var t = ScummVM, e = t.engine;
     if(e) {
       e._shouldQuit = true;
-      if(e._timer) { window.clearInterval(e._timer); e._timer = 0; }
+      if(e._timer) { window.clearTimeout(e._timer); e._timer = 0; }
     }
     t.engine = null;
     if(t.context) {
@@ -158,10 +158,19 @@ function assert(condition) {
   // right click is a verb action in SCUMM, not a context menu
   canvas.addEventListener("contextmenu", function(e) { e.preventDefault(); });
 
-  window.document.addEventListener("keypress", function(e) {
-    var c = String.fromCharCode(e.keyCode)
-    ScummVM.engine._lastKeyHit = "ESC";
-    return true;
+  // Keys go to the engine as ScummVM's processKeyboard sees them: Esc skips
+  // a cutscene, '.' a line of speech, space pauses, the rest reach the
+  // game's input script (verb shortcuts and so on). keydown, because Esc
+  // never fires keypress.
+  window.document.addEventListener("keydown", function(e) {
+    var eng = ScummVM.engine, ascii;
+    if (!eng || !eng._timer || e.metaKey || e.altKey) return;
+    if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    if (e.key.length == 1) ascii = e.key.charCodeAt(0) & 0xFF;
+    else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[e.key] || 0;
+    if (!ascii && !/^F[1-9]$/.test(e.code)) return;
+    eng._keyHit = {code: e.code, ascii: ascii, ctrl: e.ctrlKey};
+    e.preventDefault();
   });
 
 }());

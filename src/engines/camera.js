@@ -162,7 +162,9 @@
       for(var i = 1; i < t._actors.length; i++)
         if(t._actors[i].isInCurrentRoom()) t._actors[i].needRedraw = true;
     }
-    camera.last.x = camera.cur.x;
+    // camera.last is updated at the end of the frame (scumm.js), as in
+    // scumm.cpp -- setting it here hid the move from redrawBGAreas and
+    // displayDialog, so speech stayed on screen while the room scrolled
   };
 
   s.actorFollowCamera = function(act) {

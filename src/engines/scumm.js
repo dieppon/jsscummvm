@@ -1,7 +1,7 @@
 var PARAM_1 = 0x80, PARAM_2 = 0x40, PARAM_3 = 0x20;
 
 // mouse button state, from input.cpp / scumm.h
-var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
+var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
     MBS_MOUSE_MASK = MBS_LEFT_CLICK | MBS_RIGHT_CLICK,
     MS_DOWN = 1, MS_CLICKED = 2;
 
@@ -85,7 +85,8 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     _curCharset: 1,
     _actors: [],
     _sortedActors: [],
-    _lastKeyHit: "",
+    _keyHit: null,
+    _paused: false,
     // input.cpp: _mouse is in screen coords, _virtualMouse is offset by the
     // main virtual screen's scroll and topline. msDown/msClicked mirror
     // ScummVM's left/right button state machine.
@@ -135,22 +136,30 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
         t.resetScummVars();
         t.runBootscript();
 
-        t._timer = window.setInterval(function() {
-
-          t.scummVar("timer", Math.floor(diff * 60 / 1000));
-          t.scummVar("timer_total", t.scummVar("timer_total") + Math.floor(diff * 60 / 1000));
-          delta = t.scummVar("timer_next");
-          if(delta < 1)
-            delta = 1;
-
-          t.waitForTimer(Math.floor(delta * 1000 / 60) - diff, function() {
-            diff = _system.getMillis();
-            t.loop(delta);
-            diff = _system.getMillis() - diff;
-          });
-
-
-        }, 1000 / 12);
+        // scumm.cpp's main loop: wait VAR_TIMER_NEXT jiffies (1/60 s), run
+        // a frame, repeat. The script sets the pace -- this used to run a
+        // fixed 12 frames a second whatever it asked for, so delays, walking
+        // and talk timing were all off unless it happened to ask for 5.
+        // Waits are measured from when the last one was due, not from now,
+        // so a slow frame does not make the game drift (_lastWaitTime).
+        t._lastWaitTime = _system.getMillis();
+        var tick = function() {
+          var delta = t.scummVar("timer_next"), target;
+          if(!(delta >= 1)) delta = 1;
+          target = t._lastWaitTime + delta * 1000 / 60;
+          t._timer = window.setTimeout(function() {
+            var now = _system.getMillis();
+            if(t._shouldQuit) return;
+            // fell far behind (a background tab): start counting afresh
+            t._lastWaitTime = now > target + 100 ? now : target;
+            try {
+              t.loop(delta);
+            } finally {
+              if(!t._shouldQuit) tick();
+            }
+          }, Math.max(0, target - _system.getMillis()));
+        };
+        tick();
       }
     },
     waitForTimer: function(ticks, callback) {
@@ -158,6 +167,15 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     },
     loop: function(delta) {
       var t = ScummVM.engines.SCUMM;
+
+      // Paused: only watch for the key that ends it
+      if(t._paused) {
+        t.processInput();
+        return;
+      }
+
+      t.scummVar("timer", delta);
+      t.scummVar("timer_total", t.scummVar("timer_total") + delta);
 
       t.scummVar("tmr_1", t.scummVar("tmr_1") + delta);
       t.scummVar("tmr_2", t.scummVar("tmr_2") + delta);
@@ -190,7 +208,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       t.checkAndRunSentenceScript();
 
       if(t.shouldQuit()) {
-        window.clearInterval(t._timer);
+        window.clearTimeout(t._timer);
         return;
       }
 
@@ -220,6 +238,10 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
 
       // scummLoop_handleSound: the sounds the scripts started this frame
       t.processSound();
+
+      // scumm.cpp sets this at the very end of the frame; everything that
+      // asks "did the camera move?" during the frame compares against it
+      t._camera.last.x = t._camera.cur.x;
     },
     updateScummVars: function() {
       var t = this;
@@ -228,6 +250,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       t.scummVar("virt_mouse_y", t._virtualMouse.y);
       t.scummVar("mouse_x", t._mouse.x);
       t.scummVar("mouse_y", t._mouse.y);
+      t.scummVar("camera_pos_x", t._camera.cur.x);
     },
     shouldQuit: function() {
       var t = ScummVM.engines.SCUMM;
@@ -235,12 +258,8 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       return false;
     },
     processInput: function() {
-      var t = this, vs;
-
-      if(t._lastKeyHit == "ESC") {
-        t.abortCutscene();
-      }
-      t._lastKeyHit = "";
+      var t = this, vs, key = t._keyHit;
+      t._keyHit = null;
 
       // clip the pointer, then derive the virtual (room-space) position
       if(t._mouse.x < 0) t._mouse.x = 0;
@@ -254,12 +273,41 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       if(vs && (t._virtualMouse.y < 0 || t._virtualMouse.y >= vs.h))
         t._virtualMouse.y = -1;
 
-      // button state for this frame, then clear the edge-triggered bits
+      // input.cpp: button state for this frame. Both buttons at once is the
+      // cutscene exit key, as in the original.
       t._mouseAndKeyboardStat = 0;
-      if(t._leftBtnPressed & MS_CLICKED)  t._mouseAndKeyboardStat = MBS_LEFT_CLICK;
-      if(t._rightBtnPressed & MS_CLICKED) t._mouseAndKeyboardStat = MBS_RIGHT_CLICK;
+      if((t._leftBtnPressed & MS_CLICKED) && (t._rightBtnPressed & MS_CLICKED))
+        key = {code: "Escape", ascii: 27};
+      else if(t._leftBtnPressed & MS_CLICKED) t._mouseAndKeyboardStat = MBS_LEFT_CLICK;
+      else if(t._rightBtnPressed & MS_CLICKED) t._mouseAndKeyboardStat = MBS_RIGHT_CLICK;
       t._leftBtnPressed  &= ~MS_CLICKED;
       t._rightBtnPressed &= ~MS_CLICKED;
+
+      if(key) t.processKeyboard(key);
+    },
+    // input.cpp processKeyboard, without ScummVM's own menus
+    processKeyboard: function(key) {
+      var t = this, f;
+      if(key.code == "Space" && t.scummVar("pause_key") != 0) {
+        t._paused = !t._paused;
+      } else if(key.ascii == 46 && t.scummVar("talkstop_key") != 0) {   // '.'
+        t._talkDelay = 0;
+      } else if(key.code == "Escape" && t.scummVar("cutsceneexit_key") != 0) {
+        t.abortCutscene();
+        t._mouseAndKeyboardStat = t.scummVar("cutsceneexit_key");
+      } else {
+        f = /^F([1-9])$/.exec(key.code);
+        if(f) t._mouseAndKeyboardStat = 315 + (+f[1] - 1);
+        else if(key.ctrl && /^Key[A-Z]$/.test(key.code))
+          t._mouseAndKeyboardStat = key.code.charCodeAt(3) & 0x1F;
+        else
+          t._mouseAndKeyboardStat = key.ascii;
+        // Enter and Tab click, while the cursor is on
+        if(t._mouseAndKeyboardStat == 13 && t._cursorState > 0)
+          t._mouseAndKeyboardStat = MBS_LEFT_CLICK;
+        else if(t._mouseAndKeyboardStat == 9 && t._cursorState > 0)
+          t._mouseAndKeyboardStat = MBS_RIGHT_CLICK;
+      }
     },
     setupScumm: function() {
       var t = this, res = t._res;
