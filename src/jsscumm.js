@@ -175,7 +175,7 @@ function assert(condition) {
   // never fires keypress.
   window.document.addEventListener("keydown", function(e) {
     var eng = ScummVM.engine, ascii;
-    if (!eng || !eng._timer || e.metaKey || e.altKey) return;
+    if (!eng || !eng._timer || eng._menuOpen || e.metaKey || e.altKey) return;
     if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
     if (e.key.length == 1) ascii = e.key.charCodeAt(0) & 0xFF;
     else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[e.key] || 0;
