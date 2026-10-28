@@ -1011,6 +1011,7 @@
     vs.curmode = 0;
     vs.text = "";
     t._res.nukeResource("verb", slot);
+    vs.saveid = 0;
   };
 
   // verbs.cpp findVerbAtPos: walk the slots backwards, first hit wins
@@ -2634,12 +2635,43 @@
       s._currentScript = 0xFF;
       s.runScript(script, vm.slot[cur].freezeResistant, vm.slot[cur].recursive, vars);
     },
+    // o5_saveRestoreVerbs: how the game hides the verbs for cutscenes and
+    // conversations and brings them back. A saved verb (saveid != 0) is not
+    // drawn or clickable; this used to parse its operands and do nothing.
     saveRestoreVerbs: function() {
-      var a, b, c;
-      s._opcode = s.fetchScriptByte();
+      var a, b, c, slot, slot2, op;
+      op = s._opcode = s.fetchScriptByte();
       a = s.getVarOrDirectByte(PARAM_1);
       b = s.getVarOrDirectByte(PARAM_2);
       c = s.getVarOrDirectByte(PARAM_3);
+      switch(op) {
+        case 1: // save
+          for(; a <= b; a++) {
+            slot = s.getVerbSlot(a, 0);
+            if(slot && s._verbs[slot].saveid == 0)
+              s._verbs[slot].saveid = c;
+          }
+        break;
+        case 2: // restore
+          for(; a <= b; a++) {
+            slot = s.getVerbSlot(a, c);
+            if(slot) {
+              slot2 = s.getVerbSlot(a, 0);
+              if(slot2) s.killVerb(slot2);
+              slot = s.getVerbSlot(a, c);
+              s._verbs[slot].saveid = 0;
+            }
+          }
+        break;
+        case 3: // delete
+          for(; a <= b; a++) {
+            slot = s.getVerbSlot(a, c);
+            if(slot) s.killVerb(slot);
+          }
+        break;
+        default:
+          error("saveRestoreVerbs: unknown subopcode " + op);
+      }
     },
     setClass: function() {
       var obj = s.getVarOrDirectWord(PARAM_1), newClass;
