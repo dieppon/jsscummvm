@@ -2366,11 +2366,17 @@
       s.getResultPos();
       s.setResult(Math.floor(Math.random()*s.getVarOrDirectByte(PARAM_1)));
     },
+    // o5_actorOps. Every sub-op has to consume its operands, or the rest of
+    // the list is read out of step.
     actorOps: function() {
-      var a = s.getVarOrDirectByte(PARAM_1), act = s.getActor(a), i, j;
+      var a = s.getVarOrDirectByte(PARAM_1), act = s.getActor(a), i, j, op;
 
       while((s._opcode = s.fetchScriptByte()) != 0xFF) {
-        switch(s._opcode & 0x1F) {
+        op = s._opcode & 0x1F;
+        switch(op) {
+          case 0: // dummy
+            s.getVarOrDirectByte(PARAM_1);
+          break;
           case 1: // costume
             act.setActorCostume(s.getVarOrDirectByte(PARAM_1));
           break;
@@ -2378,6 +2384,9 @@
             i = s.getVarOrDirectByte(PARAM_1);
             j = s.getVarOrDirectByte(PARAM_2);
             act.setActorWalkSpeed(i, j);
+          break;
+          case 3: // sound
+            act.sound = s.getVarOrDirectByte(PARAM_1);
           break;
           case 4: // walk animation
             act.walkFrame = s.getVarOrDirectByte(PARAM_1);
@@ -2395,7 +2404,22 @@
             s.getVarOrDirectByte(PARAM_3);
           break;
           case 8: // default
-            act.initActor(-1); //0);
+            act.initActor(0);
+          break;
+          case 9: // elevation
+            i = s.getVarOrDirectWord(PARAM_1);
+            if(i >= 0x8000) i -= 0x10000;
+            if(act.elevation != i) {
+              act.elevation = i;
+              act.needRedraw = true;
+            }
+          break;
+          case 10: // animation default
+            act.initFrame = 1;
+            act.walkFrame = 2;
+            act.standFrame = 3;
+            act.talkStartFrame = 4;
+            act.talkStopFrame = 5;
           break;
           case 11: // palette
             i = s.getVarOrDirectByte(PARAM_1);
@@ -2404,10 +2428,15 @@
           break;
           case 12: // talk color
             act.talkColor = s.getVarOrDirectByte(PARAM_1);
-            log("set talk color "+act.talkColor);
           break;
           case 13: // actor name
             s.loadPtrToResource("actor_name", a, null);
+          break;
+          case 14: // init animation
+            act.initFrame = s.getVarOrDirectByte(PARAM_1);
+          break;
+          case 16: // actor width
+            act.width = s.getVarOrDirectByte(PARAM_1);
           break;
           case 17: // actor scale
             i = s.getVarOrDirectByte(PARAM_1);
@@ -2423,19 +2452,22 @@
           break;
           case 20: // ignore boxes
           case 21: // follow boxes
-            act.ignoreBoxes = !(s.opcode & 1);
+            // This read `s.opcode`, which is undefined, so "follow boxes" also
+            // turned box-following off and actors walked through walls.
+            act.ignoreBoxes = !(s._opcode & 1);
             act.forceClip = 0;
             if(act.isInCurrentRoom())
               act.putActor();
           break;
-          case 0:
-          case 3: // sound
-          case 15:
-          case 16: // actor width
-            //unimplemented
+          case 22: // animation speed
+            act.animSpeed = s.getVarOrDirectByte(PARAM_1);
+            act.animProgress = 0;
+          break;
+          case 23: // shadow
+            act.shadow_mode = s.getVarOrDirectByte(PARAM_1);
           break;
           default:
-            log("unimplemented actorOps opcode " + (s._opcode & 0x1F));
+            error("actorOps: unknown sub-op " + op);
           break;
         }
       }

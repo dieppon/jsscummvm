@@ -117,7 +117,7 @@
     t.initFrame = 1;
     t.walkFrame = 2;
     t.standFrame = 3;
-    t.talksStartFrame = 4;
+    t.talkStartFrame = 4;
     t.talkStopFrame = 5;
 
     t.walkScript = 0;
@@ -179,7 +179,7 @@
       t.initFrame = 1;
       t.walkFrame = 2;
       t.standFrame = 3;
-      t.talksStartFrame = 4;
+      t.talkStartFrame = 4;
       t.talkStopFrame = 5;
 
       t.walkScript = 0;

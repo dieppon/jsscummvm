@@ -66,7 +66,9 @@
 
     ptr = t.findResourceData(MKID_BE("SCAL"), roomptr);
     if(ptr) {
-      for(i = 1; i < 6; i++) {
+      // four slots (rtScaleTable holds 5, slot 0 unused); a fifth read
+      // went past the end of the block
+      for(i = 1; i < 5; i++) {
         s1 = ptr.readUI16(); y1 = ptr.readUI16();
         s2 = ptr.readUI16(); y2 = ptr.readUI16();
         if(s1 || y1 || s2 || y2)
