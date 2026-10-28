@@ -60,7 +60,10 @@
     t.frame = [];
 
     t.reset = function() {
-      stopped = 0;
+      t.animCounter = 0;
+      t.soundCounter = 0;
+      t.soundPos = 0;
+      t.stopped = 0;
       for(var i = 0; i < 16; i++ ) {
         t.active[i] = 0;
         t.curpos[i] = t.start[i] = t.end[i] = t.frame[i] = 0xFFFF;
@@ -184,6 +187,9 @@
 
       t.walkScript = 0;
       t.talkScript = 0;
+      t.shadow_mode = 0;
+      // actor.cpp: an actor's classes are cleared with it
+      s._classData[t.number] = 0;
 
       t.walkdata = {dest: _system.Point(0, 0), destbox: 0, destdir: 0, cur: _system.Point(0, 0), curbox: 0, next: _system.Point(0, 0), point3: _system.Point(32000, 0), deltaXFactor: 0, deltaYFactor: 0, xfrac: 0, yfrac: 0};
     };
@@ -376,19 +382,19 @@
         t.frame = f;
       }
     };
+    // actor.cpp runActorTalkScript: v5 actors have no talk script, so this
+    // just plays the talk start/stop frame -- which is what moves the mouth.
+    // Without the else nobody's mouth ever moved.
     t.runActorTalkScript = function(f) {
-      var script = t.talkScript, args;
-      if(!s.getTalkingActor() || t.room != s._currentRoom || t.frame == f) return;
-
-      if(script) {
-        for(vari = 0; i < 16; i++) {
-          args[i] = 0;
-        }
-        args = [f, t.number];
-        log("running talk script "+script);
-        s.runScript(script, 1, 0, args);
+      var args = [], i;
+      if(t.talkScript) {
+        for(i = 0; i < 16; i++) args[i] = 0;
+        args[0] = t.number;
+        args[1] = f;
+        s.runScript(t.talkScript, 1, 0, args);
+      } else if(t.frame != f) {
+        t.startAnimActor(f);
       }
-
     };
     t.stopActorMoving = function() {
       t.moving = 0;
@@ -746,7 +752,8 @@
       var pos;
 
       if(!t.isInCurrentRoom()) return;
-      try { pos = s.getObjectXYPos(obj); } catch(e) { return; }
+      // an actor or an inventory item is a valid thing to face too
+      pos = s.getObjectOrActorXY(obj);
       if(!pos) return;
       // face whichever way the object lies, rather than always the same way
       t.turnToDirection(pos.x > t.pos.x ? 90 : 270);
@@ -755,10 +762,9 @@
       if(newdir == -1 || t.ignoreTurns) return;
 
       t.targetFacing = newdir;
-      // `moving` doubles as a bitfield; OR the flag in so a walk in progress
-      // survives the turn (true|MF_TURN is still truthy, and clearing the
-      // flag afterwards leaves the walk bit alone)
-      t.moving = (t.moving | 0) | MF_TURN;
+      // actor.cpp (v3-v6): a turn replaces whatever the actor was doing,
+      // a walk included
+      t.moving = MF_TURN;
     };
 
     /* Ported from Actor::remapDirection (actor.cpp). A box can force the
@@ -821,13 +827,18 @@
         t.startAnimActor(t.initFrame);
         t.costumeNeedsInit = false;
       }
+      t.stopActorMoving();
       t.visible = true;
       t.needRedraw = true;
     };
     t.hideActor = function() {
       if(!t.visible) return;
       if(t.moving) {
+        t.stopActorMoving();
+        t.startAnimActor(t.standFrame);
       }
+      t.cost.soundCounter = 0;
+      t.cost.soundPos = 0;
       t.visible = false;
       t.needRedraw = false;
       t.needBgReset = true;
@@ -1100,7 +1111,7 @@
       dst.pixels.seek(-(s._virtscreens[0].xstart & 7));
       t.numStrips = numStrips;
       t.xmove = t.ymove = 0;
-      for(i = 0; i < 8; i++)
+      for(i = 0; i < 16; i++)   // all 16 limbs, as base-costume.cpp
         result |= t.drawLimb(a, i);
       return result;
     };
@@ -1268,7 +1279,8 @@
         if(skip > 0) {
           codec.skip_width -= skip;
           t.codec_ignorePakCols(codec, skip);
-          codec.x = 0;
+          // drawn right to left, so it starts at the right edge
+          codec.x = t.out.w - 1;
         } else {
           skip = -1 - rect.left;
           if(skip <= 0)
@@ -1425,12 +1437,14 @@
     // Sort actors
     for(j = 0; j < numactors; ++j) {
       for(i = 0; i < numactors; ++i) {
-        var sc_actor1 = t._sortedActors[i].pos.y - t._sortedActors[j].layer * 200;
-        var sc_actor2 = t._sortedActors[j].pos.y - t._sortedActors[i].layer * 200;
+        // actor.cpp: further down the screen is drawn later, i.e. in front.
+        // The swap used to assign [i] twice, so nothing was ever reordered.
+        var sc_actor1 = t._sortedActors[j].pos.y - t._sortedActors[j].layer * 2000;
+        var sc_actor2 = t._sortedActors[i].pos.y - t._sortedActors[i].layer * 2000;
         if(sc_actor1 < sc_actor2) {
           tmp = t._sortedActors[i];
           t._sortedActors[i] = t._sortedActors[j];
-          t._sortedActors[i] = tmp;
+          t._sortedActors[j] = tmp;
         }
       }
     }
