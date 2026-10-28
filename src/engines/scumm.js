@@ -163,10 +163,9 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       t.scummVar("tmr_2", t.scummVar("tmr_2") + delta);
       t.scummVar("tmr_3", t.scummVar("tmr_3") + delta);
 
-      // VAR_MUSIC_TIMER is normally supplied by the music engine (IMuse steps
-      // it once per 0x411B us, i.e. at 60Hz). We have no sound engine, so
-      // drive it off game time instead: delta is already in 1/60s ticks.
-      t.scummVar("music_timer", t.scummVar("music_timer") + delta);
+      // VAR_MUSIC_TIMER is the CD timer: frames since the current CD track
+      // started, whether or not there is audio for it
+      t.updateMusicTimer(delta);
 
       if(delta > 15)
         delta = 15;
@@ -219,7 +218,8 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
         t.drawDirtyScreenParts();
       }
 
-      // t._shouldQuit = true;
+      // scummLoop_handleSound: the sounds the scripts started this frame
+      t.processSound();
     },
     updateScummVars: function() {
       var t = this;
@@ -271,6 +271,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     resetScumm: function() {
       var t = this, i;
       t.initStrings();
+      t.initSound();
       t.initScreens(16, 144);
       t._currentRoom = 0;
       for(i = 0; i < 256; i++)

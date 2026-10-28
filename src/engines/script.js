@@ -1846,7 +1846,7 @@
       s.stopObjectScript(s.getVarOrDirectWord(PARAM_1));
     },
     stopMusic: function() {
-      // no sound engine
+      s.stopAllSounds();
     },
 
     getInventoryCount: function() {
@@ -2309,11 +2309,10 @@
     startSound: function() {
       var sound = s.getVarOrDirectByte(PARAM_1);
       s.scummVar("music_timer", 0);
-      // addSoundToQueue
+      s.startSound(sound);
     },
     stopSound: function() {
-      var sound = s.getVarOrDirectByte(PARAM_1);
-      // stopSound
+      s.stopSound(s.getVarOrDirectByte(PARAM_1));
     },
     faceActor: function() {
       var act = s.getActor(s.getVarOrDirectByte(PARAM_1)), obj = s.getVarOrDirectWord(PARAM_2);
@@ -2418,7 +2417,7 @@
       act.startWalkActor(pos.x, pos.y, pos.dir);
     },
     startMusic: function() {
-      var sound = s.getVarOrDirectByte(PARAM_1);
+      s.startSound(s.getVarOrDirectByte(PARAM_1));
     },
     beginOverride: function() {
       if(s.fetchScriptByte() != 0)
@@ -2483,8 +2482,8 @@
       var snd;
       s.getResultPos();
       snd = s.getVarOrDirectByte(PARAM_1);
-      // isSoundRunning
-      s.setResult(0);
+      if(snd) snd = s.isSoundRunning(snd);
+      s.setResult(snd);
     },
     getActorRoom: function() {
       var act;
@@ -2496,7 +2495,7 @@
     soundKludge: function() {
       var items;
       items = s.getWordVararg();
-      // soundKludge
+      s.soundKludge(items);
     },
     setObjectName: function() {
       s.setObjectName(s.getVarOrDirectWord(PARAM_1));
