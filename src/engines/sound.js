@@ -268,7 +268,19 @@
       });
       audio.addEventListener("ended", function() { t.cdTrackEnded(audio, status); });
       var p = audio.play();
-      if (p && p.catch) p.catch(function() {});   // waits for a user gesture
+      // Blocked until the user clicks or presses a key: start it then, at
+      // the point the game has reached (the CD timer counts 1/60 s)
+      if (p && p.catch) p.catch(function() {
+        var resume = function() {
+          window.removeEventListener("mousedown", resume, true);
+          window.removeEventListener("keydown", resume, true);
+          if (t._cdAudio !== audio || !audio.paused) return;
+          audio.currentTime = status.start + t._cdMusicTimer / 60;
+          audio.play().catch(function() {});
+        };
+        window.addEventListener("mousedown", resume, true);
+        window.addEventListener("keydown", resume, true);
+      });
     });
   };
 
