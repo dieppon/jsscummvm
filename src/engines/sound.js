@@ -10,8 +10,9 @@
  *    scripts time scenes against VAR_MUSIC_TIMER.
  *  - SBL: digitised Sound Blaster samples (VOC data), played through Web
  *    Audio.
- *  - ADL/ROL: AdLib / MT-32 MIDI for iMUSE. Not played yet -- there is no
- *    OPL emulation -- and reported as not running, so nothing waits on them.
+ *  - ADL: short AdLib cues for iMUSE (imuse.js), played through the AdLib
+ *    driver (audio/adlib.js) on an emulated OPL2 chip (audio/opl.js).
+ *    ROL (MT-32) is never picked, as for an AdLib card.
  *
  * Browsers only let audio start after the user has interacted with the
  * page; the context is resumed on the first click or key press.
@@ -32,6 +33,66 @@
     t._cdAudio = null;
     t._cdStatus = null;
     t._soundsWarned = {};
+    t._imuse = null;
+    t._musicQueue = [];
+  };
+
+  // --- AdLib music: OPL2 -> AdLib driver -> iMUSE --------------------------
+
+  // Created on the first AdLib sound. The chip is rendered from a Web Audio
+  // callback, which also runs the driver's 250 Hz timer -- every 1/250 s of
+  // rendered audio, as ScummVM's OPL callback does -- so the music keeps
+  // time with what is heard. Until the browser lets audio run (it waits for
+  // a click), a fallback clock drives the timer silently, so a script
+  // waiting for a jingle to end does not wait forever.
+  s.initMusic = function() {
+    var t = this, ctx = audioContext(), rate, opl, driver, node, tickLen, toTick = 0, lastAudio = 0, last;
+    if (t._imuse) return t._imuse;
+    if (!ScummVM.OPL || !ScummVM.AdLibDriver || !ScummVM.IMuse) return null;
+    rate = ctx ? ctx.sampleRate : 44100;
+    opl = new ScummVM.OPL(rate);
+    driver = new ScummVM.AdLibDriver(opl);
+    t._imuse = new ScummVM.IMuse(t, driver);
+    tickLen = rate / ScummVM.AdLibDriver.CALLBACK_FREQUENCY;
+
+    if (ctx && ctx.createScriptProcessor) {
+      node = ctx.createScriptProcessor(2048, 0, 1);
+      node.onaudioprocess = function(ev) {
+        var out = ev.outputBuffer.getChannelData(0), pos = 0, n;
+        lastAudio = Date.now();
+        while (pos < out.length) {
+          if (toTick < 1) {
+            driver.onTimer();
+            toTick += tickLen;
+          }
+          n = Math.min(out.length - pos, Math.floor(toTick));
+          opl.generate(out, pos, n);
+          pos += n;
+          toTick -= n;
+        }
+      };
+      node.connect(ctx.destination);
+      t._musicNode = node;
+    }
+
+    last = Date.now();
+    t._musicClock = window.setInterval(function() {
+      var now = Date.now(), ticks;
+      if (ctx && ctx.state == "running" && now - lastAudio < 250) { last = now; return; }
+      ticks = Math.floor((now - last) * ScummVM.AdLibDriver.CALLBACK_FREQUENCY / 1000);
+      last += ticks * 1000 / ScummVM.AdLibDriver.CALLBACK_FREQUENCY;
+      while (ticks-- > 0) driver.onTimer();
+    }, 20);
+    return t._imuse;
+  };
+
+  // An ADL resource: hand iMUSE its bytes (the MDhd header and the MIDI)
+  s.playADL = function(id, chunk) {
+    var t = this, imuse = t.initMusic(), data, i;
+    if (!imuse) return;
+    data = new Uint8Array(chunk.size);
+    for (i = 0; i < chunk.size; i++) data[i] = chunk.stream.readByteAt(chunk.offset + i);
+    imuse.startSound(id, data);
   };
 
   // One AudioContext for the page, resumed on the first user gesture
@@ -63,6 +124,10 @@
     while (t._soundQueue.length) {
       snd = t._soundQueue.pop();
       if (snd) t.triggerSound(snd);
+    }
+    while (t._musicQueue.length) {
+      var cmd = t._musicQueue.shift(), imuse = t.initMusic();
+      if (imuse) t.scummVar("soundresult", imuse.doCommand(cmd));
     }
   };
 
@@ -111,6 +176,8 @@
         if (id == t._currentCDSound && t.pollCD()) return;
         t.playCDTrackFromSoundID(id);
       }
+    } else if (chunk.tag == MKID_BE("ADL ")) {
+      t.playADL(id, chunk);
     } else if (!t._soundsWarned[id]) {
       t._soundsWarned[id] = true;
       debug(2, "sound " + id + ": " + ScummVM.system.reverse_MKID(chunk.tag) + " needs a music engine");
@@ -271,6 +338,7 @@
     var t = this, i;
     if (sound == t._currentCDSound) return t.pollCD();
     if (t.isSFXActive(sound)) return 1;
+    if (t._imuse && t._imuse.getSoundStatus(sound)) return 1;
     for (i = 0; i < t._soundQueue.length; i++)
       if (t._soundQueue[i] == sound) return 1;
     return 0;
@@ -280,6 +348,7 @@
     var t = this, i;
     t.stopCDSound(sound);
     t.stopSFX(sound);
+    if (t._imuse) t._imuse.stopSound(sound);
     for (i = 0; i < t._soundQueue.length; i++)
       if (t._soundQueue[i] == sound) t._soundQueue[i] = 0;
   };
@@ -294,11 +363,13 @@
     }
     t._soundQueue = [];
     for (id in t._sfx) t.stopSFX(id);
+    if (t._imuse) t._imuse.stopAllSounds();
   };
 
-  // sound.cpp soundKludge: -1 flushes the queue now; the rest are iMUSE
-  // commands, which need the music engine
+  // sound.cpp soundKludge: -1 flushes the queue now; anything else is an
+  // iMUSE command, run with the queued sounds
   s.soundKludge = function(list) {
     if (list[0] == -1) this.processSound();
+    else this._musicQueue.push(list.slice());
   };
 }());
