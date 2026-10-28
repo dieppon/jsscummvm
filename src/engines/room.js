@@ -50,7 +50,8 @@
 
     log("Start scene "+room+" (old room "+t._currentRoom+")");
     t.stopTalk();
-    // fadeOut
+    t.fadeOut(t._switchRoomEffect2);
+    t._newEffect = t._switchRoomEffect;
     slot = t.getScriptSlot(t._currentScript);
     if(t._currentScript != 0xFF) {
       if(slot.where == "room" || slot.where == "flobject" || slot.where == "local") {
@@ -62,12 +63,14 @@
 
     t.runExitScript();
     t.killScriptsAndResources();
+    t.stopCycle(0);
     t.clearDrawQueues();
     // room.cpp: every actor is hidden on a room change; showActors brings
     // back the ones in the new room
     for(var i = 1; i < t._actors.length; i++)
       if(t._actors[i]) t._actors[i].hideActor();
     t.scummVar("room", room);
+    for(var p = 0; p < 256; p++) t._shadowPalette[p] = p;
     t._fullRedraw = true;
     t._currentRoom = room;
     t._roomResource = room;
@@ -122,6 +125,9 @@
       a.putActor(pos.x, pos.y, t._currentRoom);
       a.moving = 0;
     }
+
+    // the new room is shown through _newEffect at the end of the frame
+    t._doEffect = true;
   };
 
   s.setupRoomSubBlocks = function() {
@@ -177,6 +183,8 @@
 
     t.loadBoxes(roomptr);
     t.setCurrentPalette(0);
+    // colour cycling: water, fire and the like
+    t.initCycl(t.findResourceData(ScummVM.system.MKID_BE("CYCL"), roomptr));
   };
 
   s.resetRoomObjects = function() {

@@ -98,9 +98,15 @@ function assert(condition) {
 
   ScummVM.present = function() {
     var t = this, e = t.engine;
+    // a screen shake moves the picture down a few lines
+    var shake = e && e._shakePos ? Math.round(e._shakePos * t.canvas.height / t.height) : 0;
+    if (shake) {
+      t.displayContext.fillStyle = "black";
+      t.displayContext.fillRect(0, 0, t.canvas.width, shake);
+    }
     t.displayContext.drawImage(t.buffer,
       0, 0, t.width, t.height,
-      0, 0, t.canvas.width, t.canvas.height);
+      0, shake, t.canvas.width, t.canvas.height);
 
     // The cursor goes on last, onto the visible canvas rather than the
     // buffer, so it can be moved by calling present() again without

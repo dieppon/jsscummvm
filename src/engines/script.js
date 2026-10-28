@@ -1970,10 +1970,7 @@
         break;
       }
     },
-    // o5_roomOps. The palette effects (8, 11, 12, 15, 16) and the screen
-    // transitions are not implemented yet, but every sub-op reads its
-    // operands -- the ones that did not used to leave them in the stream to
-    // be executed as opcodes.
+    // o5_roomOps (palette effects and transitions in effects.js)
     roomOps: function() {
       var a = 0, b = 0, c, d, e, half = Math.floor(s._screenWidth / 2);
       s._opcode = s.fetchScriptByte();
@@ -2002,7 +1999,10 @@
           s.setPalColor(d, a, b, c);
         break;
         case 5: // shake on
+          s.setShake(1);
+        break;
         case 6: // shake off
+          s.setShake(0);
         break;
         case 7: // room scale
           a = s.getVarOrDirectByte(PARAM_1);
@@ -2014,10 +2014,11 @@
           e = s.getVarOrDirectByte(PARAM_2);
           s.setScaleSlot(e - 1, 0, b, a, 0, d, c);
         break;
-        case 8: // room intensity -- darkenPalette, not implemented yet
-          s.getVarOrDirectByte(PARAM_1);
-          s.getVarOrDirectByte(PARAM_2);
-          s.getVarOrDirectByte(PARAM_3);
+        case 8: // room intensity
+          a = s.getVarOrDirectByte(PARAM_1);
+          b = s.getVarOrDirectByte(PARAM_2);
+          c = s.getVarOrDirectByte(PARAM_3);
+          s.darkenPalette(a, a, a, b, c);
         break;
         case 9: // savegame
           s.getVarOrDirectByte(PARAM_1);
@@ -2027,35 +2028,42 @@
           a = s.getVarOrDirectWord(PARAM_1);
           if(a) {
             s._switchRoomEffect = a & 0xFF;
-            s._switchRoomEffect2 = a >> 8;
+            s._switchRoomEffect2 = (a >> 8) & 0xFF;   // (byte), as ScummVM
+          } else {
+            s.fadeIn(s._newEffect);
           }
-          // else fadeIn
         break;
-        case 11: // RGB room intensity -- not implemented yet
-        case 12: // room shadow -- not implemented yet
-          s.getVarOrDirectWord(PARAM_1);
-          s.getVarOrDirectWord(PARAM_2);
-          s.getVarOrDirectWord(PARAM_3);
+        case 11: // RGB room intensity
+        case 12: // room shadow
+          a = s.getVarOrDirectWord(PARAM_1);
+          b = s.getVarOrDirectWord(PARAM_2);
+          c = s.getVarOrDirectWord(PARAM_3);
+          var op = s._opcode & 0x1F;
           s._opcode = s.fetchScriptByte();
-          s.getVarOrDirectByte(PARAM_1);
-          s.getVarOrDirectByte(PARAM_2);
+          d = s.getVarOrDirectByte(PARAM_1);
+          e = s.getVarOrDirectByte(PARAM_2);
+          if(op == 11) s.darkenPalette(a, b, c, d, e);
+          else s.setShadowPalette(a, b, c, d, e, 0, 256);
         break;
         case 13: // save string
         case 14: // load string
           s.getVarOrDirectByte(PARAM_1);
           while(s.fetchScriptByte()) {}
         break;
-        case 15: // room transform -- palManipulate, not implemented yet
-          s.getVarOrDirectByte(PARAM_1);
+        case 15: // room transform: fade towards colours held in strings
+          a = s.getVarOrDirectByte(PARAM_1);
           s._opcode = s.fetchScriptByte();
-          s.getVarOrDirectByte(PARAM_1);
-          s.getVarOrDirectByte(PARAM_2);
+          b = s.getVarOrDirectByte(PARAM_1);
+          c = s.getVarOrDirectByte(PARAM_2);
           s._opcode = s.fetchScriptByte();
-          s.getVarOrDirectByte(PARAM_1);
+          d = s.getVarOrDirectByte(PARAM_1);
+          s.palManipulateInit(a, b, c, d);
         break;
-        case 16: // cycle speed -- not implemented yet
-          s.getVarOrDirectByte(PARAM_1);
-          s.getVarOrDirectByte(PARAM_2);
+        case 16: // cycle speed
+          a = s.getVarOrDirectByte(PARAM_1);
+          b = s.getVarOrDirectByte(PARAM_2);
+          if(a >= 1 && a <= 16)
+            s._colorCycle[a - 1].delay = b != 0 ? Math.floor(0x4000 / (b * 0x4C)) : 0;
         break;
         default:
           error("roomOps: unknown sub-op " + (s._opcode & 0x1F));

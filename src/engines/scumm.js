@@ -168,6 +168,9 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
     loop: function(delta) {
       var t = ScummVM.engines.SCUMM;
 
+      // A room transition is playing: the game waits for it, as in ScummVM
+      if(t._effectBusy) return;
+
       // Paused: only watch for the key that ends it
       if(t._paused) {
         t.processInput();
@@ -232,6 +235,11 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
         if(t.scummVar("main_script")) {
           t.runScript(t.scummVar("main_script"), 0, 0, 0);
         }
+
+        // scummLoop_handleEffects: colour cycling, palette fades, and the
+        // room transition a scene change asked for
+        t.handleEffects();
+        t._shakePos = t.shakeOffset();
 
         t.updatePalette();
         t.drawDirtyScreenParts();
@@ -324,6 +332,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
       var t = this, i;
       t.initStrings();
       t.initSound();
+      t.initEffects();
       t.initScreens(16, 144);
       t._currentRoom = 0;
       for(i = 0; i < 256; i++)

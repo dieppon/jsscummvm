@@ -97,7 +97,11 @@
         if(vs.number == 0) {
           dst = vs.backBuf.newRelativeStream(offset);
           frontBuf = vs.pixels.newRelativeStream(offset);
-          t.copy8Col(frontBuf, vs.pitch, dst, height, 1);
+          // gfx.cpp: with the room lights off the screen stays black
+          if(vm.isLightOn())
+            t.copy8Col(frontBuf, vs.pitch, dst, height, 1);
+          else
+            t.clear8Col(frontBuf, vs.pitch, height);
         }
 
         t.decodeMask(x, y, width, height, stripnr, numzbuf, zplane_list, transpStrip, flag, tmsk_ptr);
@@ -411,6 +415,14 @@
       } while(--x);
     };
 
+    t.clear8Col = function(dst, dstPitch, height) {
+      var i;
+      do {
+        for(i = 0; i < 8; i++) dst.writeUI8(0);
+        if(height > 1) dst.seek(dstPitch - 8);
+      } while(--height);
+    };
+
     t.copy8Col = function(dst, dstPitch, src, height, bitDepth) {
       var i = 0;
       do {
@@ -452,7 +464,10 @@
       backbuff_ptr = vs.pixels.newRelativeStream(top * vs.pitch + (strip + vs.xstart/8) * 8);
       numLinesToProcess = bottom - top;
       if(numLinesToProcess) {
-        t.copy8Col(backbuff_ptr, vs.pitch, bgbak_ptr, numLinesToProcess, 1);
+        if(s.isLightOn())
+          t.copy8Col(backbuff_ptr, vs.pitch, bgbak_ptr, numLinesToProcess, 1);
+        else
+          t.clear8Col(backbuff_ptr, vs.pitch, numLinesToProcess);
       }
     };
   };
@@ -603,6 +618,9 @@
     t.renderTexts();
 
     t.animateCursor();
+
+    // a room transition takes the finished frame and shows it itself
+    if(t.finishFrameEffects()) return;
 
     ScummVM.present();
   };
@@ -896,6 +914,10 @@
   };
 
   // object.cpp: only an object in this room needs the background redrawn
+  s.isLightOn = function() {
+    return (this.scummVar("current_lights") & 2) != 0;   // LIGHTMODE_room_lights_on
+  };
+
   s.markObjectRectAsDirty = function(obj) {
     var t = this, i;
     for(i = 1; i < t._nums['local_objects']; i++) {

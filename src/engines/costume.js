@@ -1381,7 +1381,19 @@
               if(codec.mask_ptr && (maskval & maskbit))
                 ; //log("masked in mask");
               if(color && !masked) {
-                pcolor = t.palette[color];
+                // base-costume.cpp: colour 13 (or every colour, in shadow
+                // mode 0x20) darkens what is underneath through the room's
+                // shadow table
+                if(t.shadow_mode & 0x20) {
+                  pcolor = s._shadowPalette[dst.readUI8()];
+                  dst.seek(-1);
+                } else {
+                  pcolor = t.palette[color];
+                  if(pcolor == 13 && s._shadowPalette) {
+                    pcolor = s._shadowPalette[dst.readUI8()];
+                    dst.seek(-1);
+                  }
+                }
                 dst.writeUI8(pcolor);
                 dst.seek(-1);
               }
