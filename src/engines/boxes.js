@@ -133,12 +133,12 @@
 
     if(sl.y1 != sl.y2) {
       if(y < 0) y = 0;
-      scaleY = ((sl.scale2 - sl.scale1) * (y - sl.y1) / (sl.y2 - sl.y1) + sl.scale1) | 0;
+      scaleY = Math.trunc((sl.scale2 - sl.scale1) * (y - sl.y1) / (sl.y2 - sl.y1)) + sl.scale1;
     }
     if(sl.x1 == sl.x2) {
       scale = scaleY;
     } else {
-      scaleX = ((sl.scale2 - sl.scale1) * (x - sl.x1) / (sl.x2 - sl.x1) + sl.scale1) | 0;
+      scaleX = Math.trunc((sl.scale2 - sl.scale1) * (x - sl.x1) / (sl.x2 - sl.x1)) + sl.scale1;
       scale = (sl.y1 == sl.y2) ? scaleX : ((scaleX + scaleY) / 2) | 0;
     }
 

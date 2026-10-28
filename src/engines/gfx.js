@@ -180,10 +180,42 @@
               t.decompressMaskImg(mask_ptr, z_plane_ptr, height);
             }
           } else {
+            // no mask data in this strip: clear it, one byte per row
             if(!(transpStrip && (flag & t.dbAllowMaskOr)))
-              for(var h = 0; h < height; h++)
-                mask_ptr.seek(h * t.numStrips).writeUI8(0);
+              for(var h = 0; h < height; h++) {
+                mask_ptr.writeUI8(0);
+                mask_ptr.seek(t.numStrips - 1);
+              }
           }
+        }
+      }
+    };
+
+    // gfx.cpp decompressMaskImgOr: as decompressMaskImg, but OR-ed into
+    // what is there, for transparent strips
+    t.decompressMaskImgOr = function(dst, src, height) {
+      var b, c;
+      function orByte(v) {
+        var p = dst.offset;
+        dst.writeByteAt(p, dst.readUI8() | v);
+        dst.offset = p + 1;
+      }
+      while(height) {
+        b = src.readUI8();
+        if(b & 0x80) {
+          b &= 0x7F;
+          c = src.readUI8();
+          do {
+            orByte(c);
+            dst.seek(t.numStrips - 1);
+            --height;
+          } while(--b && height);
+        } else {
+          do {
+            orByte(src.readUI8());
+            dst.seek(t.numStrips - 1);
+            --height;
+          } while(--b && height);
         }
       }
     };
@@ -210,250 +242,173 @@
       }
     };
 
+    // gfx.cpp decompressBitmap. The codes ending in "T" (34-38, 44-48,
+    // 84-88, 124-128) and 149 are the same codecs with a transparent colour,
+    // used by object images; they were missing, so those strips were not
+    // drawn at all.
     t.decompressBitmap = function(dst, dstPitch, src, numLinesToProcess) {
       var code = src.readUI8(), transpStrip = false;
       t.paletteMod = 0;
       t.decomp_shr = code % 10;
       t.decomp_mask = 0xFF >> (8 - t.decomp_shr);
 
-      switch(code) {
-        case 1:
-          t.drawStripRaw(dst, dstPitch, src, numLinesToProcess, false);
-          debug(5, "drawing strip "+curStrip+" (x offset "+(curStrip*8)+") raw");
-        break;
-        case 14:
-        case 15:
-        case 16:
-        case 17:
-        case 18:
-          t.drawStripBasicV(dst, dstPitch, src, numLinesToProcess, false);
-          debug(5, "drawing strip "+curStrip+" (x offset "+(curStrip*8)+") basic V");
-        break;
-        case 24:
-        case 25:
-        case 26:
-        case 27:
-        case 28:
-          t.drawStripBasicH(dst, dstPitch, src, numLinesToProcess, false);
-          debug(5, "drawing strip "+curStrip+" (x offset "+(curStrip*8)+") basic H");
-        break;
-        case 64:
-        case 65:
-        case 66:
-        case 67:
-        case 68:
-        case 104:
-        case 105:
-        case 106:
-        case 107:
-        case 108:
-          t.drawStripComplex(dst, dstPitch, src, numLinesToProcess, false);
-          debug(5, "drawing strip "+curStrip+" (x offset "+(curStrip*8)+") complex");
-        break;
-        default:
-          log("unknown decompressBitmap code "+code);
-        break;
+      if(code == 1) {
+        t.drawStripRaw(dst, dstPitch, src, numLinesToProcess, false);
+      } else if(code >= 14 && code <= 18) {
+        t.drawStripBasicV(dst, dstPitch, src, numLinesToProcess, false);
+      } else if(code >= 24 && code <= 28) {
+        t.drawStripBasicH(dst, dstPitch, src, numLinesToProcess, false);
+      } else if(code >= 34 && code <= 38) {
+        transpStrip = true;
+        t.drawStripBasicV(dst, dstPitch, src, numLinesToProcess, true);
+      } else if(code >= 44 && code <= 48) {
+        transpStrip = true;
+        t.drawStripBasicH(dst, dstPitch, src, numLinesToProcess, true);
+      } else if((code >= 64 && code <= 68) || (code >= 104 && code <= 108)) {
+        t.drawStripComplex(dst, dstPitch, src, numLinesToProcess, false);
+      } else if((code >= 84 && code <= 88) || (code >= 124 && code <= 128)) {
+        transpStrip = true;
+        t.drawStripComplex(dst, dstPitch, src, numLinesToProcess, true);
+      } else if(code == 149) {
+        t.drawStripRaw(dst, dstPitch, src, numLinesToProcess, true);
+      } else {
+        log("unknown decompressBitmap code "+code);
       }
       return transpStrip;
     };
 
+    t.writeRoomColor = function(dst, color) {
+      dst.writeUI8(this.roomPalette[(color + this.paletteMod) & 0xFF]);
+    };
+
+    // Every decoder writes a pixel and steps right by one, or just steps
+    // when the pixel is transparent
+    function putPixel(dst, color, transpCheck) {
+      if(!transpCheck || color != t.transparentColor)
+        t.writeRoomColor(dst, color);
+      else
+        dst.seek(1, false, true);
+    }
+
     t.drawStripRaw = function(dst, dstPitch, src, height, transpCheck) {
+      var x;
       do {
-        for(x = 0; x < 8; x++) {
-          color = src.readUI8();
-          dst.seek(x);
-          if(!transpCheck || color != t.transparentColor)
-            t.writeRoomColor(dst, color);
-          else
-            dst.seek(1);
-        }
-        dst.seek(dstPitch);
+        for(x = 0; x < 8; x++)
+          putPixel(dst, src.readUI8(), transpCheck);
+        dst.seek(dstPitch - 8, false, true);
       } while(--height);
     };
 
-    t.writeRoomColor = function(dst, color) {
-      c = this.roomPalette[(color + this.paletteMod) & 0xFF];
-      dst.writeUI8(c);
-    };
-
-
+    // gfx.cpp MajMinCodec, which drawStripComplex is built on: a run of
+    // colours as deltas of -4..+3, a fresh colour, or a repeat count
     t.drawStripComplex = function(dst, dstPitch, src, height, transpCheck) {
-      var t = this, color = src.readUI8(), bits = src.readUI8(), cl = 8, bit, incm, reps;
-      var x = 8;
-      // return;
+      var color = src.readUI8(), bits = src.readUI8() | (src.readUI8() << 8), numBits = 16,
+          shift = t.decomp_shr, repeatMode = false, repeatCount = 0, x, diff;
 
-      var READ_BIT = function() {
-        cl--; bit = bits & 1; bits >>= 1; return bit;
-      }, FILL_BITS = function(n) {
-        if(cl <= 8) {
-          bits |= (src.readUI8() << cl);
-          cl += 8;
+      function readBits(n) {
+        if(numBits <= 8) {
+          bits |= src.readUI8() << numBits;
+          numBits += 8;
         }
-      };
+        var v = bits & ((1 << n) - 1);
+        numBits -= n;
+        bits >>>= n;
+        return v;
+      }
 
-      var againPos = function() {
-        if(!READ_BIT()) {
-        } else if(!READ_BIT()) {
-          FILL_BITS();
-          color = bits & t.decomp_mask;
-          bits >>= t.decomp_shr;
-          cl -= t.decomp_shr;
-        } else {
-          incm = (bits & 7) - 4;
-          cl -= 3;
-          bits >>= 3;
-          if(incm) {
-            color += incm;
-          } else {
-            FILL_BITS();
-            reps = bits & 0xFF;
-            do {
-              if(!--x) {
-                x = 8;
-                height--;
-                if(height <= 1)
-                  return;
-                dst.seek(dstPitch - 8);
+      while(height--) {
+        for(x = 0; x < 8; x++) {
+          putPixel(dst, color, transpCheck);
+          if(!repeatMode) {
+            if(readBits(1)) {
+              if(readBits(1)) {
+                diff = readBits(3) - 4;
+                if(diff) {
+                  color = (color + diff) & 0xFF;
+                } else {
+                  repeatMode = true;
+                  repeatCount = (readBits(8) - 1) & 0xFF;
+                }
+              } else {
+                color = readBits(shift);
               }
-              if(!t.transpCheck || color != t.transparentColor)
-                t.writeRoomColor(dst, color);
-              else
-                dst.seek(1);
-            } while(--reps);
-            bits >>= 8;
-            bits |= src.readUI8() << (cl - 8);
-            againPos();
+            }
+          } else if(--repeatCount == 0) {
+            repeatMode = false;
           }
         }
+        dst.seek(dstPitch - 8, false, true);
+      }
+    };
+
+    // The bit reader the BasicH/BasicV codecs share (gfx.cpp READ_BIT,
+    // FILL_BITS)
+    function bitReader(src) {
+      var r = {bits: src.readUI8(), cl: 8};
+      r.fill = function() {
+        if(r.cl <= 8) {
+          r.bits |= src.readUI8() << r.cl;
+          r.cl += 8;
+        }
       };
+      r.bit = function() {
+        var b = r.bits & 1;
+        r.cl--;
+        r.bits >>>= 1;
+        return b;
+      };
+      return r;
+    }
+
+    t.drawStripBasicH = function(dst, dstPitch, src, height, transpCheck) {
+      var color = src.readUI8(), r = bitReader(src), inc = -1, x;
       do {
         x = 8;
         do {
-          FILL_BITS();
-          if(!t.transpCheck || color != t.transparentColor)
-            t.writeRoomColor(dst, color);
-          else
-            dst.seek(1);
-          againPos();
-        } while(--x);
-        if(height > 1)
-          dst.seek(dstPitch - 8);
-        if(height <= 1) return;
-      } while(--height);
-
-    };
-
-    t.drawStripBasicH = function(dst, dstPitch, src, height, transpCheck) {
-      var t = this, color = src.readUI8(), bits = src.readUI8(), cl = 8, bit, inc = -1;
-
-      var READ_BIT = function() {
-        cl--; bit = bits & 1; bits >>= 1; return bit;
-      }, FILL_BITS = function(n) {
-        if(cl <= 8) {
-          bits |= (src.readUI8() << cl);
-          cl += 8;
-        }
-      };
-
-      do {
-        var x = 8;
-        do {
-          FILL_BITS();
-          if(!t.transpCheck || color != t.transparentColor)
-            t.writeRoomColor(dst, color);
-          else
-            dst.seek(1);
-          if(!READ_BIT()) {
-          } else if(!READ_BIT()) {
-            FILL_BITS();
-            color = bits & t.decomp_mask;
-            bits >>= t.decomp_shr;
-            cl -= t.decomp_shr;
+          r.fill();
+          putPixel(dst, color, transpCheck);
+          if(!r.bit()) {
+          } else if(!r.bit()) {
+            r.fill();
+            color = r.bits & t.decomp_mask;
+            r.bits >>>= t.decomp_shr;
+            r.cl -= t.decomp_shr;
             inc = -1;
-          } else if(!READ_BIT()) {
-            color += inc;
+          } else if(!r.bit()) {
+            color = (color + inc) & 0xFF;
           } else {
             inc = -inc;
-            color += inc;
+            color = (color + inc) & 0xFF;
           }
         } while(--x);
-        if(height > 1)
-          dst.seek(dstPitch - 8);
+        dst.seek(dstPitch - 8, false, true);
       } while(--height);
     };
 
     t.drawStripBasicV = function(dst, dstPitch, src, height, transpCheck) {
-      var t = this, color = src.readUI8(), bits = src.readUI8(), cl = 8, bit, inc = -1;
-
-      var READ_BIT = function() {
-        cl--; bit = bits & 1; bits >>= 1; return bit;
-      }, FILL_BITS = function(n) {
-        if(cl <= 8) {
-          bits |= (src.readUI8() << cl);
-          cl += 8;
-        }
-      };
-
-      var x = 8;
+      var color = src.readUI8(), r = bitReader(src), inc = -1, x = 8, h;
       do {
-        var h = height;
+        h = height;
         do {
-          FILL_BITS();
-          if(!t.transpCheck || color != t.transparentColor)
-            t.writeRoomColor(dst, color);
-          dst.seek(dstPitch-1, false, true);
-          if(!READ_BIT()) {
-          } else if(!READ_BIT()) {
-            FILL_BITS();
-            color = bits & t.decomp_mask;
-            bits >>= t.decomp_shr;
-            cl -= t.decomp_shr;
+          r.fill();
+          putPixel(dst, color, transpCheck);
+          dst.seek(dstPitch - 1, false, true);
+          if(!r.bit()) {
+          } else if(!r.bit()) {
+            r.fill();
+            color = r.bits & t.decomp_mask;
+            r.bits >>>= t.decomp_shr;
+            r.cl -= t.decomp_shr;
             inc = -1;
-          } else if(!READ_BIT()) {
-            color += inc;
+          } else if(!r.bit()) {
+            color = (color + inc) & 0xFF;
           } else {
             inc = -inc;
-            color += inc;
+            color = (color + inc) & 0xFF;
           }
         } while(--h);
         dst.seek(-t.vertStripNextInc, false, true);
       } while(--x);
-    };
-    t.drawStripBasicH = function(dst, dstPitch, src, height, transpCheck) {
-      var t = this, color = src.readUI8(), bits = src.readUI8(), cl = 8, bit, inc = -1;
-
-      var READ_BIT = function() {
-        cl--; bit = bits & 1; bits >>= 1; return bit;
-      }, FILL_BITS = function(n) {
-        if(cl <= 8) {
-          bits |= (src.readUI8() << cl);
-          cl += 8;
-        }
-      };
-
-      do {
-        var x = 8;
-        do {
-          FILL_BITS();
-          if(!t.transpCheck || color != t.transparentColor)
-            t.writeRoomColor(dst, color);
-          if(!READ_BIT()) {
-          } else if(!READ_BIT()) {
-            FILL_BITS();
-            color = bits & t.decomp_mask;
-            bits >>= t.decomp_shr;
-            cl -= t.decomp_shr;
-            inc = -1;
-          } else if(!READ_BIT()) {
-            color += inc;
-          } else {
-            inc = -inc;
-            color += inc;
-          }
-        } while(--x);
-        if(height > 1)
-          dst.seek(dstPitch - 8);
-      } while(--height);
     };
 
     t.copy8Col = function(dst, dstPitch, src, height, bitDepth) {
@@ -519,7 +474,7 @@
       t.initVirtScreen(3, 80, width, 13, false);
     }
 
-    t.initVirtScreen(0, b + adj, width, h, true, true);
+    t.initVirtScreen(0, b + adj, width, h - b, true, true);
     // t.initVirtScreen("text")
     t.initVirtScreen(2, h + adj, width, height - h - adj, false);
     t._screenB = b;
@@ -923,18 +878,54 @@
       ptr = t.getResourceAddress("fl_object", od.fl_object_index);
       ptr = t.findResource(_system.MKID_BE("OBIM"), ptr);
     } else {
-      ptr = t.getResourceAddress("room", t._roomResource);
-      ptr.offset = od.OBIMoffset;
-      ptr.readUI32(true);
-      ptr.offset = od.OBIMoffset;
+      // a stream of its own: moving the shared room stream's offset left
+      // every later search of the room starting inside this object
+      ptr = t.getResourceAddress("room", t._roomResource).newAbsoluteStream(od.OBIMoffset);
     }
     return ptr;
   };
 
+  // object.cpp: only an object in this room needs the background redrawn
   s.markObjectRectAsDirty = function(obj) {
-    var t = this;
+    var t = this, i;
+    for(i = 1; i < t._nums['local_objects']; i++) {
+      if(t._objs[i] && t._objs[i].obj_nr == obj) {
+        t._bgNeedsRedraw = true;
+        return;
+      }
+    }
+  };
 
-    t._bgNeedsRedraw = true;
+  // object.cpp drawRoomObject(s): draw every object whose state says it is
+  // showing -- open doors and the like -- over the freshly drawn background,
+  // provided its parent is in the state it was drawn for
+  s.drawRoomObject = function(i, arg) {
+    var t = this, od = t._objs[i], a;
+    if(i < 1 || !od || od.obj_nr < 1 || !od.state) return;
+    do {
+      a = od.parentstate;
+      if(!od.parent) {
+        t.drawObject(i, arg);
+        break;
+      }
+      od = t._objs[od.parent];
+    } while((od.state & 0xF) == a);
+  };
+
+  s.drawRoomObjects = function(arg) {
+    var t = this, i;
+    for(i = t._nums['local_objects'] - 1; i > 0; i--)
+      if(t._objs[i] && t._objs[i].obj_nr > 0 && (t._objs[i].state & 0xF))
+        t.drawRoomObject(i, arg);
+  };
+
+  // object.cpp updateObjectStates
+  s.updateObjectStates = function() {
+    var t = this, i, od;
+    for(i = 1; i < t._nums['local_objects']; i++) {
+      od = t._objs[i];
+      if(od && od.obj_nr > 0) od.state = t.getState(od.obj_nr);
+    }
   };
 
   s.redrawBGStrip = function(start, num) {
@@ -956,7 +947,9 @@
       t.stopTalk();
     t.redrawBGStrip(0, t._gdi.numStrips);
 
-    // t.drawRoomObjects(val);
+    // The background was just repainted, so put the objects back -- without
+    // this an open door or a moved object vanished on every scroll
+    t.drawRoomObjects(val);
     t._bgNeedsRedraw = false;
   };
 

@@ -39,7 +39,10 @@
     dest = t._currentPalette;
     for(i = firstIndex; i < numcolor; i++) {
       r = ptr.readUI8(); g = ptr.readUI8(); b = ptr.readUI8();
-      t._currentPalette[i] = [r,g,b];
+      // palette.cpp: in SCUMM 5 an all-near-white entry above 15 means
+      // "keep what is there", so colours scripts set survive a room load
+      if(i <= 15 || r < 252 || g < 252 || b < 252)
+        t._currentPalette[i] = [r,g,b];
     }
   };
 

@@ -20,7 +20,7 @@
     t.actordir = 0;
     if(stream) {
       t.obj_id = stream.readUI16(); t.x = stream.readUI8(); t.y = stream.readUI8(); t.w = stream.readUI8(); t.h = stream.readUI8();
-      t.flags = stream.readUI8(); t.parent = stream.readUI8(); t.walk_x = stream.readUI16(); t.walk_y = stream.readUI16();
+      t.flags = stream.readUI8(); t.parent = stream.readUI8(); t.walk_x = stream.readSI16(); t.walk_y = stream.readSI16();
       t.actordir = stream.readUI8();
     }
   };
@@ -63,7 +63,10 @@
     t.runExitScript();
     t.killScriptsAndResources();
     t.clearDrawQueues();
-    // hideActors
+    // room.cpp: every actor is hidden on a room change; showActors brings
+    // back the ones in the new room
+    for(var i = 1; i < t._actors.length; i++)
+      if(t._actors[i]) t._actors[i].hideActor();
     t.scummVar("room", room);
     t._fullRedraw = true;
     t._currentRoom = room;
@@ -72,10 +75,14 @@
 
     if(room != 0)
       t.ensureResourceLoaded("room", room);
-    // clearRoomObjects
+    t.clearRoomObjects();
 
-    if(t._currentRoom == 0)
+    if(t._currentRoom == 0) {
+      // no room: no entry/exit code and no objects to carry over
+      t._gfx["ENCD"] = t._gfx["EXCD"] = 0;
+      t._numObjectsInRoom = 0;
       return;
+    }
 
     t.setupRoomSubBlocks();
     t.resetRoomSubBlocks();
@@ -229,11 +236,30 @@
     od.walk_x = cdhd.walk_x; od.walk_y = cdhd.walk_y;
     od.actordir = cdhd.actordir;
     od.fl_object_index = 0;
+    // object.cpp: room objects may OR their masks into the z-planes
+    od.flags = t._gdi.dbAllowMaskOr;
   }
 
   s.getObjectIdFromOBIM = function(obim) {
     var t = this, MKID_BE = ScummVM.system.MKID_BE;
     return t.findResourceData(MKID_BE('IMHD'), obim.newRelativeStream(-8)).readUI16();
+  };
+
+  // object.cpp clearRoomObjects: the previous room's objects go, except
+  // flobjects (which this port does not create yet)
+  s.clearRoomObjects = function() {
+    var t = this, i, od;
+    for(i = 0; i < t._nums['local_objects']; i++) {
+      od = t._objs[i];
+      if(!od || od.obj_nr < 1) continue;
+      if(!od.fl_object_index) {
+        od.obj_nr = 0;
+      } else {
+        t._res.nukeResource("fl_object", od.fl_object_index);
+        od.obj_nr = 0;
+        od.fl_object_index = 0;
+      }
+    }
   };
 
   s.findLocalObjectSlot = function() {

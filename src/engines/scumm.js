@@ -218,6 +218,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
       } else {
         t.walkActors();
         t.moveCamera();
+        t.updateObjectStates();
         t.displayDialog();
         if(t._bgNeedsRedraw || t._fullRedraw)
           t.redrawBGAreas();
