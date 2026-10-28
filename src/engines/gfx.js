@@ -524,6 +524,8 @@
     t.initVirtScreen(2, h + adj, width, height - h - adj, false);
     t._screenB = b;
     t._screenH = h;
+    // new virtual screens start out blank, text included
+    t.clearTextSurface();
   };
 
   s.initVirtScreen = function(slot, top, width, height, twobufs, scrollable) {
@@ -693,33 +695,6 @@
     ctx.putImageData(dst, x, y);
   };
 
-  s.convertText = function(text) {
-    var t = this, i, c, s, result = "";
-
-    for(i = 0; i < text.length; i++) {
-      c = text.charCodeAt(i); s = String.fromCharCode(c);
-      if(s == '@') continue;
-      if(c == 255 || c == 254) {
-        i++;
-        c = text.charCodeAt(i); s = String.fromCharCode(c);
-        if(c == 1) result += '\n';
-        else if(c == 2) break;
-      }
-      else if(c == 0) result += '\n';
-      else if(c == 94) result += '\u2026';
-      else if(c == 96) result += '"';
-      else if(c == 130) result += '\u00E9';
-      else if(c == 136) result += '\u00EA';
-      else if(c == 250) result += ' '; // nbsp
-      else result += String.fromCharCode(c);
-    }
-    return result;
-  };
-
-  s.drawString = function(slot, msg) {
-    var text = s._string[slot];
-    text.text = msg;
-  };
 
   // --- Bitmap font rendering ---------------------------------------------
   // The game's font is not a browser font: it lives in the CHAR resources
@@ -870,67 +845,6 @@
     }
   };
 
-  s.renderTexts = function() {
-    var t = this, texts = t._string, i, text,
-        ctx = ScummVM.context, width = ScummVM.width, height = ScummVM.height,
-        charset, img, data, raw, lines, j, line, lw, lx, y, right, maxWidth;
-
-    for(i = 0; i < texts.length; i++) {
-      text = texts[i];
-      if(text && text.text && text.text != " ") break;
-    }
-    if(i == texts.length) return;               // nothing on screen
-
-    charset = t._charset || (t._charset = new t.CharsetRenderer(t));
-    if(!charset.setCurID(t._curCharset) && !charset.setCurID(1)) {
-      if(!t._charsetWarned) {
-        t._charsetWarned = true;
-        error("no charset resource to render text with");
-      }
-      return;
-    }
-
-    img = ctx.getImageData(0, 0, width, height);
-    data = img.data;
-
-    for(i = 0; i < texts.length; i++) {
-      text = texts[i];
-      if(!text || !text.text || text.text == " ") continue;
-
-      // Read the defaults rather than writing them back: assigning to the slot
-      // pins a string that legitimately sits at x=0 to mid-screen for good.
-      lx = text.x > 0 ? text.x : Math.floor(width / 2);
-      y = text.y > 0 ? text.y : Math.floor(height * 0.75);
-      right = text.right > 0 ? Math.min(text.right, width) : width;
-      maxWidth = text.align == "center" ? right : Math.max(8, right - lx);
-
-      // Charset colour 1 is the glyph body. Multi-bit glyphs look their
-      // pixels up in this map (outline and shadow live at 2 and 3), so the
-      // string's colour has to be published here first -- ScummVM's setColor.
-      t._charsetColorMap[1] = text.color;
-
-      raw = charset.lines(text.text);
-      lines = [];
-      for(j = 0; j < raw.length; j++)
-        lines = lines.concat(charset.wrap(raw[j], maxWidth));
-
-      for(j = 0; j < lines.length; j++) {
-        line = lines[j];
-        if(line.length) {
-          lw = charset.getStringWidth(line);
-          // y is the top of the glyphs here, which is what SCUMM means by it.
-          var x = text.align == "center" ? lx - Math.floor(lw / 2) : lx;
-          if(x + lw > width) x = width - lw;
-          if(x < 0) x = 0;
-          charset.drawLine(data, width, height, line, x, y, text.color);
-        }
-        y += charset.fontHeight;
-      }
-    }
-
-    ctx.putImageData(img, 0, 0);
-  }
-
   s.addObjectToDrawQueue = function(obj) {
     var t = this;
     t._drawObjectQue.push(obj);
@@ -1033,7 +947,10 @@
   };
 
   s.redrawBGAreas = function() {
-    var t = this, val = 0;
+    var t = this, val = 0, camera = t._camera;
+    // gfx.cpp: text over the room goes when the view scrolls
+    if(camera.cur.x != camera.last.x && t._charsetHasMask)
+      t.stopTalk();
     t.redrawBGStrip(0, t._gdi.numStrips);
 
     // t.drawRoomObjects(val);

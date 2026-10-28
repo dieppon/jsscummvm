@@ -16,10 +16,9 @@
     else
       this.buffer = data;
 
-    if(filename == "")
-      this.length = size || 0;
-    else
-      this.length = this.buffer.length;
+    // `filename` used to be tested here, but it is not a parameter of this
+    // constructor -- it only worked while a stray global of that name existed.
+    this.length = size || this.buffer.length;
     this.offset = 0;
     this.encByte = 0;
   };

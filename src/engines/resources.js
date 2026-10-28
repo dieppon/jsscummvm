@@ -52,6 +52,17 @@
 
       return stream;
     },
+    nukeResource: function(type, idx) {
+      var res = this.types[type];
+      if(res && idx < res.num) res.address[idx] = null;
+    },
+    // A string-like resource (verb, string, names) from a message's bytes,
+    // writable so stringOps can poke characters into it
+    createStringResource: function(type, idx, bytes) {
+      var stream = new ScummVM.WritableStream(bytes + "\0", bytes.length + 1);
+      this.types[type].address[idx] = stream;
+      return stream;
+    },
     allocResTypeData: function(id, tag, num, name, mode) {
       var t = this,
           res = t.types[id];
@@ -380,6 +391,9 @@
     data = t._charsetData[no];
     if(!data) return;
     t._curCharset = no;
+    // speech and printed text use it from now on
+    t._string[0]._default.charset = no;
+    t._string[1]._default.charset = no;
     for(i = 0; i < 16; i++)
       t._charsetColorMap[i] = data[i] || 0;
   };
@@ -460,15 +474,15 @@
       t.dumpResource("script-", idx, t.getResourceAddress("script", idx));
   };
 
+  // resource.cpp loadPtrToResource. Copies a message -- from the script when
+  // `source` is null, which then moves past it -- into a string resource.
   s.loadPtrToResource = function(type, resindex, source) {
-    var t = this, len;
-    len = t.resStrLen(source) + 1;
-    if(len <= 0)
-      return;
-
-    if(!source) source = t._scriptPointer;
-    ptr = t._res.createResource(type, resindex, len, source);
-    source.seek(len);
+    var t = this, len, msg;
+    t._res.nukeResource(type, resindex);
+    len = t.resStrLen(source);
+    msg = t.readMessage(source || t._scriptPointer, len);
+    t._res.createStringResource(type, resindex, msg);
+    if(!source) t._scriptPointer.seek(len + 1);
   };
 
   s.dumpResource = function(tag, idx, stream) {

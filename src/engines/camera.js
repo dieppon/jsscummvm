@@ -38,8 +38,8 @@
       t.runScript(t.scummVar("scroll_script"), 0, 0, 0);
     }
 
-    // Speech is drawn at a fixed screen position, so scrolling has to drop it.
-    if(camera.cur.x != camera.last.x && t._haveMsg)
+    // Text is drawn at a fixed screen position, so scrolling has to drop it.
+    if(camera.cur.x != camera.last.x && t._charsetHasMask)
       t.stopTalk();
   };
 
@@ -65,7 +65,7 @@
       if(t._actors[j].isInCurrentRoom())
         t._actors[j].needRedraw = true;
     }
-    // runInventoryScript(0);
+    t.runInventoryScript(0);
   };
 
   s.panCameraTo = function(x, y) {
@@ -169,7 +169,7 @@
     var t = this, camera = t._camera, old = camera.follows;
     t.setCameraFollows(t.getActor(act));
     if(camera.follows != old)
-      ; // t.runInventoryScript(0);
+      t.runInventoryScript(0);
     camera.movingToActor = false;
   };
 

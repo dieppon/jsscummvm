@@ -43,6 +43,14 @@
     }
   };
 
+  // palette.cpp setPalColor: scripts recolour single entries this way --
+  // Monkey Island picks its text colours with it
+  s.setPalColor = function(idx, r, g, b) {
+    var t = this;
+    t._currentPalette[idx] = [r & 0xFF, g & 0xFF, b & 0xFF];
+    t.setDirtyColors(idx, idx);
+  };
+
   s.paletteColor = function(idx, palette) {
     var t = this, color = "#", i, c, pal_color = (palette ? palette[idx] : t._currentPalette[idx]);
 

@@ -49,6 +49,7 @@
     var t = this, slot;
 
     log("Start scene "+room+" (old room "+t._currentRoom+")");
+    t.stopTalk();
     // fadeOut
     slot = t.getScriptSlot(t._currentScript);
     if(t._currentScript != 0xFF) {

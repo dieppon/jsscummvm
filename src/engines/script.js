@@ -705,8 +705,14 @@
     t._currentRoom = 0;
     t.scummVar("talk_string_y", -0x50);
     t.scummVar("videomode", 19);
+    t.scummVar("soundcard", 3);     // AdLib -- what the sound we play will be
+    t.scummVar("heapspace", 1400);
     t.scummVar("fixeddisk", 1);
     t.scummVar("inputmode", 3);
+    // vars.cpp: actors use their own colours and the room lights are on.
+    // Left at 0, Monkey Island thinks every room is dark ("It's too dark to
+    // see it").
+    t.scummVar("current_lights", 1 | 2 | 8);
 
     t.scummVar("debugmode", t._debugMode);
     t.scummVar("fade_delay", 3);
@@ -908,6 +914,7 @@
     vs.verbid = 0;
     vs.curmode = 0;
     vs.text = "";
+    t._res.nukeResource("verb", slot);
   };
 
   // verbs.cpp findVerbAtPos: walk the slots backwards, first hit wins
@@ -935,6 +942,15 @@
     args[1] = val;
     args[2] = mode;
     if (verbScript) t.runScript(verbScript, 0, 0, args);
+  };
+
+  // script.cpp runInventoryScript: the game redraws its inventory panel here
+  s.runInventoryScript = function(i) {
+    var t = this, args = [], j, invScript = t.scummVar("inventory_script");
+    if (!invScript) return;
+    for (j = 0; j < 16; j++) args[j] = 0;
+    args[0] = i;
+    t.runScript(invScript, 0, 0, args);
   };
 
   // verbs.cpp checkExecVerbs, the mouse half -- keyboard verbs are not wired up
@@ -1010,9 +1026,14 @@
       else if(i == over && vs.hicolor) color = vs.hicolor;
       else color = vs.color;
 
-      codes = [];
-      for(j = 0; j < vs.text.length; j++)
-        codes.push(vs.text.charCodeAt(j) & 0xFF);
+      // The name is expanded every time it is drawn, as ScummVM's drawVerb
+      // does: the sentence line is one verb whose name is "\xFF\x05<var>
+      // \xFF\x06<var>..." -- the verb and object names held in variables.
+      codes = t.verbDisplayCodes(vs);
+      // ScummVM records the rect as it draws, so a verb whose text changes
+      // (the sentence line) is clickable where it now is
+      t.setVerbRect(vs);
+      if(!codes.length) continue;
 
       lw = charset.getStringWidth(codes);
       // A centred verb is positioned by its middle, the same convention
@@ -1034,15 +1055,23 @@
   // The verb's name is stored as a resource by loadPtrToResource; pull it back
   // out as the raw bytes the charset renderer wants.
   s.getVerbText = function(slot) {
-    var t = this, r, out = "", i, b;
-    try { r = t.getResourceAddress("verb", slot); } catch (e) { return ""; }
-    if (!r) return "";
-    for (i = 0; i < r.length; i++) {
-      b = r.seek(i, true).readUI8();
-      if (b === 0) break;
-      out += String.fromCharCode(b);
+    return this.getResourceMessage("verb", slot) || "";
+  };
+
+  // A text verb's name, expanded, as the glyph codes to draw. Escape codes
+  // that only steer text output are dropped.
+  s.verbDisplayCodes = function(vs) {
+    var t = this, msg = t.convertMessageToString(vs.text), codes = [], i, c;
+    for (i = 0; i < msg.length; i++) {
+      c = msg.charCodeAt(i) & 0xFF;
+      if (c == 0xFF || c == 0xFE) {
+        c = msg.charCodeAt(++i);
+        if (c == 9 || c == 10 || c == 12 || c == 13 || c == 14) i += 2;
+        continue;
+      }
+      codes.push(c);
     }
-    return out;
+    return codes;
   };
 
   // verbs.cpp sizes a text verb's box from the string it draws
@@ -1051,8 +1080,7 @@
     if (!vs || vs.type != kTextVerbType) return;
     cs = t._charset || (t._charset = new t.CharsetRenderer(t));
     if (cs.setCurID(t._curCharset) || cs.setCurID(1)) {
-      codes = [];
-      for (var i = 0; i < vs.text.length; i++) codes.push(vs.text.charCodeAt(i) & 0xFF);
+      codes = t.verbDisplayCodes(vs);
       w = cs.getStringWidth(codes);
       h = cs.fontHeight;
     }
@@ -1114,15 +1142,167 @@
     t._currentScript = 0xFF;
   };
 
+  // string.cpp resStrLen. A 0xFF escape is followed by a code byte, and
+  // every code except 1, 2, 3 and 8 carries a 2-byte parameter -- usually a
+  // variable number, whose high byte is often 0. Stopping at the first 0
+  // measured "\xFF\x05k\0..." as three bytes long and left the script
+  // pointer inside the string, executing the rest of the text as opcodes.
   s.resStrLen = function(stream) {
-    var t = this, chr, num = 0;
+    var t = this, chr, num = 0, seekStream;
     if(!stream)
       stream = t._scriptPointer;
     seekStream = stream.newRelativeStream(0);
     while((chr = seekStream.readUI8()) != 0) {
       num++;
+      if(chr == 0xFF) {
+        chr = seekStream.readUI8();
+        num++;
+        if(chr != 1 && chr != 2 && chr != 3 && chr != 8) {
+          seekStream.seek(2);
+          num += 2;
+        }
+      }
     }
     return num;
+  };
+
+  // The bytes of the message at the stream's current offset, escape codes and
+  // their parameters intact, without the terminator. The stream is not moved.
+  s.readMessage = function(stream, len) {
+    var t = this, r, out = "", i;
+    if(!stream) return "";
+    if(len === undefined) len = t.resStrLen(stream);
+    r = stream.newRelativeStream(0);
+    for(i = 0; i < len; i++) out += String.fromCharCode(r.readUI8());
+    return out;
+  };
+
+  // A string-like resource (verb, string, actor_name, object_name) as a message
+  s.getResourceMessage = function(type, idx) {
+    var t = this, r = t.getResourceAddress(type, idx);
+    if(!r) return null;
+    r = r.newRelativeStream(0);
+    r.offset = 0;
+    return t.readMessage(r);
+  };
+
+  // object.cpp getObjOrActorName
+  s.getObjOrActorName = function(obj) {
+    var t = this, i, loc, ptr, total, cur, tag, size, MKID_BE = ScummVM.system.MKID_BE;
+
+    if(obj < t._nums['actors'])
+      return t.getResourceMessage("actor_name", obj);
+
+    for(i = 0; i < t._nums['new_names']; i++) {
+      if(t._newNames[i] == obj)
+        return t.getResourceMessage("object_name", i);
+    }
+
+    loc = t.getOBCDAddress(obj);
+    if(!loc) return null;
+    ptr = loc.res.newAbsoluteStream(loc.abs + 4);
+    total = ptr.readUI32(true);
+    cur = t._resourceHeaderSize;
+    while(cur < total) {
+      ptr.seek(loc.abs + cur, true);
+      tag = ptr.readUI32(true);
+      size = ptr.readUI32(true);
+      if(size <= t._resourceHeaderSize) return null;
+      if(tag == MKID_BE('OBNA')) return t.readMessage(ptr);
+      cur += size;
+    }
+    return null;
+  };
+
+  // object.cpp setObjectName
+  s.setObjectName = function(obj) {
+    var t = this, i;
+
+    if(obj < t._nums['actors']) {
+      error("Can't set actor " + obj + " name with new-name-of");
+      return;
+    }
+    for(i = 0; i < t._nums['new_names']; i++) {
+      if(t._newNames[i] == obj) {
+        t._res.nukeResource("object_name", i);
+        t._newNames[i] = 0;
+        break;
+      }
+    }
+    for(i = 0; i < t._nums['new_names']; i++) {
+      if(!t._newNames[i]) {
+        t.loadPtrToResource("object_name", i, null);
+        t._newNames[i] = obj;
+        t.runInventoryScript(0);
+        return;
+      }
+    }
+    error("New name of " + obj + " overflows name table");
+  };
+
+  // string.cpp convertMessageToString and its helpers. Expands the variable,
+  // verb, name and string codes; the ones that drive the text output itself
+  // (newline, keep, wait, colour...) are passed through for the renderer.
+  s.convertMessageToString = function(msg) {
+    var t = this, dst = "", i = 0, chr, val;
+
+    if(!msg) return "";
+
+    while(i < msg.length) {
+      chr = msg.charCodeAt(i++);
+      if(chr == 0) break;
+      if(chr == 0xFF) {
+        chr = msg.charCodeAt(i++);
+        if(chr == 1 || chr == 2 || chr == 3 || chr == 8) {
+          dst += "\xFF" + String.fromCharCode(chr);
+        } else {
+          val = (msg.charCodeAt(i) | (msg.charCodeAt(i + 1) << 8)) & 0xFFFF;
+          switch(chr) {
+            case 4: dst += t.convertIntMessage(val); break;
+            case 5: dst += t.convertVerbMessage(val); break;
+            case 6: dst += t.convertNameMessage(val); break;
+            case 7: dst += t.convertStringMessage(val); break;
+            case 9: case 10: case 12: case 13: case 14:
+              dst += "\xFF" + String.fromCharCode(chr) + msg.charAt(i) + msg.charAt(i + 1);
+              break;
+            default:
+              i -= 2;
+          }
+          i += 2;
+        }
+      } else if(chr != 0x40) { // '@' is padding
+        dst += String.fromCharCode(chr);
+      }
+    }
+    return dst;
+  };
+
+  s.convertIntMessage = function(v) {
+    return String(this.readVar(v));
+  };
+
+  s.convertVerbMessage = function(v) {
+    var t = this, num = t.readVar(v), k, vs;
+    if(num) {
+      for(k = 1; k < t._nums['verbs']; k++) {
+        vs = t._verbs[k];
+        if(vs && num == vs.verbid && !vs.type && !vs.saveid)
+          return t.convertMessageToString(t.getResourceMessage("verb", k));
+      }
+    }
+    return "";
+  };
+
+  s.convertNameMessage = function(v) {
+    var t = this, num = t.readVar(v);
+    if(num) return t.convertMessageToString(t.getObjOrActorName(num));
+    return "";
+  };
+
+  s.convertStringMessage = function(v) {
+    var t = this;
+    if(v) return t.convertMessageToString(t.getResourceMessage("string", v));
+    return "";
   };
 
   s.getResultPos = function() {
@@ -1202,8 +1382,11 @@
   s.getWordVararg = function() {
     var t = this, data = [], i;
 
+    // Numbers, not "\0": these become the script's local variables, and
+    // "\0" == 0 is false in JavaScript -- every script started with fewer
+    // than 16 arguments used to see its unused locals as non-zero.
     for(i = 0; i < 16; i++) {
-      data[i] = String.fromCharCode(0);
+      data[i] = 0;
     }
 
     i = 0;
@@ -1256,45 +1439,6 @@
     this.updateCodePointer();
     var t = this, b = t._scriptPointer;
     return b.readSI32();
-  };
-
-  s.convertMessageToString = function(msg) {
-    var t = this, dst = "", i, chr;
-
-    if(!msg) return;
-
-    for(i = 0; i < msg.length; i++) {
-      chr = msg.charCodeAt(i);
-      if(chr == 0) break;
-      if(chr == 0xFF) {
-        chr = msg.charCodeAt(++i);
-        if(chr == 1 || chr == 2 || chr == 3 || chr == 8) {
-          dst += String.fromCharCode(0xFF);
-          dst += String.fromCharCode(chr);
-        } else {
-          log("special string codes");
-        }
-      } else {
-        if(String.fromCharCode(chr) != "@")
-          dst += String.fromCharCode(chr);
-      }
-    }
-    return dst;
-  };
-
-  s.printString = function(slot, source, len) {
-    var t = this, msg = s.convertMessageToString(source.readString(len));
-    switch(slot) {
-      case 0:
-        if(!s._actorToPrintStrFor) s._actorToPrintStrFor = s.scummVar("ego");
-        s.actorTalk(msg);
-      break;
-      case 1:
-        s.drawString(1, msg);
-      break;
-      default:
-        log("unimplemented string slot "+slot);
-    }
   };
 
   s.beginOverride = function() {
@@ -1370,61 +1514,6 @@
       vm.cutScenePtr[idx] = 0
     }
     log("aborted cutscene");
-  };
-
-  s.decodeParseString = function() {
-    var t = this, textSlot, len, text;
-
-    switch(t._actorToPrintStrFor) {
-    case 252:
-      textSlot = 3;
-    break;
-    case 253:
-      textSlot = 2;
-    break;
-    case 254:
-      textSlot = 1;
-    break;
-    default:
-      textSlot = 0;
-    break;
-    }
-    t._string[textSlot] = {x: 0, y: 0, right: 0, align: "left", color: 0, text:"", overhead: true, wrapping: false, no_talk_anim: true};
-    text = t._string[textSlot];
-    while((t._opcode = t.fetchScriptByte()) != 0xFF) {
-      switch(t._opcode & 0x0F) {
-        case 0: // at
-          text.x = t.getVarOrDirectWord(PARAM_1);
-          text.y = t.getVarOrDirectWord(PARAM_2);
-        break;
-        case 1: // color
-          text.color = t.getVarOrDirectByte(PARAM_1);
-        break;
-        case 2: // clipped
-          text.right = t.getVarOrDirectWord(PARAM_1);
-        break;
-        case 3: // erase
-          w = t.getVarOrDirectWord(PARAM_1);
-          h = t.getVarOrDirectWord(PARAM_2);
-        break;
-        case 4: // center
-          text.align = "center";
-          text.overhead = false;
-        break;
-        case 7: // overhead
-          text.overhead = true;
-        break;
-        case 15: // textstring
-          len = t.resStrLen();
-          var old_off = t._scriptPointer.offset;
-          t.printString(textSlot, t._scriptPointer, len);
-          t._scriptPointer.seek(1);
-        return;
-        default:
-          log("unimplemented decodeParseString opcode " + (s._opcode & 0x0F));
-        break;
-      }
-    }
   };
 
   var unimplementedOpcode = function() {
@@ -1543,30 +1632,43 @@
       } while(--a);
     },
     stringOps: function() {
-      var a, b, c, i;
+      // o5_stringOps. String resources are WritableStreams, so characters
+      // can be read and poked by index.
+      var a, b, c, ptr;
       s._opcode = s.fetchScriptByte();
       switch(s._opcode & 0x1F) {
         case 1: // loadstring
           a = s.getVarOrDirectByte(PARAM_1);
           s.loadPtrToResource("string", a, null);
         break;
+        case 2: // copystring
+          a = s.getVarOrDirectByte(PARAM_1);
+          b = s.getVarOrDirectByte(PARAM_2);
+          s._res.nukeResource("string", a);
+          ptr = s.getResourceAddress("string", b);
+          if(ptr) s.loadPtrToResource("string", a, ptr.newRelativeStream(0).seek(0, true));
+        break;
         case 3: // setStringChar
           a = s.getVarOrDirectByte(PARAM_1);
           b = s.getVarOrDirectByte(PARAM_2);
           c = s.getVarOrDirectByte(PARAM_3);
           ptr = s.getResourceAddress("string", a);
-          if(!ptr) {
-            error("String "+a+" does not exist");
-          }
-          ptr.buffer[b] = c;
+          if(!ptr) { error("String "+a+" does not exist"); break; }
+          ptr.writeByteAt(b, c);
+        break;
+        case 4: // getStringChar
+          s.getResultPos();
+          a = s.getVarOrDirectByte(PARAM_1);
+          b = s.getVarOrDirectByte(PARAM_2);
+          ptr = s.getResourceAddress("string", a);
+          if(!ptr) { error("String "+a+" does not exist"); s.setResult(0); break; }
+          s.setResult(ptr.newRelativeStream(0).seek(b, true).readUI8());
         break;
         case 5: // createString
           a = s.getVarOrDirectByte(PARAM_1);
           b = s.getVarOrDirectByte(PARAM_2);
-          if(b) {
-            ptr = s._res.createResource("string", a, b, -1);
-          }
-          ptr = s.getResourceAddress("string", a);
+          s._res.nukeResource("string", a);
+          if(b) s._res.createResource("string", a, b, -1);
         break;
         default:
           log("unimplemented stringOps opcode " + (s._opcode & 0x1F));
@@ -1586,9 +1688,9 @@
           a = s.getVarOrDirectWord(PARAM_1);
           b = s.getVarOrDirectWord(PARAM_2);
           c = s.getVarOrDirectWord(PARAM_3);
-          s._opcode = s.getVarOrDirectByte();
+          s._opcode = s.fetchScriptByte();
           d = s.getVarOrDirectByte(PARAM_1);
-          // setPalColor(d, a, b, c);
+          s.setPalColor(d, a, b, c);
         break;
         case 10: // room fase
           a = s.getVarOrDirectWord(PARAM_1);
@@ -1893,7 +1995,8 @@
             if (slot) vs.type = kImageVerbType;
             break;
           case 2:  // name
-            s.loadPtrToResource("verb", slot);
+            s.loadPtrToResource("verb", slot, null);
+            if (slot == 0) s._res.nukeResource("verb", slot);
             vs.text = s.getVerbText(slot);
             vs.type = kTextVerbType;
             vs.imgindex = 0;
@@ -1928,7 +2031,11 @@
           case 18: vs.key = s.getVarOrDirectByte(PARAM_1); break;
           case 19: vs.center = true; break;
           case 20: // name from string resource
-            s.getVarOrDirectWord(PARAM_1);
+            a = s.getResourceAddress("string", s.getVarOrDirectWord(PARAM_1));
+            if (!a) s._res.nukeResource("verb", slot);
+            else s.loadPtrToResource("verb", slot, a.newRelativeStream(0).seek(0, true));
+            if (slot == 0) s._res.nukeResource("verb", slot);
+            vs.text = s.getVerbText(slot);
             vs.type = kTextVerbType;
             vs.imgindex = 0;
             break;
@@ -2109,8 +2216,7 @@
             log("set talk color "+act.talkColor);
           break;
           case 13: // actor name
-            s.loadPtrToResource("actor_name", a);
-            log("loaded actor "+a+": "+s.getResourceAddress("actor_name", a).readString());
+            s.loadPtrToResource("actor_name", a, null);
           break;
           case 17: // actor scale
             i = s.getVarOrDirectByte(PARAM_1);
@@ -2393,8 +2499,7 @@
       // soundKludge
     },
     setObjectName: function() {
-      var obj = s.getVarOrDirectWord(PARAM_1);
-      // s.setObjectName(obj);
+      s.setObjectName(s.getVarOrDirectWord(PARAM_1));
     },
     findObject: function() {
       var x, y;

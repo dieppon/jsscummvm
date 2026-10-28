@@ -24,6 +24,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     _nums: {},
     _objs: [],
     _inventory: [],
+    _newNames: [],
     _egoPositioned: false,
     _objectRoomTable: [],
     _objectOwnerTable: [],
@@ -53,6 +54,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     _virtscreens: [],
     _resultVarNumber: 0,
     _string: [],
+    _textLayer: [],
     _actorToPrintStrFor: 0,
     _roomPalette: [],
     _currentPalette: [],
@@ -171,15 +173,10 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
 
       t.decreaseScriptDelay(delta);
 
-      // Speech runs on game time. Without this nothing ever clears _haveMsg,
-      // so waitForMessage never returns and the game stops dead.
-      if(t._talkDelay > 0) {
-        t._talkDelay -= delta;
-        if(t._talkDelay <= 0) {
-          t._talkDelay = 0;
-          if(t._haveMsg) t.stopTalk();
-        }
-      }
+      // Speech runs on game time; displayDialog moves on to the next part of
+      // the message, or ends it, once this reaches 0
+      t._talkDelay -= delta;
+      if(t._talkDelay < 0) t._talkDelay = 0;
 
       this.processInput();
       t.updateScummVars();
@@ -199,10 +196,12 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
       }
 
       if(t._currentRoom == 0) {
+        t.displayDialog();
         t.drawDirtyScreenParts();
       } else {
         t.walkActors();
         t.moveCamera();
+        t.displayDialog();
         if(t._bgNeedsRedraw || t._fullRedraw)
           t.redrawBGAreas();
         t.processDrawQueue();
@@ -271,6 +270,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000,
     },
     resetScumm: function() {
       var t = this, i;
+      t.initStrings();
       t.initScreens(16, 144);
       t._currentRoom = 0;
       for(i = 0; i < 256; i++)
