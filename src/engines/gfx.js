@@ -626,13 +626,16 @@
   };
 
   s.drawDirtyScreenParts = function() {
-    var t = this,
+    var t = this, vs,
         ctx = ScummVM.context, width = ScummVM.width, height = ScummVM.height, scale = ScummVM.scale;
 
     ctx.fillStyle = "black";
     ctx.fillRect(0,0,width,height);
 
-    t.updateDirtyScreen(2); // Verb
+    // The verb screen holds the image verbs -- inventory icons and arrows
+    t.drawImageVerbs();
+    vs = t._virtscreens[2];
+    if(vs) t.drawStripToScreen(vs, 0, vs.w, 0, vs.h);
 
     if(true) {
       vs = t._virtscreens[0];

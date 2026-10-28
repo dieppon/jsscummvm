@@ -862,6 +862,102 @@
     return count;
   };
 
+  s.getFreeInventorySlot = function() {
+    var t = this, i;
+    for (i = 0; i < t._nums['inventory']; i++)
+      if (!t._inventory[i]) return i;
+    error("Inventory full, " + t._nums['inventory'] + " max items");
+    return -1;
+  };
+
+  // object.cpp addObjectToInventory: the object's OBCD -- its name and verb
+  // scripts -- is copied out of the room, so it still works after leaving
+  s.addObjectToInventory = function(obj, room) {
+    var t = this, MKID_BE = ScummVM.system.MKID_BE, src = null, abs = 0, size, slot,
+        roomptr, searchptr, cdhd, i, loc;
+
+    if (t.whereIsObject(obj) == WIO_FLOBJECT) {
+      loc = t.getOBCDAddress(obj);
+      if (loc) { src = loc.res; abs = loc.abs; }
+    } else {
+      roomptr = t.getResourceAddress("room", room);
+      if (roomptr) {
+        searchptr = roomptr.newAbsoluteStream(8);
+        while (searchptr.findNext(MKID_BE('OBCD'))) {
+          cdhd = t.findResourceData(MKID_BE('CDHD'), searchptr.newRelativeStream(-8));
+          if (cdhd && cdhd.readUI16() == obj) {
+            src = roomptr;
+            abs = searchptr.offset - 8;
+            break;
+          }
+          searchptr.seek(-8);
+          searchptr.seek(searchptr.newRelativeStream(4).readUI32(true));
+        }
+      }
+    }
+    if (!src) {
+      error("addObjectToInventory: object " + obj + " not found in room " + room);
+      return;
+    }
+
+    size = src.newAbsoluteStream(abs + 4).readUI32(true);
+    slot = t.getFreeInventorySlot();
+    if (slot < 0) return;
+    t._inventory[slot] = obj;
+    t._res.types["inventory"].address[slot] = src.newStream(abs, size);
+  };
+
+  // object.cpp clearOwnerOf
+  s.clearOwnerOf = function(obj) {
+    var t = this, i, inv = t._res.types["inventory"].address;
+
+    t.stopObjectScript(obj);
+
+    if (t.getOwner(obj) == OF_OWNER_ROOM) {
+      for (i = 0; i < t._nums['local_objects']; i++) {
+        if (t._objs[i] && t._objs[i].obj_nr == obj && t._objs[i].fl_object_index) {
+          t._res.nukeResource("fl_object", t._objs[i].fl_object_index);
+          t._objs[i].obj_nr = 0;
+          t._objs[i].fl_object_index = 0;
+        }
+      }
+    } else {
+      for (i = 0; i < t._nums['inventory']; i++) {
+        if (t._inventory[i] == obj) {
+          t._res.nukeResource("inventory", i);
+          t._inventory[i] = 0;
+          // close the gap, so the items keep their order on screen
+          for (i = 0; i < t._nums['inventory'] - 1; i++) {
+            if (!t._inventory[i] && t._inventory[i + 1]) {
+              t._inventory[i] = t._inventory[i + 1];
+              t._inventory[i + 1] = 0;
+              inv[i] = inv[i + 1];
+              inv[i + 1] = null;
+            }
+          }
+          break;
+        }
+      }
+    }
+  };
+
+  // object.cpp setOwnerOf
+  s.setOwnerOf = function(obj, owner) {
+    var t = this;
+    if (owner == 0) t.clearOwnerOf(obj);
+    t.putOwner(obj, owner);
+    t.runInventoryScript(0);
+  };
+
+  // object.cpp putClass
+  s.putClass = function(obj, cls, set) {
+    var t = this;
+    cls &= 0x7F;
+    if (cls < 1 || cls > 32) return;
+    if (set) t._classData[obj] |= (1 << (cls - 1));
+    else t._classData[obj] &= ~(1 << (cls - 1));
+  };
+
   s.findInventory = function(owner, idx) {
     var t = this, i, obj, count = 1;
     for (i = 0; i < t._nums['inventory']; i++) {
@@ -1056,6 +1152,82 @@
   // out as the raw bytes the charset renderer wants.
   s.getVerbText = function(slot) {
     return this.getResourceMessage("verb", slot) || "";
+  };
+
+  // verbs.cpp setVerbObject: an image verb shows an object's picture, copied
+  // out of `room` -- Monkey Island keeps its inventory icons in room 99
+  s.setVerbObject = function(room, object, verb) {
+    var t = this, MKID_BE = ScummVM.system.MKID_BE, roomptr, searchptr, abs, size;
+
+    if (t.whereIsObject(object) == WIO_FLOBJECT) {
+      error("Can't grab verb image from flobject");
+      return;
+    }
+    roomptr = t.getResourceAddress("room", room);
+    if (!roomptr) return;
+    searchptr = roomptr.newAbsoluteStream(8);
+    while (searchptr.findNext(MKID_BE('OBIM'))) {
+      abs = searchptr.offset - 8;
+      size = roomptr.newAbsoluteStream(abs + 4).readUI32(true);
+      if (t.getObjectIdFromOBIM(searchptr) == object) {
+        t._res.types["verb"].address[verb] = roomptr.newStream(abs, size);
+        t._imageVerbsDirty = true;
+        return;
+      }
+      searchptr.seek(abs + size, true);
+    }
+    error("setVerbObject: object " + object + " image not found in room " + room);
+  };
+
+  // verbs.cpp drawVerbBitmap: draw the object image into the verb screen and
+  // size the verb's rect to it
+  s.drawVerbBitmap = function(slot, x, y) {
+    var t = this, v = t._verbs[slot], vsn = t.findVirtScreen(y), vs, obim, imhd, imgw, imgh,
+        imptr, i, MKID_BE = ScummVM.system.MKID_BE;
+
+    if (vsn == null) return;
+    vs = t._virtscreens[vsn];
+    obim = t.getResourceAddress("verb", slot);
+    if (!obim) return;
+    obim = obim.newRelativeStream(0).seek(0, true);
+    imhd = new t.ImageHeader(t.findResourceData(MKID_BE('IMHD'), obim));
+    imgw = Math.floor(imhd.width / 8);
+    imgh = Math.floor(imhd.height / 8);
+    imptr = t.getObjectImage(obim, 1);
+    if (!imptr) return;
+
+    t._gdi.zBufferDisabled = true;
+    for (i = 0; i < imgw; i++)
+      t._gdi.drawBitmap(imptr, vs, Math.floor(x / 8) + i, y - vs.topline, imgw * 8, imgh * 8, i, 1,
+                        t._gdi.dbAllowMaskOr | t._gdi.dbObjectMode);
+    t._gdi.zBufferDisabled = false;
+
+    v.curRect.right = v.curRect.left + imgw * 8;
+    v.curRect.bottom = v.curRect.top + imgh * 8;
+  };
+
+  // Image verbs are drawn into the verb screen rather than painted over each
+  // frame like text, so redraw them -- on a cleared screen, which is what
+  // ScummVM's restoreVerbBG amounts to -- whenever one changes.
+  s.drawImageVerbs = function() {
+    var t = this, vs = t._virtscreens[2], sig = "", i, v, buf;
+    if (!vs || !t._verbs) return;
+    for (i = 1; i < t._nums['verbs']; i++) {
+      v = t._verbs[i];
+      if (v && v.verbid && !v.saveid && v.curmode && v.type == kImageVerbType)
+        sig += i + ":" + v.verbid + ":" + v.imgindex + "@" + v.curRect.left + "," + v.curRect.top + ";";
+    }
+    if (sig == t._imageVerbSig && !t._imageVerbsDirty) return;
+    t._imageVerbSig = sig;
+    t._imageVerbsDirty = false;
+
+    buf = vs.pixels.buffer;
+    for (i = 0; i < buf.length; i++) buf[i] = "\0";
+    for (i = 1; i < t._nums['verbs']; i++) {
+      v = t._verbs[i];
+      if (v && v.verbid && !v.saveid && v.curmode && v.type == kImageVerbType)
+        t.drawVerbBitmap(i, v.curRect.left, v.curRect.top);
+    }
   };
 
   // A text verb's name, expanded, as the glyph codes to draw. Escape codes
@@ -1308,13 +1480,18 @@
   s.getResultPos = function() {
     var t = this, a;
     t._resultVarNumber = t.fetchScriptWord();
+    // script.cpp getResultPos: an indexed variable, var[base + index]. The
+    // flag has to come off either way -- it used to stay on whenever the
+    // index was a variable, and the constant-index case lost its index, so
+    // writes to arrays (the inventory's slot table among them) went nowhere.
     if(t._resultVarNumber & 0x2000) {
       a = t.fetchScriptWord();
       if(a & 0x2000) {
         t._resultVarNumber += t.readVar(a & ~0x2000);
       } else {
-        t._resultVarNumber &= ~0x2000;
+        t._resultVarNumber += a & 0xFFF;
       }
+      t._resultVarNumber &= ~0x2000;
     }
   };
 
@@ -1940,7 +2117,7 @@
       s.jumpRelative(a == 0);
     },
     expression: function() {
-      var dst;
+      var dst, i;
       s._scummStackPos = 0;
       s.getResultPos();
       dst = s._resultVarNumber;
@@ -1965,7 +2142,7 @@
             i = s.pop();
             if(i == 0)
               error("Divide by zero");
-            s.push(s.pop() / i);
+            s.push(Math.trunc(s.pop() / i));  // C integer division
           break;
           case 6: // normal
             s._opcode = s.fetchScriptByte();
@@ -1977,12 +2154,17 @@
           break;
         }
       }
+      // The nested opcodes above set _resultVarNumber for their own results;
+      // restore ours and store what is left on the stack. This was missing,
+      // so every expression was evaluated and thrown away.
+      s._resultVarNumber = dst;
+      s.setResult(s.pop());
     },
     verbOps: function() {
       // ported from o5_verbOps -- it used to parse all of this and throw it
       // away, which is why _verbs stayed empty and nothing was ever clickable
       var verb = s.getVarOrDirectByte(PARAM_1),
-          slot = s.getVerbSlot(verb, 0), vs, a;
+          slot = s.getVerbSlot(verb, 0), vs, a, b;
 
       if (slot < 0 || slot >= s._nums['verbs']) { error("bad verb slot " + slot); return; }
       vs = s._verbs[slot];
@@ -1992,7 +2174,10 @@
         switch (s._opcode & 0x1F) {
           case 1:  // image
             a = s.getVarOrDirectWord(PARAM_1);
-            if (slot) vs.type = kImageVerbType;
+            if (slot) {
+              s.setVerbObject(s._roomResource, a, slot);
+              vs.type = kImageVerbType;
+            }
             break;
           case 2:  // name
             s.loadPtrToResource("verb", slot, null);
@@ -2039,9 +2224,14 @@
             vs.type = kTextVerbType;
             vs.imgindex = 0;
             break;
-          case 22: // assign object
+          case 22: // assign object: an image from another room
             a = s.getVarOrDirectWord(PARAM_1);
-            s.getVarOrDirectByte(PARAM_2);
+            b = s.getVarOrDirectByte(PARAM_2);
+            if (slot && vs.imgindex != a) {
+              s.setVerbObject(b, a, slot);
+              vs.type = kImageVerbType;
+              vs.imgindex = a;
+            }
             break;
           case 23: vs.bkcolor = s.getVarOrDirectByte(PARAM_1); break;
           default:
@@ -2169,7 +2359,7 @@
     },
     setOwnerOf: function() {
       var obj = s.getVarOrDirectWord(PARAM_1), owner = s.getVarOrDirectByte(PARAM_2);
-      // s.setOwnerOf(obj, owner);
+      s.setOwnerOf(obj, owner);
     },
     getRandomNr: function() {
       s.getResultPos();
@@ -2353,13 +2543,14 @@
     pickupObject: function() {
       var obj = s.getVarOrDirectWord(PARAM_1), room = s.getVarOrDirectByte(PARAM_2);
       if(room == 0) room = s._roomResource;
-      // addObjectToInventory
+      // o5_pickupObject
+      s.addObjectToInventory(obj, room);
       s.putOwner(obj, s.scummVar("ego"));
-      // putClass untouchable
+      s.putClass(obj, kObjectClassUntouchable, true);
       s.putState(obj, 1);
-      // object dirty
+      s.markObjectRectAsDirty(obj);
       s.clearDrawObjectQueue();
-      // s.runInventoryScript(1);
+      s.runInventoryScript(1);
     },
     lights: function() {
       var a = s.getVarOrDirectByte(PARAM_1), b = s.fetchScriptByte(), c = s.fetchScriptByte();
@@ -2453,12 +2644,14 @@
     setClass: function() {
       var obj = s.getVarOrDirectWord(PARAM_1), newClass;
 
+      // o5_setClass: class 0 clears them all, bit 7 sets rather than clears
       while((s._opcode = s.fetchScriptByte()) != 0xFF) {
         newClass = s.getVarOrDirectWord(PARAM_1);
         if(newClass == 0) {
-          // all class data
-        } else {
+          s._classData[obj] = 0;
+          continue;
         }
+        s.putClass(obj, newClass, (newClass & 0x80) != 0);
       }
     },
     add: function() {
