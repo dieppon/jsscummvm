@@ -5,7 +5,8 @@
  *
  *  - CD stubs: a 32-byte SOUN naming a CD audio track, a loop flag and a
  *    start and end time. The music lives on the disc. Ripped tracks are
- *    played from games/<game>/trackN.{ogg,mp3,flac,wav} when they exist;
+ *    played from games/<game>/trackN.{ogg,mp3,flac,wav} (or TrackN) when
+ *    they exist;
  *    without them the music is silent, but the CD timer still runs, since
  *    scripts time scenes against VAR_MUSIC_TIMER.
  *  - SBL: digitised Sound Blaster samples (VOC data), played through Web
@@ -298,12 +299,17 @@
 
   // Look for a ripped copy of the track once, remembering the answer
   s.findCDTrack = function(track, callback) {
-    var t = this, dir = "games/" + t._game + "/", i = 0;
+    var t = this, dir = "games/" + t._game + "/", i = 0, names = [], n, e;
     if (track in t._cdTracks) { callback(t._cdTracks[track]); return; }
     t._cdTracks[track] = null;
+    // rippers write both "track1" and "Track1"; a case-sensitive server
+    // only finds the one that is there
+    for (e = 0; e < CD_EXTENSIONS.length; e++)
+      for (n = 0; n < 2; n++)
+        names.push((n ? "Track" : "track") + track + "." + CD_EXTENSIONS[e]);
     (function next() {
-      if (i >= CD_EXTENSIONS.length) { callback(null); return; }
-      var url = dir + "track" + track + "." + CD_EXTENSIONS[i++];
+      if (i >= names.length) { callback(null); return; }
+      var url = dir + names[i++];
       fetch(url, {method: "HEAD"}).then(function(r) {
         if (r.ok) { t._cdTracks[track] = url; callback(url); }
         else next();
