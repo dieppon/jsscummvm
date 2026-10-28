@@ -271,14 +271,17 @@
 
       // log("drawing costume "+t.costume+" for actor "+t.number+" at "+t.pos.x+"/"+t.pos.y);
 
-      if(t.forceClip)
+      // actor.cpp drawActorCostume: the walk box says which z-plane the actor
+      // is behind. It used to be plane 1 everywhere, which hid actors
+      // standing where only plane 0 applies.
+      if(t.forceClip > 0)
         bcr.zbuf = t.forceClip;
-      else if(true) { //false) {
-        bcr.zbuf = 1;
-        // NeverClip
-      } else {
-        log("mask from box");
-        // Mask from Box
+      else if(s.getClass(t.number, kObjectClassNeverClip))
+        bcr.zbuf = 0;
+      else {
+        bcr.zbuf = s.getMaskFromBox(t.walkbox);
+        if(bcr.zbuf > s._gdi.numZBuffer - 1)
+          bcr.zbuf = s._gdi.numZBuffer - 1;
       }
 
       bcr.draw_top = 0x7fffffff;
@@ -1032,10 +1035,24 @@
     t.palette = [];
     t.mirror = false;
 
+    // costume.cpp ClassicCostumeRenderer::setPalette: the actor's own
+    // palette (set with actorOps) wins over the costume's, 255 meaning "keep
+    // the costume colour". With the lights off actors are drawn as grey
+    // silhouettes.
     t.setPalette = function(palette) {
       var i, color;
-      for(i = 0; i < t.loader.numColors; i++)
-        t.palette[i] = t.loader.palette[i];
+      if(s.scummVar("current_lights") & 8) {   // LIGHTMODE_actor_use_colors
+        for(i = 0; i < t.loader.numColors; i++) {
+          color = palette ? palette[i] : 255;
+          if(color == 255 || color === undefined)
+            color = t.loader.palette[i];
+          t.palette[i] = color;
+        }
+      } else {
+        for(i = 0; i < t.loader.numColors; i++)
+          t.palette[i] = 8;
+        t.palette[12] = 0;
+      }
     };
     t.setFacing = function(actor) {
       t.mirror = _system.newDirToOldDir(actor.facing) != 0 || t.loader.mirror;
@@ -1259,7 +1276,9 @@
 
       codec.destptr = t.out.pixels.newRelativeStream(codec.y * t.out.pitch + codec.x);
 
-      codec.mask_ptr = s._gdi.getMaskBuffer(0, codec.y, t.zbuf);
+      // ScummEngine::getMaskBuffer: the mask is laid out by room strip, and
+      // codec.x is screen-relative, so start from the strip the screen does
+      codec.mask_ptr = s._gdi.getMaskBuffer(Math.floor(s._virtscreens[0].xstart / 8), codec.y, t.zbuf);
 
       t.proc3(codec);
 
