@@ -94,8 +94,27 @@
     if(t._roomResource == 0)
       return;
 
+    // room.cpp: an actor arriving with loadRoomWithEgo starts at the object
+    // it came in by, facing away from it -- before the entry script, so the
+    // camera can be put on him rather than panning across from the left
+    var a = actor, pos;
+    if(a && t.whereIsObject(objectNr) != -1) {
+      pos = t.getObjectXYPos(objectNr);
+      a.putActor(pos.x, pos.y, t._currentRoom);
+      a.setDirection(pos.dir + 180);
+      a.stopActorMoving();
+    }
+
     t.showActors();
+    t._egoPositioned = false;
     t.runEntryScript();
+
+    // ...and again after it, unless the entry script placed him itself
+    if(a && !t._egoPositioned && t.whereIsObject(objectNr) != -1) {
+      pos = t.getObjectXYPos(objectNr);
+      a.putActor(pos.x, pos.y, t._currentRoom);
+      a.moving = 0;
+    }
   };
 
   s.setupRoomSubBlocks = function() {

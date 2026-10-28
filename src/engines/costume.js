@@ -194,16 +194,34 @@
       if(cls == kObjectClassIgoreBoxes)
         t.ignoreBoxes = value;
     };
+    // actor.cpp putActor. ScummVM overloads it: putActor() keeps position
+    // and room, putActor(x, y) keeps the room. An omitted argument means
+    // "keep" here -- this used `x || pos.x`, which ignored 0 and took -1
+    // literally, so moving ego to another room with (-1, -1) put him at the
+    // room's left edge.
     t.putActor = function(dstX, dstY, newRoom) {
-      t.pos.x = dstX || t.pos.x;
-      t.pos.y = dstY || t.pos.y;
-      if(newRoom)
-        t.room = newRoom;
+      if(dstX === undefined) dstX = t.pos.x;
+      if(dstY === undefined) dstY = t.pos.y;
+      if(newRoom === undefined) newRoom = t.room;
+
+      if(t.visible && s._currentRoom != newRoom && s.getTalkingActor() == t.number)
+        s.stopTalk();
+
+      t.pos.x = dstX;
+      t.pos.y = dstY;
+      t.room = newRoom;
       t.needRedraw = true;
+
+      if(s.scummVar("ego") == t.number)
+        s._egoPositioned = true;
 
       if(t.visible) {
         if(t.isInCurrentRoom()) {
-          if(t.moving) t.adjustActorPos();
+          if(t.moving) {
+            t.stopActorMoving();
+            t.startAnimActor(t.standFrame);
+          }
+          t.adjustActorPos();
         } else {
           t.hideActor();
         }

@@ -2003,7 +2003,7 @@
           room = s.getVarOrDirectByte(PARAM_2),
           a = s.getActor(s.scummVar("ego")), x, y;
 
-      a.putActor(-1, -1, room);
+      a.putActor(a.pos.x, a.pos.y, room);
       s._egoPositioned = false;
 
       x = s.fetchScriptWordSigned();
@@ -2496,8 +2496,10 @@
     putActorInRoom: function() {
       var a = s.getVarOrDirectByte(PARAM_1), act = s.getActor(a), room = s.getVarOrDirectByte(PARAM_2);
       if(!act) { window.console.log("put actor "+a+" into room "+room+" failed"); return; }
+      // o5_putActorInRoom
+      if(act.visible && s._currentRoom != room && s.getTalkingActor() == act.number)
+        s.stopTalk();
       act.room = room;
-      act.showActor();
       if(!room)
         act.putActor(0, 0, 0);
     },
