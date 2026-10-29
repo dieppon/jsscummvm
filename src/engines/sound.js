@@ -25,6 +25,8 @@
 
   s.initSound = function() {
     var t = this;
+    // a previous run's music must not carry on under this one
+    if (t._sfx) t.shutdownSound();
     t._soundQueue = [];
     t._currentCDSound = 0;
     t._cdMusicTimer = 0;
@@ -382,6 +384,24 @@
     t._soundQueue = [];
     for (id in t._sfx) t.stopSFX(id);
     if (t._imuse) t._imuse.stopAllSounds();
+  };
+
+  // The machine is switched off: silence everything, and take down the
+  // AdLib chip's audio callback and clock, which run outside the game loop
+  s.shutdownSound = function() {
+    var t = this;
+    t.stopAllSounds();
+    t._musicQueue = [];
+    if (t._musicNode) {
+      t._musicNode.onaudioprocess = null;
+      t._musicNode.disconnect();
+      t._musicNode = null;
+    }
+    if (t._musicClock) {
+      window.clearInterval(t._musicClock);
+      t._musicClock = 0;
+    }
+    t._imuse = null;
   };
 
   // sound.cpp soundKludge: -1 flushes the queue now; anything else is an

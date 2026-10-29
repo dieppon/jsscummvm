@@ -63,6 +63,7 @@ function assert(condition) {
     if(e) {
       e._shouldQuit = true;
       if(e._timer) { window.clearTimeout(e._timer); e._timer = 0; }
+      if(e.shutdownSound) e.shutdownSound();
     }
     t.engine = null;
     if(t.context) {
