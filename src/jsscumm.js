@@ -198,9 +198,11 @@ function assert(condition) {
       soundControls = [document.getElementById("speaker-knob"), document.getElementById("sound-switch")],
       activated = false, watched = null, unblockedNow = false, unblockUsed = false;
 
+  // The controls show whether sound is actually coming out: off while it
+  // is muted, and also, on load, while the browser is holding it back
   function updateSoundControls() {
-    var on = !ScummVM.muted;
-    if (desk) desk.classList.toggle("is-sound-off", !on);
+    var blocked = !!desk && desk.classList.contains("is-muted"), on = !ScummVM.muted && !blocked;
+    if (desk) desk.classList.toggle("is-sound-off", !!ScummVM.muted);
     soundControls.forEach(function(el) {
       if (!el) return;
       el.setAttribute("aria-pressed", on ? "true" : "false");
@@ -237,6 +239,7 @@ function assert(condition) {
       if (ok) el.removeAttribute("title");
       else el.title = "Click the page to turn the sound on";
     });
+    updateSoundControls();
   }
 
   ["mousedown", "keydown", "touchstart"].forEach(function(type) {
