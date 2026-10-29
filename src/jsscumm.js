@@ -184,4 +184,38 @@ function assert(condition) {
     e.preventDefault();
   });
 
+  // --- the speakers' light ------------------------------------------------
+  // Browsers hold sound back until the first click or key press on the
+  // page. Until then the light on the speaker is red; once sound may play
+  // (and the game's AudioContext, if it has one yet, is running) it turns
+  // green.
+  var desk = document.querySelector(".desk"), activated = false, watched = null;
+
+  function updateSpeakerLight() {
+    var ctx = ScummVM.audioContext, ok;
+    if (ctx && ctx !== watched) {
+      watched = ctx;
+      ctx.addEventListener("statechange", updateSpeakerLight);
+    }
+    ok = activated || !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
+    if (ctx && ctx.state != "running") ok = false;
+    if (!desk) return;
+    desk.classList.toggle("is-muted", !ok);
+    desk.querySelectorAll(".speaker").forEach(function(el) {
+      if (ok) el.removeAttribute("title");
+      else el.title = "Click the page to turn the sound on";
+    });
+  }
+
+  ["mousedown", "keydown", "touchstart"].forEach(function(type) {
+    window.addEventListener(type, function() {
+      activated = true;
+      updateSpeakerLight();
+      // the AudioContext resumes asynchronously; statechange covers it once
+      // it exists, this covers the one created by this same gesture
+      window.setTimeout(updateSpeakerLight, 200);
+    }, true);
+  });
+  updateSpeakerLight();
+
 }());
