@@ -560,13 +560,17 @@
 
     /* speakers ---------------------------------------------------------- */
 
-    /* A pair of beige desktop speakers either side of the monitor, in the
-       case's palette and texture. Like the rest of the case they are sized
-       from --screen-w, and drawn with static gradients only. */
+    /* A pair of beige desktop speakers either side of the monitor, sized
+       from --screen-w like the case. Lit from above and a little to the
+       left, as the case is. Everything is a static gradient or shadow --
+       the grain is an SVG noise tile rasterised once -- so nothing here
+       costs anything after the first paint (see the notes on the stand). */
 
     .desk {
       --spk-w: calc(var(--screen-w) * 0.25);
       --spk-h: calc(var(--screen-w) * 0.66);
+      /* moulded plastic grain */
+      --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .17 0 0 0 0 .1 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -584,133 +588,231 @@
       height: var(--spk-h);
       /* down to where the pedestal meets the desk */
       margin-bottom: calc(var(--case-w) * 0.092);
-      padding: calc(var(--spk-w) * 0.13) calc(var(--spk-w) * 0.1) calc(var(--spk-w) * 0.1);
-      border-radius: 5px 5px 3px 3px;
-      background: linear-gradient(to bottom, var(--monitor-light), var(--monitor-dark));
-      box-shadow: var(--monitor-texture);
+      padding: calc(var(--spk-w) * 0.13) calc(var(--spk-w) * 0.1) calc(var(--spk-w) * 0.09);
+      border-radius: 6px 6px 4px 4px;
+      background:
+        var(--grain),
+        /* light falling off down the face, and towards the far edge */
+        linear-gradient(100deg, #ffffff14, #0000 45%, #00000012),
+        linear-gradient(to bottom, #ddd7c8, #cfc8b6 55%, #c3bca9);
+      box-shadow:
+        /* the rounded front edges: lit along the top, shaded underneath */
+        inset 0 1px 0 #fffc,
+        inset 1px 0 0 #ffffff70,
+        inset -1px 0 0 #0000001f,
+        inset 0 -1px 0 #00000030,
+        inset 0 calc(var(--spk-w) * -0.06) calc(var(--spk-w) * 0.08) #4a3e2a1c,
+        inset 0 calc(var(--spk-w) * 0.04) calc(var(--spk-w) * 0.06) #ffffff40;
     }
 
-    /* the outer side panel, turned away from us */
+    /* the outer side panel, turned away from us and in shadow */
     .speaker::before {
       content: "";
       position: absolute;
       top: 0;
       bottom: 0;
-      width: calc(var(--spk-w) * 0.14);
-      background: linear-gradient(to bottom, var(--shadow-medium), var(--shadow-dark));
+      width: calc(var(--spk-w) * 0.15);
+      background:
+        var(--grain),
+        linear-gradient(to bottom, #00000000, #0000001a),
+        var(--side-shade);
     }
     .speaker-left::before {
       right: 100%;
-      clip-path: polygon(0 3%, 100% 0, 100% 100%, 0 98%);
+      --side-shade: linear-gradient(to left, #b9b29e, #a39c88 35%, #8a846f);
+      clip-path: polygon(0 3%, 100% 0, 100% 100%, 0 98.2%);
     }
     .speaker-right::before {
       left: 100%;
-      clip-path: polygon(0 0, 100% 3%, 100% 98%, 0 100%);
+      --side-shade: linear-gradient(to right, #aaa38f, #948d79 35%, #7c7663);
+      clip-path: polygon(0 0, 100% 3%, 100% 98.2%, 0 100%);
     }
 
-    /* its shadow on the desk */
+    /* on the desk: a tight, dark contact shadow and a wide, soft one */
     .speaker::after {
       content: "";
       position: absolute;
       z-index: -1;
-      left: -18%;
-      right: -18%;
-      bottom: calc(var(--spk-h) * -0.035);
-      height: calc(var(--spk-h) * 0.07);
-      border-radius: 50%;
-      background: radial-gradient(closest-side, #0007, #0000);
+      left: -22%;
+      right: -22%;
+      bottom: calc(var(--spk-h) * -0.045);
+      height: calc(var(--spk-h) * 0.09);
+      background:
+        radial-gradient(closest-side, #000a, #0000 100%) center / 80% 34% no-repeat,
+        radial-gradient(closest-side, #0006, #0000);
     }
 
+    /* a soft-dome tweeter in a moulded faceplate ring */
     .speaker-tweeter {
       flex: none;
-      width: calc(var(--spk-w) * 0.3);
+      width: calc(var(--spk-w) * 0.34);
       aspect-ratio: 1;
       border-radius: 50%;
-      background: radial-gradient(circle at 40% 35%, #77756a, #2b2a25 55%, #1a1916);
+      background:
+        /* the dome's highlight */
+        radial-gradient(circle at 40% 36%, #ffffff8c 0 4%, #ffffff00 13%),
+        radial-gradient(closest-side,
+          #4a4842 0, #2a2925 34%, #1c1b18 52%,     /* dome */
+          #0b0b0a 56%, #34332e 60%, #0d0d0c 64%,   /* its surround */
+          #5d594d 66%, #d7d0bd 74%, #bdb6a2 86%, #8f8975 98%, #0000 100%);
       box-shadow:
-        0 0 0 calc(var(--spk-w) * 0.03) var(--shadow-medium),
-        0 0 0 calc(var(--spk-w) * 0.04) var(--shadow-dark);
+        0 1px 0 #ffffff90,
+        0 -1px 1px #0000002a;
     }
 
-    /* the woofer, behind a perforated grille, in the middle of the space
-       left between the tweeter and the controls */
+    /* The woofer: trim ring, rolled rubber surround, paper cone and dust
+       cap, screwed to the baffle at the four corners */
     .speaker-woofer {
+      position: relative;
       flex: none;
       margin: auto 0;
       width: calc(var(--spk-w) * 0.74);
       aspect-ratio: 1;
       border-radius: 50%;
       background:
-        radial-gradient(circle, #0000 0 38%, var(--shadow-medium) 46% 100%)
-          center / calc(var(--spk-w) * 0.055) calc(var(--spk-w) * 0.055),
-        radial-gradient(circle,
-          #1d1c19 0 14%, #3a3932 16% 30%, #26251f 32% 58%, #33322b 60% 100%);
+        /* a sheen across the cone from the light */
+        radial-gradient(circle at 34% 28%, #ffffff26, #ffffff00 42%),
+        /* the trim ring, and inside it the surround: dark, catching the
+           light on its roll, dark again where it meets the cone */
+        radial-gradient(closest-side,
+          #0000 0 67%, #0c0c0b 68%, #26251f 71%, #575550 75%, #2c2b27 79%,
+          #0b0b0a 82.5%, #2a2924 84%, #6d695c 85.5%, #dbd4c1 89%, #c4bdaa 94%,
+          #8e8874 99%, #0000 100%),
+        /* the cone's ribs */
+        repeating-radial-gradient(closest-side, #0000 0 6%, #00000024 6.6% 7.2%),
+        /* the cone, brighter on the side facing the light */
+        conic-gradient(from 210deg,
+          #4c4a43, #2b2a26 22%, #1d1c19 45%, #2b2a26 68%, #4c4a43);
       box-shadow:
-        0 0 0 calc(var(--spk-w) * 0.035) var(--shadow-medium),
-        0 0 0 calc(var(--spk-w) * 0.045) var(--shadow-dark),
-        inset 0 2px 6px #0008;
+        0 1px 0 #ffffffa0,
+        0 -1px 2px #00000030;
+    }
+    .speaker-woofer::before,
+    .speaker-woofer::after {
+      content: "";
+      position: absolute;
+    }
+    /* four screws */
+    .speaker-woofer::before {
+      inset: 0;
+      --screw: radial-gradient(closest-side,
+        #f1ebdb 0, #aaa491 38%, #6b6657 62%, #3d3a31 80%, #0000 92%);
+      background:
+        var(--screw) 4.9% 4.9% / 9% 9% no-repeat,
+        var(--screw) 95.1% 4.9% / 9% 9% no-repeat,
+        var(--screw) 4.9% 95.1% / 9% 9% no-repeat,
+        var(--screw) 95.1% 95.1% / 9% 9% no-repeat;
+    }
+    /* the dust cap, standing proud of the cone */
+    .speaker-woofer::after {
+      left: 34%;
+      top: 34%;
+      width: 32%;
+      height: 32%;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 32%,
+        #8b887d 0, #4d4b44 22%, #2a2925 55%, #171614 100%);
+      box-shadow:
+        0 calc(var(--spk-w) * 0.015) calc(var(--spk-w) * 0.03) #000a,
+        inset 0 1px 1px #ffffff30;
     }
 
     .speaker-controls {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
-      gap: calc(var(--spk-w) * 0.12);
+      gap: calc(var(--spk-w) * 0.14);
       width: 100%;
     }
 
+    /* a control with its name printed under it */
+    .speaker-control {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: calc(var(--spk-w) * 0.035);
+    }
+    .speaker-label {
+      font: 600 max(5px, calc(var(--spk-w) * 0.068))/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #8a8473;
+      text-shadow: 0 1px 0 #ffffff90;
+    }
+
+    /* the volume knob: a knurled skirt under a domed cap */
     .speaker-knob {
       position: relative;
-      width: calc(var(--spk-w) * 0.28);
+      width: calc(var(--spk-w) * 0.27);
       aspect-ratio: 1;
       border-radius: 50%;
       background:
-        radial-gradient(circle at 45% 40%, #dcd6c6, #bdb7a5 50%, #0000 60%),
-        repeating-conic-gradient(var(--shadow-dark) 0 9deg, var(--shadow-light) 9deg 18deg);
-      box-shadow: 0 1px 3px #0006;
+        radial-gradient(circle at 42% 36%,
+          #f6f1e4 0, #d7d1c1 26%, #b4ae9c 50%, #7f7a6c 57%, #0000 59%),
+        linear-gradient(160deg, #ffffff60, #0000 45%, #00000050),
+        repeating-conic-gradient(#827d6e 0 5deg, #d2ccbb 5deg 10deg);
+      box-shadow:
+        0 calc(var(--spk-w) * 0.02) calc(var(--spk-w) * 0.035) #0007,
+        0 0 0 1px #00000026;
     }
-    /* the mark on the knob, turned up a little past halfway */
+    /* the pointer, turned up a little past halfway */
     .speaker-knob::after {
       content: "";
       position: absolute;
       left: 50%;
-      top: 12%;
-      width: 3px;
-      height: 30%;
-      margin-left: -1.5px;
-      border-radius: 1px;
-      background: #4a4840;
+      top: 26%;
+      width: 11%;
+      height: 11%;
+      margin-left: -5.5%;
+      border-radius: 50%;
+      background: #3c3a33;
+      box-shadow: 0 1px 0 #ffffff80;
       transform: rotate(35deg);
-      transform-origin: 50% 118%;
+      transform-origin: 50% 218%;
     }
 
+    /* the power LED: a domed lens in a bezel */
     .speaker-led {
-      width: max(7px, calc(var(--spk-w) * 0.07));
+      margin-top: calc(var(--spk-w) * 0.08);
+      width: max(7px, calc(var(--spk-w) * 0.085));
       aspect-ratio: 1;
       border-radius: 50%;
-      border: 1px solid var(--shadow-dark);
-      background: #5cef11;
-      box-shadow: 0 0 1px 1px #2228 inset, 0 0 6px 1px #5cef1199;
+      --led: #5cef11;
+      --led-hot: #d9ffb8;
+      --led-dark: #2a7a06;
+      background: radial-gradient(circle at 36% 32%,
+        #fff 0 8%, var(--led-hot) 20%, var(--led) 46%, var(--led-dark) 90%);
+      box-shadow:
+        0 0 0 max(1.5px, calc(var(--spk-w) * 0.014)) #9a9483,
+        0 1px 0 max(1.5px, calc(var(--spk-w) * 0.014)) #ffffff90,
+        0 0 calc(var(--spk-w) * 0.07) calc(var(--spk-w) * 0.012) color-mix(in srgb, var(--led) 65%, transparent);
     }
     /* red until the browser lets the page play sound (jsscumm.js) */
     .desk.is-muted .speaker-led {
-      background: #f23a1d;
-      box-shadow: 0 0 1px 1px #2228 inset, 0 0 6px 1px #f23a1d99;
+      --led: #f23a1d;
+      --led-hot: #ffc7b8;
+      --led-dark: #8a1606;
     }
     .desk:has(.crt.is-off) .speaker-led,
     .desk:has(.crt.is-powering-off) .speaker-led {
-      background: #333;
-      box-shadow: 0 0 1px 1px #2228 inset;
+      background: radial-gradient(circle at 36% 32%, #8a887e 0 8%, #3a3934 30%, #1d1c19 90%);
+      box-shadow:
+        0 0 0 max(1.5px, calc(var(--spk-w) * 0.014)) #9a9483,
+        0 1px 0 max(1.5px, calc(var(--spk-w) * 0.014)) #ffffff90;
     }
 
-    /* the right-hand speaker is the passive one: a badge where the
+    /* the right-hand speaker is the passive one: a bass port where the
        controls would be */
-    .speaker-badge {
-      width: 46%;
-      height: calc(var(--spk-w) * 0.08);
-      border-radius: 2px;
-      background: linear-gradient(to bottom, var(--shadow-dark), var(--shadow-medium));
-      box-shadow: 0 1px 0 var(--shadow-light);
+    .speaker-port {
+      width: 56%;
+      height: calc(var(--spk-w) * 0.13);
+      margin-top: calc(var(--spk-w) * 0.05);
+      border-radius: 999px;
+      background: radial-gradient(farthest-side at 50% 70%, #1b1a17, #050505);
+      box-shadow:
+        inset 0 calc(var(--spk-w) * 0.03) calc(var(--spk-w) * 0.035) #000,
+        0 1px 0 #ffffffa0,
+        0 -1px 1px #00000033;
     }
 
     @media (max-width: 899px) {
@@ -772,8 +874,14 @@
       <div class="speaker-tweeter"></div>
       <div class="speaker-woofer"></div>
       <div class="speaker-controls">
-        <span class="speaker-knob"></span>
-        <span class="speaker-led"></span>
+        <span class="speaker-control">
+          <span class="speaker-knob"></span>
+          <span class="speaker-label">Volume</span>
+        </span>
+        <span class="speaker-control">
+          <span class="speaker-led"></span>
+          <span class="speaker-label">Power</span>
+        </span>
       </div>
     </div>
 
@@ -831,7 +939,7 @@
       <div class="speaker-tweeter"></div>
       <div class="speaker-woofer"></div>
       <div class="speaker-controls">
-        <span class="speaker-badge"></span>
+        <span class="speaker-port"></span>
       </div>
     </div>
   </div>
