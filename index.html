@@ -734,6 +734,10 @@
        hole's far wall in shadow above it */
     .speaker-knob {
       position: relative;
+      display: block;
+      padding: 0;
+      border: 0;
+      font: inherit;
       width: calc(var(--spk-w) * 0.15);
       aspect-ratio: 1;
       border-radius: 50%;
@@ -751,17 +755,29 @@
         0 calc(var(--spk-w) * 0.008) calc(var(--spk-w) * 0.012) #0006,
         inset 0 -1px 1px #0000002a;
     }
-    /* the volume knob's pointer */
+    /* The on/off knob is the game's mute. Its pointer turns about the
+       knob's centre: up and to the right when the sound is on, round to the
+       stop when it is off, with a little overshoot, as into a detent. */
+    .speaker-knob.is-volume { cursor: pointer; --angle: 40deg; }
+    .desk.is-sound-off .speaker-knob.is-volume { --angle: -135deg; }
     .speaker-knob.is-volume::before {
       content: "";
       position: absolute;
       z-index: 1;
-      left: 28%;
-      top: 22%;
+      left: 50%;
+      top: 16%;
       width: 1.5px;
       height: 26%;
+      margin-left: -0.75px;
       background: #6a665c;
-      transform: rotate(-35deg);
+      /* the knob's centre is at 50% of its height: (50 - 16) / 26 */
+      transform-origin: 50% 131%;
+      transform: rotate(var(--angle));
+      transition: transform .35s cubic-bezier(.3, 1.45, .55, 1);
+    }
+    .speaker-knob.is-volume:focus-visible { outline: 2px solid #7d78ff; outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) {
+      .speaker-knob.is-volume::before { transition: none; }
     }
 
     /* the power LED: a small domed lens, top left of the panel */
@@ -788,6 +804,7 @@
       --led-hot: #ffc7b8;
       --led-dark: #8a1606;
     }
+    .desk.is-sound-off .speaker-led,
     .desk:has(.crt.is-off) .speaker-led,
     .desk:has(.crt.is-powering-off) .speaker-led {
       background: radial-gradient(circle at 36% 32%, #9a978d 0 8%, #4a4842 35%, #24231f 95%);
@@ -796,8 +813,35 @@
         0 1px 0 1px #ffffff80;
     }
 
+    /* The sound button on the monitor: the knob's job when the speakers are
+       not there. Waves when the sound is on, a cross when it is off, red
+       while the browser is still holding sound back. */
+    .sound-switch .sw-cross { display: none; }
+    .desk.is-sound-off .sound-switch .sw-waves { display: none; }
+    .desk.is-sound-off .sound-switch .sw-cross { display: inline; }
+    .desk.is-muted .sound-switch .button { color: #c8361f; border-color: #8a2a1a; }
+    .desk.is-sound-off .sound-switch .button { color: #888; border-color: #555; }
+
+    /* Narrower than 900px the speakers go and the sound button comes in,
+       each fading rather than snapping: display flips at the end of the
+       fade out (allow-discrete), and @starting-style is where the fade in
+       starts from. Browsers without these just switch. */
+    .speaker,
+    .sound-switch {
+      transition: opacity .35s ease, display .35s allow-discrete;
+    }
+    .sound-switch { display: none; opacity: 0; }
     @media (max-width: 899px) {
-      .speaker { display: none; }
+      .speaker { display: none; opacity: 0; }
+      .sound-switch { display: grid; opacity: 1; }
+    }
+    @starting-style {
+      .speaker,
+      .sound-switch { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .speaker,
+      .sound-switch { transition: none; }
     }
 
     /* log --------------------------------------------------------------- */
@@ -851,18 +895,19 @@
   </header>
 
   <div class="desk">
-    <div class="speaker speaker-left" aria-hidden="true">
-      <div class="speaker-lid"></div>
-      <div class="speaker-front">
+    <div class="speaker speaker-left">
+      <div class="speaker-lid" aria-hidden="true"></div>
+      <div class="speaker-front" aria-hidden="true">
         <div class="speaker-grille"></div>
         <div class="speaker-brand">JS SCUMMVM</div>
       </div>
       <div class="speaker-base">
-        <span class="speaker-led"></span>
+        <span class="speaker-led" aria-hidden="true"></span>
         <div class="speaker-controls">
           <span class="speaker-control">
-            <span class="speaker-knob is-volume"></span>
-            <span class="speaker-label">On/Off</span>
+            <button type="button" class="speaker-knob is-volume" id="speaker-knob"
+                    aria-label="Game sound" aria-pressed="true"></button>
+            <span class="speaker-label" aria-hidden="true">On/Off</span>
           </span>
         </div>
       </div>
@@ -890,6 +935,16 @@
           </div>
         </div>
         <div class="monitor-bottom">
+          <button type="button" class="power-switch sound-switch" id="sound-switch"
+                  aria-label="Game sound" aria-pressed="true">
+            <span class="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3.5 9.5h3.5l4.5-4v13l-4.5-4H3.5z"/>
+                <path class="sw-waves" d="M15 9a4.2 4.2 0 0 1 0 6M17.8 6.5a8 8 0 0 1 0 11"/>
+                <path class="sw-cross" d="M15.5 9.5l5 5M20.5 9.5l-5 5"/>
+              </svg>
+            </span>
+          </button>
           <button type="button" class="power-switch" id="crt-power"
                   aria-pressed="true" title="Power">
             <span class="button">

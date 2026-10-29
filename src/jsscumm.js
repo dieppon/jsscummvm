@@ -178,6 +178,8 @@ function assert(condition) {
     var eng = ScummVM.engine, ascii;
     if (!eng || !eng._timer || eng._menuOpen || e.metaKey || e.altKey) return;
     if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    // Enter or Space on a focused sound control is for the control
+    if (e.target && /^(speaker-knob|sound-switch)$/.test(e.target.id) && /^(Enter| )$/.test(e.key)) return;
     if (e.key.length == 1) ascii = e.key.charCodeAt(0) & 0xFF;
     else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[e.key] || 0;
     if (!ascii && !/^F[1-9]$/.test(e.code)) return;
@@ -185,12 +187,41 @@ function assert(condition) {
     e.preventDefault();
   });
 
-  // --- the speakers' light ------------------------------------------------
+  // --- the speakers' light and knob --------------------------------------
   // Browsers hold sound back until the first click or key press on the
   // page. Until then the light on the speaker is red; once sound may play
   // (and the game's AudioContext, if it has one yet, is running) it turns
-  // green.
-  var desk = document.querySelector(".desk"), activated = false, watched = null;
+  // green. The knob mutes the game (sound.js), and so does the sound button
+  // on the monitor that stands in for it when the speakers are hidden; the
+  // light is out while the sound is off.
+  var desk = document.querySelector(".desk"),
+      soundControls = [document.getElementById("speaker-knob"), document.getElementById("sound-switch")],
+      activated = false, watched = null, unblockedNow = false, unblockUsed = false;
+
+  function updateSoundControls() {
+    var on = !ScummVM.muted;
+    if (desk) desk.classList.toggle("is-sound-off", !on);
+    soundControls.forEach(function(el) {
+      if (!el) return;
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.title = on ? "Sound on: click to mute the game" : "Sound off: click to turn it on";
+    });
+  }
+
+  soundControls.forEach(function(el) {
+    if (!el) return;
+    el.addEventListener("click", function(e) {
+      // The click that lets the page play sound at all is taken to be
+      // asking for sound: it does not also turn it off
+      if (unblockedNow && !ScummVM.muted) unblockUsed = true;
+      else if (ScummVM.setMuted) ScummVM.setMuted(!ScummVM.muted);
+      unblockedNow = false;
+      updateSoundControls();
+      // after a mouse click, give the keyboard back to the game
+      if (e.detail) el.blur();
+    });
+  });
+  updateSoundControls();
 
   function updateSpeakerLight() {
     var ctx = ScummVM.audioContext, ok;
@@ -210,8 +241,12 @@ function assert(condition) {
 
   ["mousedown", "keydown", "touchstart"].forEach(function(type) {
     window.addEventListener(type, function() {
+      var wasBlocked = desk && desk.classList.contains("is-muted");
       activated = true;
       updateSpeakerLight();
+      // (the AudioContext may take a moment to resume, so this goes by the
+      // light having been red when the gesture came, once only)
+      unblockedNow = wasBlocked && !unblockUsed;
       // the AudioContext resumes asynchronously; statechange covers it once
       // it exists, this covers the one created by this same gesture
       window.setTimeout(updateSpeakerLight, 200);
