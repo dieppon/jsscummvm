@@ -135,6 +135,28 @@
     this.scummVar("talk_actor", i);
   };
 
+  // Text speed, 0 (slow) to 9 (fast): how long a line of speech stays up,
+  // as ScummVM's '+'/'-' keys set it. The game keeps it as VAR_CHARINC, the
+  // jiffies each letter adds, 9 - speed; the player's choice is kept in the
+  // browser and wins over the boot script's default (see writeVar).
+  function textSpeedKey(t) { return "jsscummvm." + t._game + ".textspeed"; }
+
+  s.savedTextSpeed = function() {
+    var v = null;
+    try { v = window.localStorage.getItem(textSpeedKey(this)); } catch (e) { v = null; }
+    v = v === null ? NaN : parseInt(v, 10);
+    return v >= 0 && v <= 9 ? v : null;
+  };
+
+  s.setTextSpeed = function(speed) {
+    var t = this, bar = "", i;
+    speed = Math.max(0, Math.min(9, speed));
+    t.scummVar("charinc", 9 - speed);
+    try { window.localStorage.setItem(textSpeedKey(t), String(speed)); } catch (e) { /* not kept */ }
+    for (i = 0; i <= 9; i++) bar += i == speed ? "█" : "=";
+    if (ScummVM.showBanner) ScummVM.showBanner("Text Speed  Slow  " + bar + "  Fast");
+  };
+
   // actor.cpp actorTalk
   s.actorTalk = function(msg) {
     var t = this, a, oldact, conv = t.convertMessageToString(msg), i;

@@ -304,6 +304,8 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
         t._paused = !t._paused;
       } else if(key.ascii == 46 && t.scummVar("talkstop_key") != 0) {   // '.'
         t._talkDelay = 0;
+      } else if(key.ascii == 43 || key.ascii == 45) {   // '+' and '-': text speed
+        t.setTextSpeed(9 - t.scummVar("charinc") + (key.ascii == 43 ? 1 : -1));
       } else if(key.code == "Escape" && t.scummVar("cutsceneexit_key") != 0) {
         t.abortCutscene();
         t._mouseAndKeyboardStat = t.scummVar("cutsceneexit_key");

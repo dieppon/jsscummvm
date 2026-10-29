@@ -1628,8 +1628,11 @@
   };
 
   s.writeVar = function(varId, value) {
-    var t = this;
+    var t = this, speed;
     if(!(varId & 0xF000)) {
+      // script.cpp: the boot script's text speed gives way to the player's
+      if(varId == t._vars.charinc && t._currentRoom == 0 && (speed = t.savedTextSpeed()) !== null)
+        value = 9 - speed;
       t._scummVars[varId] = value;
     }
     if(varId & 0x8000) {

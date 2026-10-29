@@ -90,6 +90,23 @@
     }
   }, true);
 
+  // A line of text over the game for a moment, like the original's banners
+  var banner = null, bannerTimer = null;
+  function showBanner(text) {
+    var view = document.querySelector(".screen-view");
+    if (!view) return;
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "banner";
+      banner.setAttribute("role", "status");
+    }
+    banner.textContent = text;
+    view.appendChild(banner);
+    window.clearTimeout(bannerTimer);
+    bannerTimer = window.setTimeout(function() { banner.remove(); }, 1500);
+  }
+
   ScummVM.openSaveMenu = open;
   ScummVM.closeSaveMenu = close;
+  ScummVM.showBanner = showBanner;
 }());
