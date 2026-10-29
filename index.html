@@ -835,13 +835,15 @@
         0 1px 0 1px #ffffff80,
         0 0 calc(var(--spk-w) * 0.035) calc(var(--spk-w) * 0.005) color-mix(in srgb, var(--led) 70%, transparent);
     }
-    /* red until the browser lets the page play sound (jsscumm.js) */
-    .desk.is-muted .speaker-led {
+    /* red while no sound is coming out: until the browser lets the page
+       play sound, and while the knob is turned off (jsscumm.js) */
+    .desk.is-muted .speaker-led,
+    .desk.is-sound-off .speaker-led {
       --led: #f23a1d;
       --led-hot: #ffc7b8;
       --led-dark: #8a1606;
     }
-    .desk.is-sound-off .speaker-led,
+    /* out altogether when the monitor is switched off */
     .desk:has(.crt.is-off) .speaker-led,
     .desk:has(.crt.is-powering-off) .speaker-led {
       background: radial-gradient(circle at 36% 32%, #9a978d 0 8%, #4a4842 35%, #24231f 95%);
@@ -851,15 +853,16 @@
     }
 
     /* The sound button on the monitor: the knob's job when the speakers are
-       not there. Waves when the sound is on, a cross when it is off, and a
-       red cross while the browser is still holding sound back. */
+       not there. Waves when the sound is on; a red cross, like the
+       speaker's red light, when it is off or the browser is still holding
+       sound back. */
     .sound-switch .sw-cross { display: none; }
     .desk.is-sound-off .sound-switch .sw-waves,
     .desk.is-muted .sound-switch .sw-waves { display: none; }
     .desk.is-sound-off .sound-switch .sw-cross,
     .desk.is-muted .sound-switch .sw-cross { display: inline; }
-    .desk.is-muted .sound-switch .button { color: #c8361f; border-color: #8a2a1a; }
-    .desk.is-sound-off .sound-switch .button { color: #888; border-color: #555; }
+    .desk.is-muted .sound-switch .button,
+    .desk.is-sound-off .sound-switch .button { color: #c8361f; border-color: #8a2a1a; }
 
     /* Narrower than 900px the speakers go and the sound button comes in,
        each fading rather than snapping: display flips at the end of the
