@@ -237,6 +237,7 @@
 
     setTimeout(function () {
       root.classList.add("is-running");
+      document.documentElement.classList.add("has-game");
       ScummVM.load("monkey1");
     }, 900);
   }
@@ -271,6 +272,7 @@
       root.classList.remove("is-powering-off");
       root.classList.remove("is-running");
       root.classList.add("is-off");
+      document.documentElement.classList.remove("has-game");
       // whatever was on screen -- game or prompt -- is gone
       if (window.ScummVM && ScummVM.shutdown) ScummVM.shutdown();
       reset();

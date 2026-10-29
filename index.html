@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JS ScummVM &mdash; The Secret of Monkey Island</title>
+  <script>
+    // ?game= boots straight into the game: name it under the heading from
+    // the first paint (dos-shell.js keeps this class up to date after)
+    if (/[?&]game=/.test(window.location.search))
+      document.documentElement.classList.add("has-game");
+  </script>
   <link rel="icon" href="favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128">
 
   <!--
@@ -113,6 +119,13 @@
       text-transform: uppercase;
       color: #e8e4ff;
     }
+    /* MS-DOS while the prompt has the screen, the game's name once it runs
+       (dos-shell.js); with ?game= the game runs from the start, so the head
+       script sets this before anything is drawn */
+    .masthead .sub-game,
+    .has-game .masthead .sub-dos { display: none; }
+    .has-game .masthead .sub-game { display: inline; }
+
     .masthead p {
       margin: .35em 0 0;
       font-size: 13px;
@@ -895,7 +908,7 @@
 
   <header class="masthead">
     <h1>JS ScummVM</h1>
-    <p>The Secret of Monkey Island</p>
+    <p><span class="sub-dos">MS-DOS</span><span class="sub-game">The Secret of Monkey Island</span></p>
   </header>
 
   <div class="desk">
