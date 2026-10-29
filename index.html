@@ -563,7 +563,7 @@
     /* A pair of mid-90s desktop speakers either side of the monitor, after
        the boxy cream ones that came with sound cards: a lid, a perforated
        metal grille over the driver, a name band, and under it a set-back
-       panel with the controls on the left-hand (powered) one. Seen straight
+       panel with the on/off knob on the left-hand (powered) one. Seen straight
        on, like the monitor, and sized from --screen-w like the case.
        Static gradients, shadows and masks only -- the grain is an SVG noise
        tile rasterised once -- so nothing costs anything after the first
@@ -763,8 +763,6 @@
       background: #6a665c;
       transform: rotate(-35deg);
     }
-    /* the mute button: a little smaller, and flat */
-    .speaker-knob.is-button { width: calc(var(--spk-w) * 0.13); margin-top: calc(var(--spk-w) * 0.01); }
 
     /* the power LED: a small domed lens, top left of the panel */
     .speaker-led {
@@ -864,19 +862,7 @@
         <div class="speaker-controls">
           <span class="speaker-control">
             <span class="speaker-knob is-volume"></span>
-            <span class="speaker-label">Off/On<br>Volume</span>
-          </span>
-          <span class="speaker-control">
-            <span class="speaker-knob"></span>
-            <span class="speaker-label">Bass</span>
-          </span>
-          <span class="speaker-control">
-            <span class="speaker-knob"></span>
-            <span class="speaker-label">Treble</span>
-          </span>
-          <span class="speaker-control">
-            <span class="speaker-knob is-button"></span>
-            <span class="speaker-label">Mute</span>
+            <span class="speaker-label">On/Off</span>
           </span>
         </div>
       </div>
