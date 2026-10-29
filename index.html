@@ -63,7 +63,8 @@
          So the full 640 needs roughly a 1230px-tall window; below that the
          picture scales down and gives up its 1:1 pixel mapping in order to
          fit, which is the trade this is making. */
-      --screen-w: max(220px, min(640px, 70vw, calc((100vh - 275px) * 0.669)));
+      --fit-w: 70vw;
+      --screen-w: max(220px, min(640px, var(--fit-w), calc((100vh - 275px) * 0.669)));
       /* the screen is 4:3, so its height is three quarters of its width */
       --screen-h: calc(var(--screen-w) * 0.75);
       --bezel: calc(var(--screen-w) * 0.028);
@@ -75,8 +76,16 @@
        dvh is the real visible height. */
     @supports (height: 100dvh) {
       :root {
-        --screen-w: max(220px, min(640px, 70vw, calc((100dvh - 275px) * 0.669)));
+        --screen-w: max(220px, min(640px, var(--fit-w), calc((100dvh - 275px) * 0.669)));
       }
+    }
+
+    /* With the speakers either side, the row is about 1.9 screen widths
+       (case 1.28, two speakers at 0.25, two gaps at 0.05), inside the body's
+       16px gutters. Narrower than this the speakers go, and the monitor has
+       the width to itself. */
+    @media (min-width: 900px) {
+      :root { --fit-w: calc((100vw - 40px) * 0.52); }
     }
 
     * { box-sizing: border-box; }
@@ -549,6 +558,160 @@
       transform: translate(calc(var(--case-w) * -0.01), calc(var(--case-w) * -0.072));
     }
 
+    /* speakers ---------------------------------------------------------- */
+
+    /* A pair of beige desktop speakers either side of the monitor, in the
+       case's palette and texture. Like the rest of the case they are sized
+       from --screen-w, and drawn with static gradients only. */
+
+    .desk {
+      --spk-w: calc(var(--screen-w) * 0.25);
+      --spk-h: calc(var(--screen-w) * 0.66);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: calc(var(--screen-w) * 0.05);
+    }
+
+    .speaker {
+      position: relative;
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: calc(var(--spk-w) * 0.1);
+      width: var(--spk-w);
+      height: var(--spk-h);
+      /* down to where the pedestal meets the desk */
+      margin-bottom: calc(var(--case-w) * 0.092);
+      padding: calc(var(--spk-w) * 0.13) calc(var(--spk-w) * 0.1) calc(var(--spk-w) * 0.1);
+      border-radius: 5px 5px 3px 3px;
+      background: linear-gradient(to bottom, var(--monitor-light), var(--monitor-dark));
+      box-shadow: var(--monitor-texture);
+    }
+
+    /* the outer side panel, turned away from us */
+    .speaker::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: calc(var(--spk-w) * 0.14);
+      background: linear-gradient(to bottom, var(--shadow-medium), var(--shadow-dark));
+    }
+    .speaker-left::before {
+      right: 100%;
+      clip-path: polygon(0 3%, 100% 0, 100% 100%, 0 98%);
+    }
+    .speaker-right::before {
+      left: 100%;
+      clip-path: polygon(0 0, 100% 3%, 100% 98%, 0 100%);
+    }
+
+    /* its shadow on the desk */
+    .speaker::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      left: -18%;
+      right: -18%;
+      bottom: calc(var(--spk-h) * -0.035);
+      height: calc(var(--spk-h) * 0.07);
+      border-radius: 50%;
+      background: radial-gradient(closest-side, #0007, #0000);
+    }
+
+    .speaker-tweeter {
+      flex: none;
+      width: calc(var(--spk-w) * 0.3);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #77756a, #2b2a25 55%, #1a1916);
+      box-shadow:
+        0 0 0 calc(var(--spk-w) * 0.03) var(--shadow-medium),
+        0 0 0 calc(var(--spk-w) * 0.04) var(--shadow-dark);
+    }
+
+    /* the woofer, behind a perforated grille, in the middle of the space
+       left between the tweeter and the controls */
+    .speaker-woofer {
+      flex: none;
+      margin: auto 0;
+      width: calc(var(--spk-w) * 0.74);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, #0000 0 38%, var(--shadow-medium) 46% 100%)
+          center / calc(var(--spk-w) * 0.055) calc(var(--spk-w) * 0.055),
+        radial-gradient(circle,
+          #1d1c19 0 14%, #3a3932 16% 30%, #26251f 32% 58%, #33322b 60% 100%);
+      box-shadow:
+        0 0 0 calc(var(--spk-w) * 0.035) var(--shadow-medium),
+        0 0 0 calc(var(--spk-w) * 0.045) var(--shadow-dark),
+        inset 0 2px 6px #0008;
+    }
+
+    .speaker-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: calc(var(--spk-w) * 0.12);
+      width: 100%;
+    }
+
+    .speaker-knob {
+      position: relative;
+      width: calc(var(--spk-w) * 0.28);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 45% 40%, #dcd6c6, #bdb7a5 50%, #0000 60%),
+        repeating-conic-gradient(var(--shadow-dark) 0 9deg, var(--shadow-light) 9deg 18deg);
+      box-shadow: 0 1px 3px #0006;
+    }
+    /* the mark on the knob, turned up a little past halfway */
+    .speaker-knob::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 12%;
+      width: 3px;
+      height: 30%;
+      margin-left: -1.5px;
+      border-radius: 1px;
+      background: #4a4840;
+      transform: rotate(35deg);
+      transform-origin: 50% 118%;
+    }
+
+    .speaker-led {
+      width: max(7px, calc(var(--spk-w) * 0.07));
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 1px solid var(--shadow-dark);
+      background: #5cef11;
+      box-shadow: 0 0 1px 1px #2228 inset, 0 0 6px 1px #5cef1199;
+    }
+    .desk:has(.crt.is-off) .speaker-led,
+    .desk:has(.crt.is-powering-off) .speaker-led {
+      background: #333;
+      box-shadow: 0 0 1px 1px #2228 inset;
+    }
+
+    /* the right-hand speaker is the passive one: a badge where the
+       controls would be */
+    .speaker-badge {
+      width: 46%;
+      height: calc(var(--spk-w) * 0.08);
+      border-radius: 2px;
+      background: linear-gradient(to bottom, var(--shadow-dark), var(--shadow-medium));
+      box-shadow: 0 1px 0 var(--shadow-light);
+    }
+
+    @media (max-width: 899px) {
+      .speaker { display: none; }
+    }
+
     /* log --------------------------------------------------------------- */
 
     .log {
@@ -599,53 +762,72 @@
     <p>The Secret of Monkey Island</p>
   </header>
 
-  <div class="crt" id="crt">
-    <div class="monitor">
-      <div class="monitor-inner">
-        <div class="screen-container">
-          <div class="screen-view">
-            <canvas id="jsscummvm" width="640" height="480"></canvas>
-            <div class="dos" id="dos">
-              <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
-              <input class="dos-input" id="dos-input" type="text"
-                     autocomplete="off" autocapitalize="off" autocorrect="off"
-                     spellcheck="false" aria-label="MS-DOS prompt">
+  <div class="desk">
+    <div class="speaker speaker-left" aria-hidden="true">
+      <div class="speaker-tweeter"></div>
+      <div class="speaker-woofer"></div>
+      <div class="speaker-controls">
+        <span class="speaker-knob"></span>
+        <span class="speaker-led"></span>
+      </div>
+    </div>
+
+    <div class="crt" id="crt">
+      <div class="monitor">
+        <div class="monitor-inner">
+          <div class="screen-container">
+            <div class="screen-view">
+              <canvas id="jsscummvm" width="640" height="480"></canvas>
+              <div class="dos" id="dos">
+                <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
+                <input class="dos-input" id="dos-input" type="text"
+                       autocomplete="off" autocapitalize="off" autocorrect="off"
+                       spellcheck="false" aria-label="MS-DOS prompt">
+              </div>
+              <div class="scanlines" aria-hidden="true"></div>
+              <div class="glare" aria-hidden="true"></div>
             </div>
-            <div class="scanlines" aria-hidden="true"></div>
-            <div class="glare" aria-hidden="true"></div>
+            <div class="power-vignette" aria-hidden="true"></div>
+            <div class="power-black" aria-hidden="true"></div>
+            <div class="power-ring" aria-hidden="true"></div>
+            <div class="power-dot" aria-hidden="true"></div>
           </div>
-          <div class="power-vignette" aria-hidden="true"></div>
-          <div class="power-black" aria-hidden="true"></div>
-          <div class="power-ring" aria-hidden="true"></div>
-          <div class="power-dot" aria-hidden="true"></div>
+        </div>
+        <div class="monitor-bottom">
+          <button type="button" class="power-switch" id="crt-power"
+                  aria-pressed="true" title="Power">
+            <span class="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3.5v8"/>
+                <path d="M7.6 6.8a7 7 0 1 0 8.8 0"/>
+              </svg>
+            </span>
+          </button>
+          <span class="power-led" aria-hidden="true"></span>
         </div>
       </div>
-      <div class="monitor-bottom">
-        <button type="button" class="power-switch" id="crt-power"
-                aria-pressed="true" title="Power">
-          <span class="button">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 3.5v8"/>
-              <path d="M7.6 6.8a7 7 0 1 0 8.8 0"/>
-            </svg>
-          </span>
-        </button>
-        <span class="power-led" aria-hidden="true"></span>
+      <div class="monitor-base" aria-hidden="true">
+        <div class="wheels-parent">
+          <div class="wheel"></div>
+          <div class="wheel"></div>
+        </div>
+      </div>
+      <div class="monitor-holder-container" aria-hidden="true">
+        <div class="monitor-holder">
+          <div class="monitor-holder-inner"></div>
+          <div class="monitor-holder-inner-front"></div>
+          <div class="monitor-holder-inner-front bottom"></div>
+        </div>
+        <div class="monitor-holder-front"></div>
       </div>
     </div>
-    <div class="monitor-base" aria-hidden="true">
-      <div class="wheels-parent">
-        <div class="wheel"></div>
-        <div class="wheel"></div>
+
+    <div class="speaker speaker-right" aria-hidden="true">
+      <div class="speaker-tweeter"></div>
+      <div class="speaker-woofer"></div>
+      <div class="speaker-controls">
+        <span class="speaker-badge"></span>
       </div>
-    </div>
-    <div class="monitor-holder-container" aria-hidden="true">
-      <div class="monitor-holder">
-        <div class="monitor-holder-inner"></div>
-        <div class="monitor-holder-inner-front"></div>
-        <div class="monitor-holder-inner-front bottom"></div>
-      </div>
-      <div class="monitor-holder-front"></div>
     </div>
   </div>
 
