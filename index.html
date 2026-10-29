@@ -214,6 +214,9 @@
       inset: 0;
       background: #000;
       overflow: hidden;
+      /* a screen, not a page: its text cannot be selected */
+      -webkit-user-select: none;
+      user-select: none;
     }
     .crt.is-running .dos { display: none; }
 
@@ -297,6 +300,10 @@
       opacity: 0;
       background: transparent;
       color: transparent;
+      /* .dos turns selection off; Safari will not type into an input that
+         inherits that */
+      -webkit-user-select: text;
+      user-select: text;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -308,13 +315,23 @@
     .scanlines,
     .glare { position: absolute; inset: 0; pointer-events: none; }
 
-    /* a dark line every 1.5px: on a 2x (retina) display that is one device
-       pixel dark, two clear */
+    /* a dark line every 3px: one pixel dark, two clear */
     .scanlines {
       background: repeating-linear-gradient(
         to bottom,
-        rgba(0,0,0,.26) 0px,   rgba(0,0,0,.26) 0.5px,
-        rgba(0,0,0,0)   0.5px, rgba(0,0,0,0)   1.5px);
+        rgba(0,0,0,.26) 0px, rgba(0,0,0,.26) 1px,
+        rgba(0,0,0,0)   1px, rgba(0,0,0,0)   3px);
+    }
+    /* On a 2x (retina) display, twice as many: a line every 1.5px is still
+       one device pixel dark, two clear, so it stays crisp. On a 1x display
+       half-pixel lines would only blur. */
+    @media (min-resolution: 2dppx) {
+      .scanlines {
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(0,0,0,.26) 0px,   rgba(0,0,0,.26) 0.5px,
+          rgba(0,0,0,0)   0.5px, rgba(0,0,0,0)   1.5px);
+      }
     }
 
     .glare {
@@ -601,6 +618,9 @@
       position: relative;
       flex: none;
       display: flex;
+      /* the printing on the case is not text to select */
+      -webkit-user-select: none;
+      user-select: none;
       flex-direction: column;
       width: var(--spk-w);
       /* down to where the pedestal meets the desk */
