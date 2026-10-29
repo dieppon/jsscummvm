@@ -308,11 +308,13 @@
     .scanlines,
     .glare { position: absolute; inset: 0; pointer-events: none; }
 
+    /* a dark line every 1.5px: on a 2x (retina) display that is one device
+       pixel dark, two clear */
     .scanlines {
       background: repeating-linear-gradient(
         to bottom,
-        rgba(0,0,0,.26) 0px, rgba(0,0,0,.26) 1px,
-        rgba(0,0,0,0)   1px, rgba(0,0,0,0)   3px);
+        rgba(0,0,0,.26) 0px,   rgba(0,0,0,.26) 0.5px,
+        rgba(0,0,0,0)   0.5px, rgba(0,0,0,0)   1.5px);
     }
 
     .glare {
