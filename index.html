@@ -80,12 +80,12 @@
       }
     }
 
-    /* With the speakers either side, the row is about 1.9 screen widths
-       (case 1.28, two speakers at 0.25, two gaps at 0.05), inside the body's
+    /* With the speakers either side, the row is about 2 screen widths
+       (case 1.28, two speakers at 0.3, two gaps at 0.05), inside the body's
        16px gutters. Narrower than this the speakers go, and the monitor has
        the width to itself. */
     @media (min-width: 900px) {
-      :root { --fit-w: calc((100vw - 40px) * 0.52); }
+      :root { --fit-w: calc((100vw - 40px) * 0.5); }
     }
 
     * { box-sizing: border-box; }
@@ -560,17 +560,22 @@
 
     /* speakers ---------------------------------------------------------- */
 
-    /* A pair of beige desktop speakers either side of the monitor, sized
-       from --screen-w like the case. Lit from above and a little to the
-       left, as the case is. Everything is a static gradient or shadow --
-       the grain is an SVG noise tile rasterised once -- so nothing here
-       costs anything after the first paint (see the notes on the stand). */
+    /* A pair of mid-90s desktop speakers either side of the monitor, after
+       the boxy cream ones that came with sound cards: a lid, a perforated
+       metal grille over the driver, a name band, and under it a set-back
+       panel with the controls on the left-hand (powered) one. Seen straight
+       on, like the monitor, and sized from --screen-w like the case.
+       Static gradients, shadows and masks only -- the grain is an SVG noise
+       tile rasterised once -- so nothing costs anything after the first
+       paint (see the notes on the stand). */
 
     .desk {
-      --spk-w: calc(var(--screen-w) * 0.25);
-      --spk-h: calc(var(--screen-w) * 0.66);
+      --spk-w: calc(var(--screen-w) * 0.3);
       /* moulded plastic grain */
-      --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .17 0 0 0 0 .1 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .17 0 0 0 0 .1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      --plastic-hi: #ece8dd;
+      --plastic: #e0dbcd;
+      --plastic-lo: #d0cab9;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -582,50 +587,9 @@
       flex: none;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: calc(var(--spk-w) * 0.1);
       width: var(--spk-w);
-      height: var(--spk-h);
       /* down to where the pedestal meets the desk */
       margin-bottom: calc(var(--case-w) * 0.092);
-      padding: calc(var(--spk-w) * 0.13) calc(var(--spk-w) * 0.1) calc(var(--spk-w) * 0.09);
-      border-radius: 6px 6px 4px 4px;
-      background:
-        var(--grain),
-        /* light falling off down the face, and towards the far edge */
-        linear-gradient(100deg, #ffffff14, #0000 45%, #00000012),
-        linear-gradient(to bottom, #ddd7c8, #cfc8b6 55%, #c3bca9);
-      box-shadow:
-        /* the rounded front edges: lit along the top, shaded underneath */
-        inset 0 1px 0 #fffc,
-        inset 1px 0 0 #ffffff70,
-        inset -1px 0 0 #0000001f,
-        inset 0 -1px 0 #00000030,
-        inset 0 calc(var(--spk-w) * -0.06) calc(var(--spk-w) * 0.08) #4a3e2a1c,
-        inset 0 calc(var(--spk-w) * 0.04) calc(var(--spk-w) * 0.06) #ffffff40;
-    }
-
-    /* the outer side panel, turned away from us and in shadow */
-    .speaker::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: calc(var(--spk-w) * 0.15);
-      background:
-        var(--grain),
-        linear-gradient(to bottom, #00000000, #0000001a),
-        var(--side-shade);
-    }
-    .speaker-left::before {
-      right: 100%;
-      --side-shade: linear-gradient(to left, #b9b29e, #a39c88 35%, #8a846f);
-      clip-path: polygon(0 3%, 100% 0, 100% 100%, 0 98.2%);
-    }
-    .speaker-right::before {
-      left: 100%;
-      --side-shade: linear-gradient(to right, #aaa38f, #948d79 35%, #7c7663);
-      clip-path: polygon(0 0, 100% 3%, 100% 98.2%, 0 100%);
     }
 
     /* on the desk: a tight, dark contact shadow and a wide, soft one */
@@ -633,96 +597,121 @@
       content: "";
       position: absolute;
       z-index: -1;
-      left: -22%;
-      right: -22%;
-      bottom: calc(var(--spk-h) * -0.045);
-      height: calc(var(--spk-h) * 0.09);
+      left: -16%;
+      right: -16%;
+      bottom: calc(var(--spk-w) * -0.09);
+      height: calc(var(--spk-w) * 0.18);
       background:
-        radial-gradient(closest-side, #000a, #0000 100%) center / 80% 34% no-repeat,
+        radial-gradient(closest-side, #000a, #0000 100%) center / 86% 34% no-repeat,
         radial-gradient(closest-side, #0006, #0000);
     }
 
-    /* a soft-dome tweeter in a moulded faceplate ring */
-    .speaker-tweeter {
-      flex: none;
-      width: calc(var(--spk-w) * 0.34);
-      aspect-ratio: 1;
-      border-radius: 50%;
+    /* the lid: a separate moulding, catching the light on top */
+    .speaker-lid {
+      height: calc(var(--spk-w) * 0.1);
+      border-radius: 4px 4px 0 0;
       background:
-        /* the dome's highlight */
-        radial-gradient(circle at 40% 36%, #ffffff8c 0 4%, #ffffff00 13%),
-        radial-gradient(closest-side,
-          #4a4842 0, #2a2925 34%, #1c1b18 52%,     /* dome */
-          #0b0b0a 56%, #34332e 60%, #0d0d0c 64%,   /* its surround */
-          #5d594d 66%, #d7d0bd 74%, #bdb6a2 86%, #8f8975 98%, #0000 100%);
+        var(--grain),
+        linear-gradient(to bottom, #f6f3ea, var(--plastic-hi) 45%, #ddd8ca);
       box-shadow:
-        0 1px 0 #ffffff90,
-        0 -1px 1px #0000002a;
+        inset 0 1px 0 #fff,
+        inset 1px 0 0 #ffffff80,
+        inset -1px 0 0 #00000014,
+        0 1px 0 #00000038;
+      position: relative;
+      z-index: 1;
     }
 
-    /* The woofer: trim ring, rolled rubber surround, paper cone and dust
-       cap, screwed to the baffle at the four corners */
-    .speaker-woofer {
-      position: relative;
-      flex: none;
-      margin: auto 0;
-      width: calc(var(--spk-w) * 0.74);
-      aspect-ratio: 1;
-      border-radius: 50%;
+    /* the cabinet front: grille and name band */
+    .speaker-front {
       background:
-        /* a sheen across the cone from the light */
-        radial-gradient(circle at 34% 28%, #ffffff26, #ffffff00 42%),
-        /* the trim ring, and inside it the surround: dark, catching the
-           light on its roll, dark again where it meets the cone */
-        radial-gradient(closest-side,
-          #0000 0 67%, #0c0c0b 68%, #26251f 71%, #575550 75%, #2c2b27 79%,
-          #0b0b0a 82.5%, #2a2924 84%, #6d695c 85.5%, #dbd4c1 89%, #c4bdaa 94%,
-          #8e8874 99%, #0000 100%),
-        /* the cone's ribs */
-        repeating-radial-gradient(closest-side, #0000 0 6%, #00000024 6.6% 7.2%),
-        /* the cone, brighter on the side facing the light */
-        conic-gradient(from 210deg,
-          #4c4a43, #2b2a26 22%, #1d1c19 45%, #2b2a26 68%, #4c4a43);
+        var(--grain),
+        linear-gradient(to bottom, var(--plastic), var(--plastic-lo));
       box-shadow:
-        0 1px 0 #ffffffa0,
-        0 -1px 2px #00000030;
+        inset 1px 0 0 #ffffff70,
+        inset -1px 0 0 #00000018;
     }
-    .speaker-woofer::before,
-    .speaker-woofer::after {
+
+    /* The grille: the driver behind, dim, seen through a perforated sheet.
+       The sheet is a light metal fill masked twice with the same grid of
+       holes, the second offset half a step, intersected -- a staggered
+       grid, as punched metal is. */
+    .speaker-grille {
+      --hole: max(2.5px, calc(var(--spk-w) * 0.03));
+      position: relative;
+      height: calc(var(--spk-w) * 1.32);
+      margin: 0 calc(var(--spk-w) * 0.015);
+      background:
+        /* the driver: dust cap, cone, surround, the frame round it */
+        radial-gradient(circle at 50% 47%,
+          #5e5b53 0 9%, #403e38 13%, #524f48 24%, #46443d 33%,
+          #2c2a26 36%, #55524b 39%, #403e38 43%, #625f57 52%, #55524b 100%);
+      box-shadow: inset 0 1px 2px #0006;
+    }
+    .speaker-grille::before {
       content: "";
       position: absolute;
-    }
-    /* four screws */
-    .speaker-woofer::before {
       inset: 0;
-      --screw: radial-gradient(closest-side,
-        #f1ebdb 0, #aaa491 38%, #6b6657 62%, #3d3a31 80%, #0000 92%);
       background:
-        var(--screw) 4.9% 4.9% / 9% 9% no-repeat,
-        var(--screw) 95.1% 4.9% / 9% 9% no-repeat,
-        var(--screw) 4.9% 95.1% / 9% 9% no-repeat,
-        var(--screw) 95.1% 95.1% / 9% 9% no-repeat;
+        /* light down and across the sheet */
+        linear-gradient(100deg, #ffffff30, #0000 50%, #00000014),
+        linear-gradient(to bottom, #e4e1d8, #cfcbc0);
+      --holes: radial-gradient(circle, #0000 0 27%, #000 35%);
+      -webkit-mask:
+        var(--holes) 0 0 / var(--hole) calc(var(--hole) * 1.732),
+        var(--holes) calc(var(--hole) / 2) calc(var(--hole) * 0.866) / var(--hole) calc(var(--hole) * 1.732);
+      -webkit-mask-composite: source-in;
+      mask:
+        var(--holes) 0 0 / var(--hole) calc(var(--hole) * 1.732),
+        var(--holes) calc(var(--hole) / 2) calc(var(--hole) * 0.866) / var(--hole) calc(var(--hole) * 1.732);
+      mask-composite: intersect;
     }
-    /* the dust cap, standing proud of the cone */
-    .speaker-woofer::after {
-      left: 34%;
-      top: 34%;
-      width: 32%;
-      height: 32%;
-      border-radius: 50%;
-      background: radial-gradient(circle at 38% 32%,
-        #8b887d 0, #4d4b44 22%, #2a2925 55%, #171614 100%);
+    /* the sheet's edge, pressed into the moulding */
+    .speaker-grille::after {
+      content: "";
+      position: absolute;
+      inset: 0;
       box-shadow:
-        0 calc(var(--spk-w) * 0.015) calc(var(--spk-w) * 0.03) #000a,
-        inset 0 1px 1px #ffffff30;
+        inset 0 0 0 1px #0000002a,
+        inset 0 calc(var(--spk-w) * 0.02) calc(var(--spk-w) * 0.03) #0000002e;
+    }
+
+    .speaker-brand {
+      height: calc(var(--spk-w) * 0.19);
+      display: flex;
+      align-items: center;
+      padding-left: calc(var(--spk-w) * 0.12);
+      font: 700 calc(var(--spk-w) * 0.075)/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: .13em;
+      color: #4a4842;
+      /* printed on, so only the faintest lift */
+      text-shadow: 0 1px 0 #ffffff60;
+    }
+
+    /* the lower panel: set back a little from the cabinet front, so the
+       front's edge throws a shadow across its top */
+    .speaker-base {
+      position: relative;
+      height: calc(var(--spk-w) * 0.44);
+      margin: 0 calc(var(--spk-w) * 0.03);
+      border-radius: 0 0 3px 3px;
+      background:
+        var(--grain),
+        linear-gradient(to bottom, #d8d2c2, var(--plastic) 18%, var(--plastic-hi) 60%, #dcd6c8);
+      box-shadow:
+        inset 0 calc(var(--spk-w) * 0.022) calc(var(--spk-w) * 0.02) #0000002a,
+        inset 1px 0 0 #ffffff80,
+        inset -1px 0 0 #00000018,
+        inset 0 -1px 0 #00000026;
     }
 
     .speaker-controls {
+      position: absolute;
+      left: calc(var(--spk-w) * 0.07);
+      right: calc(var(--spk-w) * 0.07);
+      top: calc(var(--spk-w) * 0.12);
       display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      gap: calc(var(--spk-w) * 0.14);
-      width: 100%;
+      justify-content: space-between;
     }
 
     /* a control with its name printed under it */
@@ -730,62 +719,70 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: calc(var(--spk-w) * 0.035);
+      width: 25%;
+      gap: calc(var(--spk-w) * 0.03);
     }
     .speaker-label {
-      font: 600 max(5px, calc(var(--spk-w) * 0.068))/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      letter-spacing: .1em;
+      font: 600 max(4.5px, calc(var(--spk-w) * 0.042))/1.15 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: .03em;
       text-transform: uppercase;
-      color: #8a8473;
-      text-shadow: 0 1px 0 #ffffff90;
+      text-align: center;
+      color: #57544c;
     }
 
-    /* the volume knob: a knurled skirt under a domed cap */
+    /* A knob: a cream cylinder standing in a round hole in the panel, the
+       hole's far wall in shadow above it */
     .speaker-knob {
       position: relative;
-      width: calc(var(--spk-w) * 0.27);
+      width: calc(var(--spk-w) * 0.15);
       aspect-ratio: 1;
       border-radius: 50%;
-      background:
-        radial-gradient(circle at 42% 36%,
-          #f6f1e4 0, #d7d1c1 26%, #b4ae9c 50%, #7f7a6c 57%, #0000 59%),
-        linear-gradient(160deg, #ffffff60, #0000 45%, #00000050),
-        repeating-conic-gradient(#827d6e 0 5deg, #d2ccbb 5deg 10deg);
-      box-shadow:
-        0 calc(var(--spk-w) * 0.02) calc(var(--spk-w) * 0.035) #0007,
-        0 0 0 1px #00000026;
+      background: radial-gradient(circle at 50% 22%, #1f1e1b, #4a4740 55%, #8a8578 100%);
+      box-shadow: 0 1px 0 #ffffffb0;
     }
-    /* the pointer, turned up a little past halfway */
     .speaker-knob::after {
       content: "";
       position: absolute;
-      left: 50%;
-      top: 26%;
-      width: 11%;
-      height: 11%;
-      margin-left: -5.5%;
+      inset: 9% 9% 4% 9%;
       border-radius: 50%;
-      background: #3c3a33;
-      box-shadow: 0 1px 0 #ffffff80;
-      transform: rotate(35deg);
-      transform-origin: 50% 218%;
+      background:
+        radial-gradient(circle at 40% 30%, #fffdf7 0, #f0ece2 30%, #d9d3c4 70%, #bdb6a5 100%);
+      box-shadow:
+        0 calc(var(--spk-w) * 0.008) calc(var(--spk-w) * 0.012) #0006,
+        inset 0 -1px 1px #0000002a;
     }
+    /* the volume knob's pointer */
+    .speaker-knob.is-volume::before {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      left: 28%;
+      top: 22%;
+      width: 1.5px;
+      height: 26%;
+      background: #6a665c;
+      transform: rotate(-35deg);
+    }
+    /* the mute button: a little smaller, and flat */
+    .speaker-knob.is-button { width: calc(var(--spk-w) * 0.13); margin-top: calc(var(--spk-w) * 0.01); }
 
-    /* the power LED: a domed lens in a bezel */
+    /* the power LED: a small domed lens, top left of the panel */
     .speaker-led {
-      margin-top: calc(var(--spk-w) * 0.08);
-      width: max(7px, calc(var(--spk-w) * 0.085));
+      position: absolute;
+      left: calc(var(--spk-w) * 0.075);
+      top: calc(var(--spk-w) * 0.045);
+      width: max(4px, calc(var(--spk-w) * 0.035));
       aspect-ratio: 1;
       border-radius: 50%;
-      --led: #5cef11;
-      --led-hot: #d9ffb8;
-      --led-dark: #2a7a06;
+      --led: #2fbf2a;
+      --led-hot: #c8ffb8;
+      --led-dark: #135a10;
       background: radial-gradient(circle at 36% 32%,
-        #fff 0 8%, var(--led-hot) 20%, var(--led) 46%, var(--led-dark) 90%);
+        #fff 0 8%, var(--led-hot) 22%, var(--led) 50%, var(--led-dark) 95%);
       box-shadow:
-        0 0 0 max(1.5px, calc(var(--spk-w) * 0.014)) #9a9483,
-        0 1px 0 max(1.5px, calc(var(--spk-w) * 0.014)) #ffffff90,
-        0 0 calc(var(--spk-w) * 0.07) calc(var(--spk-w) * 0.012) color-mix(in srgb, var(--led) 65%, transparent);
+        0 0 0 1px #00000040,
+        0 1px 0 1px #ffffff80,
+        0 0 calc(var(--spk-w) * 0.035) calc(var(--spk-w) * 0.005) color-mix(in srgb, var(--led) 70%, transparent);
     }
     /* red until the browser lets the page play sound (jsscumm.js) */
     .desk.is-muted .speaker-led {
@@ -795,24 +792,10 @@
     }
     .desk:has(.crt.is-off) .speaker-led,
     .desk:has(.crt.is-powering-off) .speaker-led {
-      background: radial-gradient(circle at 36% 32%, #8a887e 0 8%, #3a3934 30%, #1d1c19 90%);
+      background: radial-gradient(circle at 36% 32%, #9a978d 0 8%, #4a4842 35%, #24231f 95%);
       box-shadow:
-        0 0 0 max(1.5px, calc(var(--spk-w) * 0.014)) #9a9483,
-        0 1px 0 max(1.5px, calc(var(--spk-w) * 0.014)) #ffffff90;
-    }
-
-    /* the right-hand speaker is the passive one: a bass port where the
-       controls would be */
-    .speaker-port {
-      width: 56%;
-      height: calc(var(--spk-w) * 0.13);
-      margin-top: calc(var(--spk-w) * 0.05);
-      border-radius: 999px;
-      background: radial-gradient(farthest-side at 50% 70%, #1b1a17, #050505);
-      box-shadow:
-        inset 0 calc(var(--spk-w) * 0.03) calc(var(--spk-w) * 0.035) #000,
-        0 1px 0 #ffffffa0,
-        0 -1px 1px #00000033;
+        0 0 0 1px #00000040,
+        0 1px 0 1px #ffffff80;
     }
 
     @media (max-width: 899px) {
@@ -871,17 +854,31 @@
 
   <div class="desk">
     <div class="speaker speaker-left" aria-hidden="true">
-      <div class="speaker-tweeter"></div>
-      <div class="speaker-woofer"></div>
-      <div class="speaker-controls">
-        <span class="speaker-control">
-          <span class="speaker-knob"></span>
-          <span class="speaker-label">Volume</span>
-        </span>
-        <span class="speaker-control">
-          <span class="speaker-led"></span>
-          <span class="speaker-label">Power</span>
-        </span>
+      <div class="speaker-lid"></div>
+      <div class="speaker-front">
+        <div class="speaker-grille"></div>
+        <div class="speaker-brand">JS SCUMMVM</div>
+      </div>
+      <div class="speaker-base">
+        <span class="speaker-led"></span>
+        <div class="speaker-controls">
+          <span class="speaker-control">
+            <span class="speaker-knob is-volume"></span>
+            <span class="speaker-label">Off/On<br>Volume</span>
+          </span>
+          <span class="speaker-control">
+            <span class="speaker-knob"></span>
+            <span class="speaker-label">Bass</span>
+          </span>
+          <span class="speaker-control">
+            <span class="speaker-knob"></span>
+            <span class="speaker-label">Treble</span>
+          </span>
+          <span class="speaker-control">
+            <span class="speaker-knob is-button"></span>
+            <span class="speaker-label">Mute</span>
+          </span>
+        </div>
       </div>
     </div>
 
@@ -936,11 +933,12 @@
     </div>
 
     <div class="speaker speaker-right" aria-hidden="true">
-      <div class="speaker-tweeter"></div>
-      <div class="speaker-woofer"></div>
-      <div class="speaker-controls">
-        <span class="speaker-port"></span>
+      <div class="speaker-lid"></div>
+      <div class="speaker-front">
+        <div class="speaker-grille"></div>
+        <div class="speaker-brand">JS SCUMMVM</div>
       </div>
+      <div class="speaker-base"></div>
     </div>
   </div>
 
