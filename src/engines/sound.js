@@ -5,7 +5,7 @@
  *
  *  - CD stubs: a 32-byte SOUN naming a CD audio track, a loop flag and a
  *    start and end time. The music lives on the disc. Ripped tracks are
- *    played from games/<game>/trackN.{ogg,mp3,flac,wav} (or TrackN) when
+ *    played from games/<game>/trackN.{webm,ogg,mp3,flac,wav} (or TrackN) when
  *    they exist;
  *    without them the music is silent, but the CD timer still runs, since
  *    scripts time scenes against VAR_MUSIC_TIMER.
@@ -21,7 +21,20 @@
 (function(){
   var s = ScummVM.engines.SCUMM;
 
-  var CD_EXTENSIONS = ["ogg", "mp3", "flac", "wav"];
+  // Ripped CD tracks, in order of preference. WebM is for Opus, which is
+  // about half the size of a 256 kbps MP3 at the same quality and loops
+  // without MP3's padding; it is skipped where the browser cannot play it
+  // (Safari before 15), so an MP3 beside it is the fallback. Opus goes in
+  // WebM rather than Ogg because Safari reports the wrong position in Ogg
+  // Opus, and scenes are timed against the track's position.
+  var CD_EXTENSIONS = ["webm", "ogg", "mp3", "flac", "wav"];
+  var CD_TYPES = {webm: 'audio/webm; codecs="opus"'};
+
+  function canPlay(ext) {
+    var type = CD_TYPES[ext];
+    if (!type) return true;
+    try { return !!new Audio().canPlayType(type); } catch (e) { return false; }
+  }
 
   // --- muting ---------------------------------------------------------------
 
@@ -328,7 +341,7 @@
     // rippers write both "track1" and "Track1"; a case-sensitive server
     // only finds the one that is there
     for (e = 0; e < CD_EXTENSIONS.length; e++)
-      for (n = 0; n < 2; n++)
+      for (n = 0; n < 2 && canPlay(CD_EXTENSIONS[e]); n++)
         names.push((n ? "Track" : "track") + track + "." + CD_EXTENSIONS[e]);
     (function next() {
       if (i >= names.length) { callback(null); return; }
