@@ -9,11 +9,18 @@
     // the first paint (dos-shell.js keeps this class up to date after)
     if (/[?&]game=/.test(window.location.search))
       document.documentElement.classList.add("has-game");
-    // the room around the computer, if it was left on (jsscumm.js)
-    try {
-      if (window.localStorage.getItem("jsscummvm.room") == "1")
-        document.documentElement.classList.add("has-room");
-    } catch (e) { /* storage blocked: plain background */ }
+    // the switches at the top right (jsscumm.js): the room around the
+    // computer is on unless it was turned off, the log and instructions
+    // are hidden unless they were turned on
+    (function(root) {
+      var room = null, info = null;
+      try {
+        room = window.localStorage.getItem("jsscummvm.room");
+        info = window.localStorage.getItem("jsscummvm.info");
+      } catch (e) { /* storage blocked: the defaults */ }
+      if (room != "0") root.classList.add("has-room");
+      if (info == "1") root.classList.add("has-info");
+    }(document.documentElement));
   </script>
   <link rel="icon" href="favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128">
 
@@ -933,8 +940,8 @@
     .credit a { color: #9d98d0; }
 
     /* ---- the room ------------------------------------------------------ */
-    /* Optional, from the switch at the top right: the computer on a 90s
-       bedroom desk -- an oxblood wall with a framed picture and a cork
+    /* On unless the switch at the top right turns it off: the computer on
+       a 90s bedroom desk -- an oxblood wall with a framed picture and a cork
        board, a pine desktop, a red anglepoise lamp and the usual clutter.
        Like the monitor it is all CSS: gradients, shadows and SVG noise
        tiles, no images. Everything is measured in ems of 0.1 screen widths,
@@ -942,8 +949,8 @@
        desk row (x) and the line the speakers stand on (y). It sits at
        z-index -1 behind the page's own content, and the body clips it, so
        the desktop can run off every edge without making the page scroll.
-       html.has-room is set by the head script before the first paint and
-       toggled by jsscumm.js. */
+       html.has-room is set by the head script before the first paint
+       (unless it was turned off) and toggled by jsscumm.js. */
 
     html { background: #336; transition: background-color .4s ease; }
     html.has-room { background-color: #2c1110; overflow-x: hidden; }
@@ -1218,27 +1225,66 @@
       flex-direction: column;
       align-items: center;
     }
+    /* Each book is its spine, facing us, and the top of its cover, seen
+       from above like the mug's rim: foreshortened to a strip that narrows
+       a little to the back. The stack is not quite square, so the covers
+       of the wider books below show either side of the ones on top. */
     .room-books > span {
+      position: relative;
       display: block;
       height: .92em;
-      border-radius: .08em;
+      border-radius: .06em .06em .1em .1em;
       color: #e8c66a;
       line-height: .92em;
       text-align: center;
       white-space: nowrap;
-      box-shadow: inset 0 .03em 0 #fff3, inset 0 -.05em 0 #0006, 0 .03em .06em #0008;
+      box-shadow: inset 0 -.05em 0 #0006, 0 .03em .06em #0008;
+      background:
+        /* gold bands near each end */
+        linear-gradient(90deg, #0000 .45em, #d9b65c99 .45em .52em, #0000 .52em calc(100% - .52em), #d9b65c99 calc(100% - .52em) calc(100% - .45em), #0000 calc(100% - .45em)),
+        /* the spine is rounded: lit along the top, darker underneath */
+        linear-gradient(#ffffff38, #ffffff10 30%, #0000 55%, #0005),
+        var(--spine);
+    }
+    .room-books > span::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 100%;
+      height: var(--deep);
+      clip-path: polygon(3% 0, 97% 0, 100% 100%, 0 100%);
+      background:
+        /* the cover's edge, and the boards' slight bevel at the front */
+        linear-gradient(#0000 calc(100% - .06em), #ffffff30 calc(100% - .06em)),
+        linear-gradient(#0004, #0000 60%),
+        var(--cover);
     }
     .room-books b { vertical-align: top; font: 700 .3em/3.07 Georgia, "Times New Roman", serif; letter-spacing: .14em; }
-    .room-books > :nth-child(1) { width: 6.4em; }
-    .room-books > :nth-child(2) { width: 7em; }
-    .room-books > :nth-child(3) { width: 6.6em; }
-    /* gold bands near each end of the spine */
-    .room-books > span {
-      --bands: linear-gradient(90deg, #0000 .45em, #d9b65c99 .45em .52em, #0000 .52em calc(100% - .52em), #d9b65c99 calc(100% - .52em) calc(100% - .45em), #0000 calc(100% - .45em));
+    .room-books > :nth-child(1) {
+      z-index: 3;
+      width: 6.2em;
+      margin-left: -.3em;
+      --deep: 1em;
+      --spine: linear-gradient(#3a6b42, #1f3d25);
+      --cover: linear-gradient(#2b5532, #4a8452);
     }
-    .room-books > :nth-child(1) { background: var(--bands), linear-gradient(#3a6b42, #1f3d25); }
-    .room-books > :nth-child(2) { background: var(--bands), linear-gradient(#86302b, #4c1311); }
-    .room-books > :nth-child(3) { background: var(--bands), linear-gradient(#2b4270, #15223c); }
+    .room-books > :nth-child(2) {
+      z-index: 2;
+      width: 7em;
+      margin-left: .25em;
+      --deep: 1.3em;
+      --spine: linear-gradient(#86302b, #4c1311);
+      --cover: linear-gradient(#6a221e, #9c3a33);
+    }
+    .room-books > :nth-child(3) {
+      z-index: 1;
+      width: 6.6em;
+      margin-left: -.2em;
+      --deep: 1.2em;
+      --spine: linear-gradient(#2b4270, #15223c);
+      --cover: linear-gradient(#1e3156, #34507f);
+    }
 
     /* a cactus in a terracotta pot, on the books. The pot is a cylinder
        like the mug, seen from a little above: a saucer, the body tapering
@@ -1246,8 +1292,10 @@
        then the cactus, then the front of the rim's thick lip, which hides
        where the cactus goes into the soil. */
     .room-cactus {
-      left: 1.9em;
-      bottom: 2.72em;
+      /* standing in the middle of the top book's cover, so in front of it */
+      z-index: 4;
+      left: 1.4em;
+      bottom: 3.2em;
       width: 2em;
       height: 4.4em;
       --rim: .26em;
@@ -1366,39 +1414,93 @@
       transform-origin: 50% 100%;
     }
 
-    /* a box of 3.5" disks: the disks standing in the base, the smoked lid
-       tipped back behind them */
+    /* a box of 3.5" disks with its smoked lid shut: the disks stand in the
+       base facing us, the front one's label showing, the tops of the rest
+       stepping back behind it, and the clear lid -- its front and, seen
+       from above, its top -- closes over all of them */
     .room-disks {
-      left: calc(50% + 15em);
+      left: calc(50% + 15.4em);
       bottom: .7em;
-      width: 4.2em;
-      height: 1.7em;
-      border-radius: .1em;
-      background: linear-gradient(#3b3d42, #1f2024);
-      box-shadow: inset 0 .06em 0 #6a6c72;
+      width: 3.4em;
+      height: 3.9em;
     }
-    .room-disks::before {
-      content: "";
-      position: absolute;
-      left: .2em;
-      right: .2em;
-      bottom: 100%;
-      height: 1.5em;
+    .room-disks > i { position: absolute; display: block; }
+    /* the tops of the disks behind the front one */
+    .disks-rows {
+      left: .45em;
+      right: .45em;
+      bottom: 2.66em;
+      height: .8em;
+      clip-path: polygon(4% 0, 96% 0, 100% 100%, 0 100%);
       background:
-        repeating-linear-gradient(90deg, #1d2f6e 0 .3em, #111 .3em .36em, #b8322a .36em .66em, #111 .66em .72em, #222 .72em 1.02em, #111 1.02em 1.08em, #2f6e48 1.08em 1.38em, #111 1.38em 1.44em);
-      box-shadow: inset 0 .14em 0 #fff2;
+        linear-gradient(#0000 0, #0006),
+        repeating-linear-gradient(#0000 0 .02em, #e8e4da .02em .05em, #b8322a .05em .1em, #0000 .1em .12em, #e8e4da .12em .15em, #1d2f6e .15em .2em, #0000 .2em .22em, #e8e4da .22em .25em, #222 .25em .3em, #0000 .3em .32em, #e8e4da .32em .35em, #2f6e48 .35em .4em),
+        #0b0b0e;
     }
-    .room-disks > i {
+    /* the front disk: shutter at the bottom, label at the top */
+    .disks-front {
+      left: .4em;
+      right: .4em;
+      bottom: .1em;
+      height: 2.6em;
+      border-radius: .05em;
+      background:
+        /* the label, and the hand-written name on it */
+        linear-gradient(#0000 .32em, #3550a080 .32em .34em, #0000 .34em .62em, #3550a080 .62em .64em, #0000 .64em) 50% .12em / 82% 1.05em no-repeat,
+        linear-gradient(#f4f1e8, #e6e1d4) 50% .12em / 82% 1.05em no-repeat,
+        /* the metal shutter */
+        linear-gradient(90deg, #0000 58%, #3a3a3a 58% 74%, #0000 74%) 50% 100% / 46% .9em no-repeat,
+        linear-gradient(90deg, #9da1a6, #dfe2e5 45%, #aeb2b6) 50% 100% / 46% .95em no-repeat,
+        linear-gradient(90deg, #142257, #23377e 45%, #182a68);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 6%);
+    }
+    .disks-front::after {
+      content: "MONKEY ISLAND\A DISK 1";
+      white-space: pre;
       position: absolute;
+      left: 16%;
+      top: 7%;
+      color: #1f3a8c;
+      font: 700 .2em/1.5 "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive;
+    }
+    /* the base the disks stand in */
+    .disks-base {
       left: 0;
       right: 0;
+      bottom: 0;
+      height: .75em;
+      border-radius: .04em .04em .1em .1em;
+      background:
+        /* the catch */
+        linear-gradient(#55585e, #2a2c30) 50% .1em / .8em .22em no-repeat,
+        linear-gradient(#45484e, #2b2d31 30%, #1c1d20);
+      box-shadow: inset 0 .04em 0 #74777d, inset 0 -.04em 0 #0008;
+    }
+    /* the smoked lid, shut: its front, and its top seen from above */
+    .disks-lid {
+      left: 0;
+      right: 0;
+      bottom: .72em;
+      height: 2.3em;
+      border: .03em solid #ffffff38;
+      border-bottom: 0;
+      background:
+        linear-gradient(115deg, #0000 28%, #ffffff26 34%, #ffffff0c 44%, #0000 50%),
+        linear-gradient(#ffffff14, #0000 30%),
+        #3a3e4855;
+    }
+    .disks-lid::before {
+      content: "";
+      position: absolute;
+      left: -.03em;
+      right: -.03em;
       bottom: 100%;
-      height: 2.5em;
-      border-radius: .1em .1em 0 0;
-      background: linear-gradient(#0000, #5a5e6640);
-      border: .05em solid #ffffff22;
-      transform: perspective(6em) rotateX(30deg);
-      transform-origin: 50% 100%;
+      height: 1em;
+      clip-path: polygon(4% 0, 96% 0, 100% 100%, 0 100%);
+      background:
+        linear-gradient(#ffffff40 0 .03em, #0000 .03em calc(100% - .04em), #ffffff70 calc(100% - .04em)),
+        linear-gradient(100deg, #0000 40%, #ffffff1f 50%, #0000 60%),
+        #50566355;
     }
 
     /* A mug, drawn as a cylinder seen from a little above: the rim is an
@@ -1707,11 +1809,19 @@
     .has-room .hint kbd { border-color: #0008; background: #24140bdd; color: #fff1dc; text-shadow: none; }
     .has-room .credit a { color: #ffd59a; }
 
-    /* the switch for it, top right */
-    .room-switch {
+    /* the log and the instructions only show in info mode */
+    html:not(.has-info) .log,
+    html:not(.has-info) .hint { display: none; }
+
+    /* the switches, top right: info mode and the room */
+    .page-switches {
       position: absolute;
       top: clamp(10px, 2vw, 18px);
       right: 16px;
+      display: flex;
+      gap: 8px;
+    }
+    .page-switch {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -1726,9 +1836,9 @@
       -webkit-user-select: none;
       user-select: none;
     }
-    .room-switch:hover { color: #e8e4ff; border-color: #6b67a8; }
-    .room-switch:focus-visible { outline: 2px solid #7d78ff; outline-offset: 2px; }
-    .room-switch svg {
+    .page-switch:hover { color: #e8e4ff; border-color: #6b67a8; }
+    .page-switch:focus-visible { outline: 2px solid #7d78ff; outline-offset: 2px; }
+    .page-switch svg {
       width: 16px;
       height: 16px;
       fill: none;
@@ -1737,13 +1847,16 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
-    .has-room .room-switch { border-color: #0008; background: #24140bcc; color: #f3e3cb; }
-    .has-room .room-switch:hover { color: #fff; border-color: #ffd59a88; }
+    .page-switch[aria-pressed="true"] { color: #e8e4ff; border-color: #7d78ff; }
+    .has-room .page-switch { border-color: #0008; background: #24140bcc; color: #d9c3a6; }
+    .has-room .page-switch:hover,
+    .has-room .page-switch[aria-pressed="true"] { color: #fff1dc; border-color: #ffd59a88; }
     .has-room .room-switch .sw-bulb { fill: #ffd27a; stroke: #ffd27a; }
-    /* on a phone the label would run into the heading: just the lamp */
+    .has-info .info-switch .sw-dot { fill: currentColor; }
+    /* on a phone the labels would run into the heading: just the icons */
     @media (max-width: 599px) {
-      .room-switch { padding: 6px; }
-      .room-switch span { display: none; }
+      .page-switch { padding: 6px; }
+      .page-switch span { display: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -1753,7 +1866,17 @@
 </head>
 <body>
 
-  <button type="button" class="room-switch" id="room-switch" aria-pressed="false"
+  <div class="page-switches">
+  <button type="button" class="page-switch info-switch" id="info-switch" aria-pressed="false"
+          aria-label="Info" title="Show the engine log and the instructions">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5"/>
+      <path d="M12 11v5.5"/>
+      <circle class="sw-dot" cx="12" cy="7.8" r=".6"/>
+    </svg>
+    <span>Info</span>
+  </button>
+  <button type="button" class="page-switch room-switch" id="room-switch" aria-pressed="false"
           aria-label="90s desk" title="Put the computer on a 90s desk">
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M5 21h8M9 21l-2-8 7-6"/>
@@ -1762,6 +1885,7 @@
     </svg>
     <span>90s desk</span>
   </button>
+  </div>
 
   <header class="masthead">
     <h1>JS ScummVM</h1>
@@ -1804,7 +1928,12 @@
         <i class="pen pen-ballpoint"></i>
         <i class="pot-front"></i>
       </div>
-      <div class="room-disks room-shadow"><i></i></div>
+      <div class="room-disks room-shadow">
+        <i class="disks-rows"></i>
+        <i class="disks-front"></i>
+        <i class="disks-base"></i>
+        <i class="disks-lid"></i>
+      </div>
       <div class="room-mug room-shadow">
         <i class="mug-handle"></i>
         <i class="mug-body"><i class="mug-band"></i></i>
