@@ -448,14 +448,20 @@
     field.addEventListener("keydown", onKeyDown);
     field.addEventListener("input", onInput);
 
-    // clicking the screen puts the caret back, and on a phone raises the keyboard
+    // clicking the screen puts the caret back
     screenEl.addEventListener("mousedown", function (e) {
       if (running || off) return;
       e.preventDefault();
       field.focus();
     });
-    screenEl.addEventListener("touchstart", function () {
-      if (!running && !off) field.focus();
+    // A phone only brings its keyboard up for a tap, so while the prompt is
+    // up a tap anywhere on the page raises it -- other than on a button or
+    // a link, which are for themselves. (touchend rather than touchstart:
+    // iOS will not open the keyboard for a focus made on touchstart.)
+    document.addEventListener("touchend", function (e) {
+      if (running || off) return;
+      if (e.target.closest && e.target.closest("button, a, summary, input")) return;
+      field.focus();
     }, { passive: true });
 
     var auto = requestedGame();

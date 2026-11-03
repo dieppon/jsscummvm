@@ -389,10 +389,33 @@
          inherits that */
       -webkit-user-select: text;
       user-select: text;
+      /* under 16px, iOS zooms the page in on it when it takes focus */
+      font-size: 16px;
+    }
+
+    /* On a touch screen the keyboard only comes up for a tap (dos-shell.js
+       takes one anywhere on the page), so until it is up the bottom line of
+       the screen says so, in reverse video. */
+    .dos-tap { display: none; }
+    @media (hover: none) and (pointer: coarse) {
+      .crt:not(.is-off) .dos:not(:focus-within) .dos-tap {
+        display: block;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 4%;
+        width: max-content;
+        margin: 0 auto;
+        padding: .15em .6em;
+        background: #aaa;
+        color: #000;
+        font: calc(var(--screen-w) * 0.04)/1.3 "Less Perfect DOS VGA", "Consolas", "Lucida Console", ui-monospace, monospace;
+        animation: dos-blink 1.2s steps(1) infinite;
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .dos-cursor { animation: none; }
+      .dos-cursor, .dos-tap { animation: none !important; }
     }
 
     /* screen overlays --------------------------------------------------- */
@@ -2145,7 +2168,8 @@
                 <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
                 <input class="dos-input" id="dos-input" type="text"
                        autocomplete="off" autocapitalize="off" autocorrect="off"
-                       spellcheck="false" aria-label="MS-DOS prompt">
+                       spellcheck="false" enterkeyhint="enter" aria-label="MS-DOS prompt">
+                <div class="dos-tap" aria-hidden="true">Tap here to type</div>
               </div>
               <div class="scanlines" aria-hidden="true"></div>
               <div class="glare" aria-hidden="true"></div>
