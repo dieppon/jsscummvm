@@ -9,6 +9,11 @@
     // the first paint (dos-shell.js keeps this class up to date after)
     if (/[?&]game=/.test(window.location.search))
       document.documentElement.classList.add("has-game");
+    // the room around the computer, if it was left on (jsscumm.js)
+    try {
+      if (window.localStorage.getItem("jsscummvm.room") == "1")
+        document.documentElement.classList.add("has-room");
+    } catch (e) { /* storage blocked: plain background */ }
   </script>
   <link rel="icon" href="favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128">
 
@@ -104,7 +109,6 @@
       flex-direction: column;
       align-items: center;
       gap: clamp(10px, 2vw, 18px);
-      background: #336;
       color: #b9b5d4;
       font: 14px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
       -webkit-font-smoothing: antialiased;
@@ -927,9 +931,573 @@
 
     .credit { margin: 0; font-size: 12px; color: #6f6b9c; text-align: center; }
     .credit a { color: #9d98d0; }
+
+    /* ---- the room ------------------------------------------------------ */
+    /* Optional, from the switch at the top right: the computer on a 90s
+       bedroom desk -- an oxblood wall with a framed picture and a cork
+       board, a pine desktop, a red anglepoise lamp and the usual clutter.
+       Like the monitor it is all CSS: gradients, shadows and SVG noise
+       tiles, no images. Everything is measured in ems of 0.1 screen widths,
+       so it scales with the monitor, and positioned from the middle of the
+       desk row (x) and the line the speakers stand on (y). It sits at
+       z-index -1 behind the page's own content, and the body clips it, so
+       the desktop can run off every edge without making the page scroll.
+       html.has-room is set by the head script before the first paint and
+       toggled by jsscumm.js. */
+
+    html { background: #336; transition: background-color .4s ease; }
+    html.has-room { background-color: #2c1110; overflow-x: hidden; }
+    .has-room body { overflow: clip; }
+    .has-room .desk { position: relative; }
+
+    .room {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      font-size: calc(var(--screen-w) * 0.1);
+      pointer-events: none;
+      -webkit-user-select: none;
+      user-select: none;
+      display: none;
+      opacity: 0;
+      transition: opacity .4s ease, display .4s allow-discrete;
+      --wood: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='300' viewBox='0 0 1000 300' preserveAspectRatio='none'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .09' numOctaves='4' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .2 0 0 0 0 .07 2.2 0 0 0 -.95'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
+      --plaster: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .08 0 0 0 0 .02 0 0 0 0 .02 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      --cork: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .12 0 0 0 0 .04 2.4 0 0 0 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
+    }
+    .has-room .room { display: block; opacity: 1; }
+    @starting-style { .has-room .room { opacity: 0; } }
+
+    .room > * { position: absolute; }
+
+    /* the wall, and the desktop in front of it: both reach well past the
+       page edges, and are centred on the desk row (100vw in) */
+    .room-wall,
+    .room-desktop {
+      left: 50%;
+      width: 200vw;
+      margin-left: -100vw;
+    }
+    .room-wall {
+      top: -200vh;
+      bottom: 1.4em;
+      background:
+        /* the lamp's light thrown up the wall */
+        radial-gradient(15em 11em at calc(100vw + 10em) calc(100% - 5em), #ffa35c40, #ff8c4a16 50%, #0000 75%),
+        radial-gradient(36em 24em at 100vw calc(100% - 5em), #0000 15%, #000b 100%),
+        var(--plaster),
+        linear-gradient(#4a1b1a, #6a2a27 calc(100% - 8em), #5a2321);
+    }
+    .room-desktop {
+      top: calc(100% - 1.5em);
+      height: 200vh;
+      background:
+        /* the lamp's pool of light */
+        radial-gradient(9em 3em at calc(100vw + 9.5em) 1.2em, #ffe0a866, #ffc77a24 55%, #0000),
+        /* in the wall's shadow at the back, and the back edge's highlight */
+        linear-gradient(#0000 0, #fff3 .03em, #0007 .06em, #0000 .45em),
+        /* darker away from the lamp: towards the front and the ends */
+        radial-gradient(30em 12em at calc(100vw + 3em) 0, #0000 25%, #000c 100%),
+        /* one tile stretched across the whole desk, so no seams; a seam
+           along the grain does not show */
+        var(--wood) 0 0 / 100% 8em repeat-y,
+        linear-gradient(#d8a86c, #b98247);
+    }
+
+    /* things on the desk throw a soft shadow onto it */
+    .room-shadow::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      left: -12%;
+      right: -12%;
+      bottom: -.18em;
+      height: .4em;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, #000a, #0000);
+    }
+
+    /* -- on the wall -- */
+
+    /* a framed picture: a moonlit sea with an island on it */
+    .room-picture {
+      left: calc(50% - 12.4em);
+      bottom: 7.4em;
+      width: 4.4em;
+      height: 3.4em;
+      padding: .3em;
+      border: .2em solid #5c371d;
+      border-color: #7a4b28 #5c371d #3f2412 #6a4022;
+      background: #ece4d2;
+      box-shadow: 0 .25em .5em #000a, inset 0 0 .15em #0005;
+    }
+    .room-picture::before {
+      content: "";
+      display: block;
+      height: 100%;
+      box-shadow: inset 0 0 .1em #0008;
+      background:
+        /* the moon, and its light on the water */
+        radial-gradient(circle at 74% 24%, #fff6d8 .18em, #fff6d855 .24em, #0000 .7em),
+        linear-gradient(90deg, #0000 64%, #fff6d833 70%, #fff6d855 74%, #fff6d833 78%, #0000 84%) 0 100% / 100% 32% no-repeat,
+        /* the island, and a palm on it */
+        radial-gradient(ellipse 30% 16% at 30% 70%, #0a120f 97%, #0000 100%),
+        linear-gradient(80deg, #0000 47%, #0a120f 47% 53%, #0000 53%) 25% 52% / 12% 22% no-repeat,
+        radial-gradient(ellipse 50% 30% at 50% 50%, #0a120f 90%, #0000 100%) 26% 42% / 18% 9% no-repeat,
+        /* sea and sky */
+        linear-gradient(#0c1838, #23396b 50%, #4d5a8c 68%, #12283c 68.5%, #081521);
+    }
+
+    /* a cork board in an aluminium frame, things pinned to it */
+    .room-cork {
+      left: calc(50% + 8em);
+      bottom: 4.6em;
+      width: 9.4em;
+      height: 7.6em;
+      border: .2em solid;
+      border-color: #d6d9db #b9bdc0 #8f9396 #c3c7ca;
+      border-radius: .06em;
+      background: var(--cork), radial-gradient(at 30% 80%, #c8955c, #a87443);
+      box-shadow: 0 .3em .6em #000b, inset 0 0 .3em #0006;
+    }
+    .room-cork > * {
+      position: absolute;
+      box-shadow: .06em .12em .2em #0007;
+    }
+    /* a drawing pin at the top of each */
+    .room-cork > *::before {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: .06em;
+      left: 50%;
+      width: .26em;
+      height: .26em;
+      margin-left: -.13em;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #fffa, var(--pin, #d22) 35%, #0008);
+      box-shadow: .05em .08em .08em #0008;
+    }
+    .cork-polaroid {
+      left: 5%;
+      top: 7%;
+      width: 2.1em;
+      height: 2.5em;
+      padding: .14em .14em .5em;
+      background: #f4f1ea;
+      transform: rotate(-7deg);
+      --pin: #2b6fd6;
+    }
+    .cork-polaroid::after {
+      content: "";
+      display: block;
+      height: 100%;
+      background:
+        radial-gradient(circle at 60% 58%, #fff3b0 .1em, #ffb24d .25em, #0000 .5em),
+        linear-gradient(#ff8a3d, #ffb35a 50%, #e8794a 58%, #3d5f8a 58.5%, #23415f 80%, #e2c27c 80.5%);
+    }
+    .cork-card {
+      left: 31%;
+      top: 5%;
+      width: 3.5em;
+      height: 2.4em;
+      padding: .3em .2em 0 .25em;
+      background:
+        linear-gradient(#0000 .36em, #e0474799 .36em .39em, #0000 .39em),
+        repeating-linear-gradient(#0000 0 .33em, #7aa6d699 .33em .345em) 0 .42em / 100% 100% no-repeat,
+        #fbfaf5;
+      color: #233a8c;
+      transform: rotate(3deg);
+      --pin: #1f9d4a;
+    }
+    .room-cork span { display: block; }
+    .cork-card span { font: .26em/1.27 "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive; }
+    .cork-card b { display: block; margin-bottom: .2em; font-weight: 700; }
+    .cork-floppy {
+      left: 75%;
+      top: 9%;
+      width: 1.8em;
+      height: 1.85em;
+      border-radius: .06em;
+      background:
+        /* the label */
+        linear-gradient(#f2efe6, #f2efe6) 50% 88% / 72% 46% no-repeat,
+        /* the metal shutter and its window */
+        linear-gradient(90deg, #0000 58%, #383838 58% 72%, #0000 72%) 50% 0 / 60% 34% no-repeat,
+        linear-gradient(#c9ccd0, #9da1a6) 50% 0 / 60% 36% no-repeat,
+        #1d2f6e;
+      clip-path: polygon(0 0, 92% 0, 100% 6%, 100% 100%, 0 100%);
+      transform: rotate(9deg);
+      --pin: #f2c21b;
+    }
+    .cork-floppy::after {
+      content: "MONKEY 1\A DISK 3 of 4";
+      white-space: pre;
+      position: absolute;
+      left: 18%;
+      top: 62%;
+      color: #333;
+      font: 700 .17em/1.2 "Comic Sans MS", cursive;
+    }
+    .cork-note {
+      left: 6%;
+      top: 51%;
+      width: 2.1em;
+      height: 2em;
+      padding: .45em .1em 0;
+      background: linear-gradient(#fff27a, #f5e15a);
+      color: #4a3a12;
+      text-align: center;
+      transform: rotate(4deg);
+      --pin: #d22;
+    }
+    .cork-note span { font: 700 .28em/1.2 "Bradley Hand", "Segoe Print", "Comic Sans MS", cursive; }
+    .cork-note small { display: block; margin-top: .3em; font-size: .8em; font-weight: 400; }
+    .cork-poster {
+      left: 34%;
+      top: 47%;
+      width: 2.7em;
+      height: 3.3em;
+      padding-top: .45em;
+      background:
+        radial-gradient(circle at 50% 74%, #ffcf3a .3em, #0000 .32em),
+        repeating-conic-gradient(from 0deg at 50% 74%, #c8361f 0 10deg, #e2502c 10deg 20deg);
+      color: #fff6d6;
+      text-align: center;
+      text-shadow: .04em .05em 0 #4b0f08;
+      transform: rotate(-4deg);
+      --pin: #fff;
+    }
+    .cork-poster span { font: 900 .78em/1 Impact, "Arial Black", sans-serif; letter-spacing: .04em; }
+    .cork-poster small {
+      display: block;
+      margin-top: .25em;
+      font: 700 .28em/1.2 system-ui, sans-serif;
+      letter-spacing: .12em;
+    }
+    .cork-photo {
+      left: 69%;
+      top: 50%;
+      width: 2.5em;
+      height: 1.9em;
+      border: .1em solid #f4f1ea;
+      background:
+        /* a beach: sky, sea, sand, and a palm leaning in */
+        linear-gradient(-55deg, #0000 62%, #3a2a17 62% 65%, #0000 65%) 0 0 / 100% 100%,
+        radial-gradient(ellipse 40% 18% at 22% 18%, #2f6b2e 90%, #0000),
+        linear-gradient(#7ec8ef, #c6ecff 55%, #2c9bc4 55.5%, #3fb6c9 72%, #f1ddab 72.5%, #e6c98c);
+      transform: rotate(6deg);
+      --pin: #2b6fd6;
+    }
+
+    /* -- on the desk, left of the speakers -- */
+
+    .room-mug {
+      left: calc(50% - 17.6em);
+      bottom: -.5em;
+      width: 1em;
+      height: 1.15em;
+      border-radius: .08em .08em .28em .28em / .08em .08em .14em .14em;
+      background:
+        linear-gradient(#0000 34%, #2b6fd6 34% 46%, #0000 46%),
+        linear-gradient(90deg, #a9a49a, #f4f1ea 35%, #fff 45%, #d9d4c8 80%, #8f8a80);
+    }
+    /* the coffee, seen over the rim */
+    .room-mug::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -.12em;
+      height: .24em;
+      border-radius: 50%;
+      border: .04em solid #f7f4ee;
+      background: radial-gradient(#4a2a14, #2b170a);
+    }
+    .room-mug > i {
+      position: absolute;
+      left: -.34em;
+      top: .22em;
+      width: .5em;
+      height: .56em;
+      border: .1em solid #d9d4c8;
+      border-right: 0;
+      border-radius: .3em 0 0 .3em;
+    }
+
+    .room-books {
+      left: calc(50% - 15em);
+      bottom: .1em;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .room-books > span {
+      display: block;
+      height: 2.4em;
+      padding: 0 1.5em;
+      border-radius: .05em;
+      color: #e8c66a;
+      font: 700 .2em/2.4 Georgia, "Times New Roman", serif;
+      letter-spacing: .12em;
+      white-space: nowrap;
+      box-shadow: inset 0 .02em 0 #fff3, inset 0 -.03em 0 #0006, 0 .02em .05em #0008;
+    }
+    .room-books > :nth-child(1) { width: 15em; background: linear-gradient(#335f3a, #1f3d25); }
+    .room-books > :nth-child(2) { width: 17.5em; background: linear-gradient(#7b2320, #4c1311); }
+    .room-books > :nth-child(3) { width: 16em; background: linear-gradient(#25395f, #15223c); }
+
+    /* a cactus in a terracotta pot, on the books */
+    .room-cactus {
+      left: calc(50% - 14.3em);
+      bottom: 1.53em;
+      width: .9em;
+      height: .78em;
+      background: linear-gradient(90deg, #8a3f1f, #d4774a 35%, #e89a6c 45%, #b45a31 80%, #7a3519);
+      clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+    }
+    .room-cactus::before {
+      content: "";
+      position: absolute;
+      left: -.04em;
+      right: -.04em;
+      top: 0;
+      height: .16em;
+      background: linear-gradient(90deg, #8a3f1f, #e2895a 40%, #9c4824);
+    }
+    .room-cactus-body {
+      left: calc(50% - 14.15em);
+      bottom: 2.25em;
+      width: .6em;
+      height: 1.05em;
+      border-radius: .3em .3em .06em .06em;
+      background:
+        radial-gradient(circle, #f3f0d0 .025em, #0000 .035em) 0 0 / .15em .15em,
+        repeating-linear-gradient(90deg, #2d6b33 0 .07em, #4f9a4d .07em .1em, #3a7d3d .1em .15em),
+        #3a7d3d;
+      box-shadow: inset -.08em 0 .12em #0006, inset .06em 0 .08em #ffffff30;
+    }
+
+    /* -- on the desk, right of the speakers -- */
+
+    /* an anglepoise: two arms, sprung, a shade with the bulb lit */
+    .room-lamp {
+      left: calc(50% + 13.6em);
+      bottom: .45em;
+      width: 0;
+      height: 0;
+    }
+    .lamp-base {
+      position: absolute;
+      left: -1em;
+      bottom: -.2em;
+      width: 2em;
+      height: .55em;
+      border-radius: 50% 50% 12% 12% / 95% 95% 10% 10%;
+      background: radial-gradient(120% 140% at 38% 15%, #ff8f78, #c9221a 40%, #6a0c09);
+    }
+    .lamp-base::after { bottom: -.22em; }
+    .lamp-arm {
+      position: absolute;
+      left: -.09em;
+      bottom: .25em;
+      width: .18em;
+      height: 4em;
+      border-radius: .09em;
+      transform-origin: 50% calc(100% - .09em);
+      transform: rotate(12deg);
+      background: linear-gradient(90deg, #6f0e0a, #e5473a 45%, #ff9a88 52%, #a5180f);
+    }
+    /* the joint at the top of each arm */
+    .lamp-arm::before {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      top: -.12em;
+      left: -.09em;
+      width: .36em;
+      height: .36em;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #aaa, #333 70%);
+    }
+    /* its spring */
+    .lamp-arm::after {
+      content: "";
+      position: absolute;
+      left: .26em;
+      top: 18%;
+      width: .07em;
+      height: 55%;
+      background: repeating-linear-gradient(#e4e4e4 0 .035em, #4a4a4a .035em .07em);
+    }
+    .lamp-arm .lamp-arm {
+      bottom: auto;
+      top: -3.2em;
+      height: 3.3em;
+      transform: rotate(-66deg);
+    }
+    .lamp-shade {
+      position: absolute;
+      left: 50%;
+      top: -.05em;
+      width: 1.6em;
+      height: 1.35em;
+      margin-left: -.8em;
+      transform-origin: 50% 0;
+      /* hanging down and in, at the desk */
+      transform: rotate(85deg);
+    }
+    .lamp-shade::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: .3em .3em 0 0;
+      clip-path: polygon(32% 0, 68% 0, 100% 100%, 0 100%);
+      background: linear-gradient(90deg, #5d0b08, #b51d16 25%, #ff9b84 48%, #e8493a 58%, #6d0d0a);
+    }
+    /* the mouth of the shade, and the bulb in it */
+    .lamp-shade::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -.2em;
+      height: .4em;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, #fffbe8, #ffe2a0 45%, #e7a456 80%, #b0561c);
+      box-shadow: 0 0 .6em .3em #ffd28a55;
+    }
+
+    .room-pens {
+      left: calc(50% + 15em);
+      bottom: .2em;
+      width: .85em;
+      height: 1.25em;
+      border-radius: .05em .05em .12em .12em;
+      background:
+        repeating-linear-gradient(90deg, #0000 0 .07em, #0007 .07em .1em),
+        repeating-linear-gradient(#0000 0 .07em, #0007 .07em .1em),
+        linear-gradient(90deg, #111, #3a3a3a 40%, #1a1a1a);
+      box-shadow: inset 0 .05em 0 #555;
+    }
+    /* pencils and pens standing in it */
+    .room-pens::before {
+      content: "";
+      position: absolute;
+      left: .04em;
+      right: .04em;
+      bottom: 90%;
+      height: .9em;
+      background:
+        linear-gradient(#222 0 .12em, #e8c34a .12em) 6% 100% / .1em 90% no-repeat,
+        linear-gradient(#f3d9b0 0 .15em, #2f7bd6 .15em) 30% 100% / .1em 70% no-repeat,
+        linear-gradient(#111 0 .1em, #e0e0e0 .1em .2em, #d22 .2em) 52% 100% / .09em 100% no-repeat,
+        linear-gradient(#f3d9b0 0 .15em, #2fb35a .15em) 74% 100% / .1em 80% no-repeat,
+        linear-gradient(#eee 0 .08em, #f28c1b .08em) 96% 100% / .12em 60% no-repeat;
+    }
+
+    /* a box of 3.5" disks: the disks standing in the base, the smoked lid
+       tipped back behind them */
+    .room-disks {
+      left: calc(50% + 16.6em);
+      bottom: -.35em;
+      width: 2.6em;
+      height: .9em;
+      border-radius: .05em;
+      background: linear-gradient(#3b3d42, #1f2024);
+      box-shadow: inset 0 .04em 0 #6a6c72;
+    }
+    .room-disks::before {
+      content: "";
+      position: absolute;
+      left: .12em;
+      right: .12em;
+      bottom: 100%;
+      height: .75em;
+      background:
+        repeating-linear-gradient(90deg, #1d2f6e 0 .14em, #111 .14em .17em, #b8322a .17em .31em, #111 .31em .34em, #222 .34em .48em, #111 .48em .51em, #2f6e48 .51em .65em, #111 .65em .68em);
+      box-shadow: inset 0 .08em 0 #fff2;
+    }
+    .room-disks > i {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 100%;
+      height: 1.3em;
+      border-radius: .05em .05em 0 0;
+      background: linear-gradient(#0000, #5a5e6640);
+      border: .03em solid #ffffff22;
+      transform: perspective(3em) rotateX(30deg);
+      transform-origin: 50% 100%;
+    }
+
+    /* the page's own text sits on the desk */
+    .has-room .masthead h1 { color: #f6e9d8; text-shadow: 0 1px 3px #000c; }
+    .has-room .masthead p { color: #d6b39b; }
+    .has-room .log { border-color: #0007; background: #1e100acc; }
+    .has-room .log > summary { color: #d9c3a6; }
+    .has-room .log > summary:hover { color: #fff1dc; }
+    .has-room #console { border-top-color: #0007; color: #c7b096; }
+    .has-room .hint,
+    .has-room .credit { color: #f3e3cb; text-shadow: 0 1px 2px #000, 0 0 6px #000a; }
+    .has-room .hint kbd { border-color: #0008; background: #24140bdd; color: #fff1dc; text-shadow: none; }
+    .has-room .credit a { color: #ffd59a; }
+
+    /* the switch for it, top right */
+    .room-switch {
+      position: absolute;
+      top: clamp(10px, 2vw, 18px);
+      right: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px 5px 8px;
+      border: 1px solid #454278;
+      border-radius: 999px;
+      background: #2b2b52;
+      color: #b9b5d4;
+      font: 12px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      letter-spacing: .06em;
+      cursor: pointer;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .room-switch:hover { color: #e8e4ff; border-color: #6b67a8; }
+    .room-switch:focus-visible { outline: 2px solid #7d78ff; outline-offset: 2px; }
+    .room-switch svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .has-room .room-switch { border-color: #0008; background: #24140bcc; color: #f3e3cb; }
+    .has-room .room-switch:hover { color: #fff; border-color: #ffd59a88; }
+    .has-room .room-switch .sw-bulb { fill: #ffd27a; stroke: #ffd27a; }
+    /* on a phone the label would run into the heading: just the lamp */
+    @media (max-width: 599px) {
+      .room-switch { padding: 6px; }
+      .room-switch span { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html, .room { transition: none; }
+    }
   </style>
 </head>
 <body>
+
+  <button type="button" class="room-switch" id="room-switch" aria-pressed="false"
+          aria-label="90s desk" title="Put the computer on a 90s desk">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 21h8M9 21l-2-8 7-6"/>
+      <path d="M12.5 5.5l4-2.5 3.5 5.5-4 2.5z"/>
+      <circle class="sw-bulb" cx="18.6" cy="12.4" r="1.3"/>
+    </svg>
+    <span>90s desk</span>
+  </button>
 
   <header class="masthead">
     <h1>JS ScummVM</h1>
@@ -937,6 +1505,29 @@
   </header>
 
   <div class="desk">
+    <div class="room" aria-hidden="true">
+      <div class="room-wall"></div>
+      <div class="room-desktop"></div>
+      <div class="room-picture"></div>
+      <div class="room-cork">
+        <div class="cork-polaroid"></div>
+        <div class="cork-card"><span><b>How to be a pirate:</b>1. Swordplay<br>2. Thievery<br>3. Treasure hunting</span></div>
+        <div class="cork-floppy"></div>
+        <div class="cork-note"><span>SAVE OFTEN!<small>(F5)</small></span></div>
+        <div class="cork-poster"><span>GROG<small>DRINK RESPONSIBLY</small></span></div>
+        <div class="cork-photo"></div>
+      </div>
+      <div class="room-books room-shadow"><span>PIRACY</span><span>MS-DOS 5.0 USER'S GUIDE</span><span>C PROGRAMMING</span></div>
+      <div class="room-cactus"></div>
+      <div class="room-cactus-body"></div>
+      <div class="room-mug room-shadow"><i></i></div>
+      <div class="room-lamp">
+        <div class="lamp-base room-shadow"></div>
+        <div class="lamp-arm"><div class="lamp-arm"><div class="lamp-shade"></div></div></div>
+      </div>
+      <div class="room-pens room-shadow"></div>
+      <div class="room-disks room-shadow"><i></i></div>
+    </div>
     <div class="speaker speaker-left">
       <div class="speaker-lid" aria-hidden="true"></div>
       <div class="speaker-front" aria-hidden="true">
