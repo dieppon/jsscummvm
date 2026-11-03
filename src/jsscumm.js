@@ -271,7 +271,44 @@ function assert(condition) {
       infoSwitch.setAttribute("aria-pressed", on ? "true" : "false");
       try { window.localStorage.setItem("jsscummvm.info", on ? "1" : "0"); } catch (err) { /* not kept */ }
       if (e.detail) infoSwitch.blur();
+      queueFit();
     });
   }
+
+  // --- the room's things at the window's edges ----------------------------
+  // The desk runs off both sides of the window, but what stands on it and
+  // hangs on the wall should not be cut in half: like the speakers, each
+  // fades out once any part of it would be past an edge (.is-out, in
+  // index.html). They are sized from the monitor, which CSS sizes from the
+  // window, so they are measured again whenever the window changes.
+  var roomThings = document.querySelectorAll(".room > :not(.room-wall):not(.room-desktop)"),
+      fitQueued = false;
+
+  function fitRoom() {
+    var width = root.clientWidth;
+    fitQueued = false;
+    if (!root.classList.contains("has-room")) return;
+    roomThings.forEach(function(el) {
+      // the lamp is an empty box with its arms hanging out of it, so take
+      // in everything inside each one
+      var left = Infinity, right = -Infinity;
+      [el].concat(Array.prototype.slice.call(el.querySelectorAll("*"))).forEach(function(part) {
+        var r = part.getBoundingClientRect();
+        if (!r.width && !r.height) return;
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+      });
+      el.classList.toggle("is-out", left < 0 || right > width);
+    });
+  }
+
+  function queueFit() {
+    if (fitQueued) return;
+    fitQueued = true;
+    window.requestAnimationFrame(fitRoom);
+  }
+
+  window.addEventListener("resize", queueFit);
+  fitRoom();
 
 }());

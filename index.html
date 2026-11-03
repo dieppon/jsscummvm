@@ -973,6 +973,12 @@
 
     .room > * { position: absolute; }
 
+    /* Like the speakers, the things in the room fade out at the window's
+       edge rather than being cut in half: jsscumm.js measures them and
+       marks any that would not fit. */
+    .room > :not(.room-wall):not(.room-desktop) { transition: opacity .35s ease; }
+    .room > .is-out { opacity: 0; }
+
     /* the wall, and the desktop in front of it: both reach well past the
        page edges, and are centred on the desk row (100vw in) */
     .room-wall,
@@ -1851,7 +1857,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      html, .room { transition: none; }
+      html, .room, .room > * { transition: none; }
     }
   </style>
 </head>
