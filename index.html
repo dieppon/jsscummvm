@@ -1291,37 +1291,81 @@
       transform-origin: 50% 100%;
     }
 
+    /* A mug, drawn as a cylinder seen from a little above: the rim is an
+       ellipse, and anything going round the mug -- the bottom edge, the
+       blue band -- is the front half of the same ellipse, so it dips in the
+       middle. Its shading runs across it, lit from the lamp's side. */
     .room-mug {
       left: calc(50% - 13.4em);
       bottom: .7em;
       width: 2.2em;
       height: 2.5em;
-      border-radius: .15em .15em .6em .6em / .15em .15em .3em .3em;
-      background:
-        linear-gradient(#0000 34%, #2b6fd6 34% 46%, #0000 46%),
-        linear-gradient(90deg, #a9a49a, #f4f1ea 35%, #fff 45%, #d9d4c8 80%, #8f8a80);
+      --rim: .32em;
+      --round: linear-gradient(90deg, #0007, #0000 22%, #ffffff40 58%, #0000 74%, #0008);
     }
-    /* the coffee, seen over the rim */
-    .room-mug::before {
-      content: "";
+    .room-mug > i { position: absolute; display: block; }
+    /* the handle, behind the body on the far side */
+    .mug-handle {
+      left: -.72em;
+      top: .62em;
+      width: 1.05em;
+      height: 1.3em;
+      border: .24em solid #ddd8cd;
+      border-right: 0;
+      border-radius: .65em 0 0 .65em / .65em 0 0 .65em;
+      box-shadow: inset .05em 0 .06em #0004, -.03em .02em .05em #0005;
+    }
+    .mug-body {
+      left: 0;
+      right: 0;
+      top: var(--rim);
+      bottom: 0;
+      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
+      background: var(--round), linear-gradient(90deg, #b9b4a8, #f1ede4 30%, #fff 55%, #ebe7de 75%, #a8a397);
+    }
+    /* the band: its top and bottom edges are both the front of the rim's
+       ellipse -- the bottom from its own rounded corners, the top cut out
+       with a mask of that ellipse */
+    .mug-band {
       position: absolute;
       left: 0;
       right: 0;
-      top: -.26em;
-      height: .52em;
-      border-radius: 50%;
-      border: .08em solid #f7f4ee;
-      background: radial-gradient(#4a2a14, #2b170a);
+      top: .5em;
+      height: calc(.42em + var(--rim));
+      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
+      background: var(--round), linear-gradient(90deg, #1d4f9e, #2b6fd6 40%, #4d8ae6 58%, #2b6fd6 75%, #1a4590);
+      -webkit-mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+      mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
     }
-    .room-mug > i {
+    /* the rim, the inside of the mug at the back, and the coffee, whose
+       front is hidden by the near side of the rim */
+    .mug-top {
+      left: 0;
+      right: 0;
+      top: 0;
+      height: calc(var(--rim) * 2);
+      border-radius: 50%;
+      background: linear-gradient(90deg, #d6d1c6, #fbf9f4 50%, #e2ded4);
+      overflow: hidden;
+    }
+    .mug-top::before {
+      content: "";
       position: absolute;
-      left: -.75em;
-      top: .45em;
-      width: 1em;
-      height: 1.25em;
-      border: .22em solid #d9d4c8;
-      border-right: 0;
-      border-radius: .6em 0 0 .6em;
+      inset: .07em .08em;
+      border-radius: 50%;
+      background: linear-gradient(#a49d90, #d8d3c8 60%);
+    }
+    .mug-top::after {
+      content: "";
+      position: absolute;
+      left: .08em;
+      right: .08em;
+      top: .2em;
+      height: calc(var(--rim) * 2 - .27em);
+      border-radius: 50%;
+      background: radial-gradient(60% 50% at 62% 40%, #6e4224, #3a1f0d 60%, #241206);
+      /* only what shows inside the opening */
+      clip-path: ellipse(50% calc(var(--rim) - .07em) at 50% calc(var(--rim) - .2em));
     }
 
     /* an anglepoise: two arms, sprung, a shade with the bulb lit */
@@ -1411,32 +1455,134 @@
       box-shadow: 0 0 1.2em .6em #ffd28a55;
     }
 
+    /* A black wire-mesh pen pot, a cylinder like the mug: the inside at
+       the back, then what is standing in it, then the front wall with its
+       top cut to the near side of the rim. The mesh's rings are the front
+       halves of that ellipse, so they curve round it too. */
     .room-pens {
       left: calc(50% - 19.9em);
       bottom: 1.6em;
       width: 2em;
       height: 2.9em;
-      border-radius: .1em .1em .25em .25em;
-      background:
-        repeating-linear-gradient(90deg, #0000 0 .16em, #0007 .16em .22em),
-        repeating-linear-gradient(#0000 0 .16em, #0007 .16em .22em),
-        linear-gradient(90deg, #111, #3a3a3a 40%, #1a1a1a);
-      box-shadow: inset 0 .1em 0 #555;
+      --rim: .3em;
     }
-    /* pencils and pens standing in it */
-    .room-pens::before {
+    .room-pens > i { position: absolute; display: block; }
+    .pot-back {
+      left: 0;
+      right: 0;
+      top: 0;
+      height: calc(var(--rim) * 2);
+      border-radius: 50%;
+      background: radial-gradient(closest-side, #050505 70%, #1c1c1c 92%, #4a4a4a);
+    }
+    .pot-front {
+      left: 0;
+      right: 0;
+      top: var(--rim);
+      bottom: 0;
+      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
+      --ring: radial-gradient(50% 100% at 50% 0, #0000 90%, #444 92% 100%, #0000 100%);
+      background:
+        /* round, and the front lip of the rim */
+        linear-gradient(90deg, #000d, #0000 24%, #ffffff1c 56%, #0000 76%, #000e),
+        radial-gradient(50% var(--rim) at 50% 0, #0000 100%, #7a7a7a 101%, #2a2a2a 118%, #0000 120%),
+        var(--ring) 0 .2em / 100% var(--rim) no-repeat,
+        var(--ring) 0 .5em / 100% var(--rim) no-repeat,
+        var(--ring) 0 .8em / 100% var(--rim) no-repeat,
+        var(--ring) 0 1.1em / 100% var(--rim) no-repeat,
+        var(--ring) 0 1.4em / 100% var(--rim) no-repeat,
+        var(--ring) 0 1.7em / 100% var(--rim) no-repeat,
+        var(--ring) 0 2em / 100% var(--rim) no-repeat,
+        var(--ring) 0 2.3em / 100% var(--rim) no-repeat,
+        /* the upright wires, closer together towards the sides */
+        repeating-linear-gradient(90deg, #333 0 .03em, #0000 .03em .19em) 50% 0 / 56% 100% no-repeat,
+        repeating-linear-gradient(90deg, #333 0 .03em, #0000 .03em .12em),
+        #0a0a0a;
+      -webkit-mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+      mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+    }
+
+    /* what is in it: each leans from where it stands inside the pot */
+    .pen {
+      bottom: 1em;
+      width: .2em;
+      transform-origin: 50% 100%;
+    }
+    /* a sharpened pencil: hexagonal, so lit in facets */
+    .pen-pencil {
+      left: .4em;
+      height: 3.3em;
+      transform: rotate(-13deg);
+      background: linear-gradient(90deg, #a87a0c 0 22%, #f2c531 22% 55%, #ffe17a 55% 70%, #d9a91e 70%);
+    }
+    .pen-pencil.is-red { left: 1.05em; height: 2.9em; transform: rotate(4deg); background: linear-gradient(90deg, #7a1410 0 22%, #c8261e 22% 55%, #ef5a4c 55% 70%, #a51c15 70%); }
+    .pen-pencil::before {
       content: "";
       position: absolute;
-      left: .1em;
-      right: .1em;
-      bottom: 90%;
-      height: 2em;
+      left: 0;
+      right: 0;
+      bottom: 100%;
+      height: .42em;
+      clip-path: polygon(50% 0, 100% 100%, 0 100%);
+      background: linear-gradient(#2a2a2a 0 26%, #e9c899 26%);
+    }
+    /* a ballpoint: clear barrel, blue cap and clip */
+    .pen-ballpoint {
+      left: 1.35em;
+      width: .17em;
+      height: 3em;
+      transform: rotate(9deg);
+      border-radius: .03em;
+      background: linear-gradient(90deg, #8ea2b8, #e8f0f8 45%, #aebfd2);
+    }
+    .pen-ballpoint::before {
+      content: "";
+      position: absolute;
+      left: -.02em;
+      right: -.02em;
+      top: -.1em;
+      height: .75em;
+      border-radius: .08em .08em .02em .02em;
+      background: linear-gradient(90deg, #12357a, #2f63c8 45%, #163f8c);
+    }
+    .pen-ballpoint::after {
+      content: "";
+      position: absolute;
+      left: 100%;
+      top: .05em;
+      width: .05em;
+      height: .55em;
+      background: #2350a8;
+    }
+    /* a highlighter, fatter, its cap on */
+    .pen-marker {
+      left: 1.1em;
+      width: .34em;
+      height: 2.5em;
+      transform: rotate(12deg);
+      border-radius: .06em;
+      background: linear-gradient(90deg, #8a9a10, #d6e82a 40%, #f0ff7a 55%, #b5c41a);
+    }
+    .pen-marker::before {
+      content: "";
+      position: absolute;
+      left: -.02em;
+      right: -.02em;
+      top: -.12em;
+      height: .8em;
+      border-radius: .1em .1em .03em .03em;
+      background: linear-gradient(90deg, #4f5a08, #a9b81c 45%, #6a780c);
+    }
+    /* a steel rule, with its scale */
+    .pen-ruler {
+      left: .75em;
+      width: .3em;
+      height: 3.7em;
+      transform: rotate(-4deg);
+      border-radius: .03em;
       background:
-        linear-gradient(#222 0 .25em, #e8c34a .25em) 6% 100% / .22em 90% no-repeat,
-        linear-gradient(#f3d9b0 0 .32em, #2f7bd6 .32em) 30% 100% / .22em 70% no-repeat,
-        linear-gradient(#111 0 .2em, #e0e0e0 .2em .4em, #d22 .4em) 52% 100% / .2em 100% no-repeat,
-        linear-gradient(#f3d9b0 0 .32em, #2fb35a .32em) 74% 100% / .22em 80% no-repeat,
-        linear-gradient(#eee 0 .16em, #f28c1b .16em) 96% 100% / .26em 60% no-repeat;
+        repeating-linear-gradient(#0000 0 .1em, #333 .1em .115em) 0 0 / .12em 100% no-repeat,
+        linear-gradient(90deg, #8d939a, #e3e7ea 40%, #c0c5ca 70%, #9aa0a6);
     }
 
     /* the page's own text sits on the desk */
@@ -1532,9 +1678,21 @@
         <div class="lamp-base room-shadow"></div>
         <div class="lamp-arm"><div class="lamp-arm"><div class="lamp-shade"></div></div></div>
       </div>
-      <div class="room-pens room-shadow"></div>
+      <div class="room-pens room-shadow">
+        <i class="pot-back"></i>
+        <i class="pen pen-ruler"></i>
+        <i class="pen pen-pencil"></i>
+        <i class="pen pen-pencil is-red"></i>
+        <i class="pen pen-marker"></i>
+        <i class="pen pen-ballpoint"></i>
+        <i class="pot-front"></i>
+      </div>
       <div class="room-disks room-shadow"><i></i></div>
-      <div class="room-mug room-shadow"><i></i></div>
+      <div class="room-mug room-shadow">
+        <i class="mug-handle"></i>
+        <i class="mug-body"><i class="mug-band"></i></i>
+        <i class="mug-top"></i>
+      </div>
     </div>
     <div class="speaker speaker-left">
       <div class="speaker-lid" aria-hidden="true"></div>
