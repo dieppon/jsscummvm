@@ -948,10 +948,13 @@
        html.has-room is set by the head script before the first paint
        (unless info mode was left on) and toggled by jsscumm.js. */
 
-    html { background: #336; transition: background-color .4s ease; }
-    html.has-room { background-color: #2c1110; overflow-x: hidden; }
-    .has-room body { overflow: clip; }
-    .has-room .desk { position: relative; }
+    /* These hold in info mode too: the room fades out over .4s, and for
+       that long it must stay where it is and stay clipped, or it jumps
+       and the page grows a scrollbar. */
+    html { background: #336; transition: background-color .4s ease; overflow-x: hidden; }
+    html.has-room { background-color: #2c1110; }
+    body { overflow: clip; }
+    .desk { position: relative; }
 
     .room,
     .room-front {
@@ -970,8 +973,8 @@
       --cork: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .12 0 0 0 0 .04 2.4 0 0 0 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
     }
     /* the lamp is the one thing in front: its shade hangs over the right
-       speaker */
-    .room-front { z-index: 1; }
+       speaker (above the speaker's lid, which is at 1) */
+    .room-front { z-index: 2; }
     .has-room .room,
     .has-room .room-front { display: block; opacity: 1; }
     @starting-style { .has-room .room, .has-room .room-front { opacity: 0; } }
