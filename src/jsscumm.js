@@ -281,7 +281,7 @@ function assert(condition) {
   // fades out once any part of it would be past an edge (.is-out, in
   // index.html). They are sized from the monitor, which CSS sizes from the
   // window, so they are measured again whenever the window changes.
-  var roomThings = document.querySelectorAll(".room > :not(.room-wall):not(.room-desktop)"),
+  var roomThings = document.querySelectorAll(".room > :not(.room-wall):not(.room-desktop), .room-front > *"),
       fitQueued = false;
 
   function fitRoom() {

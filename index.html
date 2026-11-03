@@ -953,7 +953,8 @@
     .has-room body { overflow: clip; }
     .has-room .desk { position: relative; }
 
-    .room {
+    .room,
+    .room-front {
       position: absolute;
       inset: 0;
       z-index: -1;
@@ -968,16 +969,23 @@
       --plaster: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .08 0 0 0 0 .02 0 0 0 0 .02 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       --cork: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .12 0 0 0 0 .04 2.4 0 0 0 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
     }
-    .has-room .room { display: block; opacity: 1; }
-    @starting-style { .has-room .room { opacity: 0; } }
+    /* the lamp is the one thing in front: its shade hangs over the right
+       speaker */
+    .room-front { z-index: 1; }
+    .has-room .room,
+    .has-room .room-front { display: block; opacity: 1; }
+    @starting-style { .has-room .room, .has-room .room-front { opacity: 0; } }
 
-    .room > * { position: absolute; }
+    .room > *,
+    .room-front > * { position: absolute; }
 
     /* Like the speakers, the things in the room fade out at the window's
        edge rather than being cut in half: jsscumm.js measures them and
        marks any that would not fit. */
-    .room > :not(.room-wall):not(.room-desktop) { transition: opacity .35s ease; }
-    .room > .is-out { opacity: 0; }
+    .room > :not(.room-wall):not(.room-desktop),
+    .room-front > * { transition: opacity .35s ease; }
+    .room > .is-out,
+    .room-front > .is-out { opacity: 0; }
 
     /* the wall, and the desktop in front of it: both reach well past the
        page edges, and are centred on the desk row (100vw in) */
@@ -1584,7 +1592,7 @@
 
     /* an anglepoise: two arms, sprung, a shade with the bulb lit */
     .room-lamp {
-      left: calc(50% + 13.6em);
+      left: calc(50% + 13em);
       bottom: 1.9em;
       width: 0;
       height: 0;
@@ -1658,7 +1666,8 @@
       height: 7em;
       border-radius: .15em;
       transform-origin: 50% calc(100% - .15em);
-      transform: rotate(10deg);
+      /* leaning out a little more, so the shade stays where it was */
+      transform: rotate(16deg);
       background: linear-gradient(90deg, #6f0e0a, #e5473a 45%, #ff9a88 52%, #a5180f);
     }
     /* the joint at the top of each arm */
@@ -1685,9 +1694,9 @@
     }
     .lamp-arm .lamp-arm {
       bottom: auto;
-      top: -4.3em;
-      height: 4.4em;
-      transform: rotate(-100deg);
+      top: -5.1em;
+      height: 5.2em;
+      transform: rotate(-106deg);
     }
     .lamp-shade {
       position: absolute;
@@ -1697,8 +1706,8 @@
       height: 2.3em;
       margin-left: -1.35em;
       transform-origin: 50% 0;
-      /* tipped down and in, at the monitor */
-      transform: rotate(140deg);
+      /* tipped down over the right speaker, towards the monitor */
+      transform: rotate(120deg);
     }
     .lamp-shade::before {
       content: "";
@@ -1909,7 +1918,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      html, .room, .room > * { transition: none; }
+      html, .room, .room > *, .room-front, .room-front > * { transition: none; }
     }
   </style>
 </head>
@@ -1953,15 +1962,6 @@
           <i class="pot-lip"></i>
         </div>
       </div>
-      <div class="room-lamp">
-        <div class="lamp-base room-shadow">
-          <i class="lamp-foot-edge"></i>
-          <i class="lamp-foot-top"></i>
-          <i class="lamp-foot-dome"></i>
-          <i class="lamp-foot-collar"></i>
-        </div>
-        <div class="lamp-arm"><div class="lamp-arm"><div class="lamp-shade"></div></div></div>
-      </div>
       <div class="room-pens room-shadow">
         <i class="pot-back"></i>
         <i class="pen pen-ruler"></i>
@@ -1983,6 +1983,18 @@
         <i class="mug-top"></i>
       </div>
     </div>
+    <div class="room-front" aria-hidden="true">
+      <div class="room-lamp">
+        <div class="lamp-base room-shadow">
+          <i class="lamp-foot-edge"></i>
+          <i class="lamp-foot-top"></i>
+          <i class="lamp-foot-dome"></i>
+          <i class="lamp-foot-collar"></i>
+        </div>
+        <div class="lamp-arm"><div class="lamp-arm"><div class="lamp-shade"></div></div></div>
+      </div>
+    </div>
+
     <div class="speaker speaker-left">
       <div class="speaker-lid" aria-hidden="true"></div>
       <div class="speaker-front" aria-hidden="true">
