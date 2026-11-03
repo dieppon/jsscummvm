@@ -1997,7 +1997,7 @@
 
     /* the page's own text sits on the desk */
     .has-room .masthead h1 { color: #f6e9d8; text-shadow: 0 1px 3px #000c; }
-    .has-room .masthead p { color: #d6b39b; }
+    .has-room .masthead p { color: #e2c6ae; text-shadow: 0 1px 2px #000, 0 0 6px #000a; }
     .has-room .log { border-color: #0007; background: #1e100acc; }
     .has-room .log > summary { color: #d9c3a6; }
     .has-room .log > summary:hover { color: #fff1dc; }
@@ -2050,6 +2050,22 @@
     @media (max-width: 599px) {
       .page-switch { padding: 6px; }
       .page-switch span { display: none; }
+    }
+
+    /* On a phone the monitor goes to the top of the screen, the title under
+       it, and the Info switch to the bottom right corner, in reach of a
+       thumb. (Held sideways the title is already gone; see --screen-w.) */
+    @media (hover: none) and (pointer: coarse) and (max-width: 599px),
+           (hover: none) and (pointer: coarse) and (max-height: 500px) {
+      body > .masthead { order: 1; }
+      .log, .hint, .credit { order: 2; }
+      .page-switch {
+        position: fixed;
+        top: auto;
+        bottom: 12px;
+        right: 12px;
+        z-index: 3;
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
