@@ -149,6 +149,12 @@
       color: #b9b5d4;
       font: 14px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
       -webkit-font-smoothing: antialiased;
+      /* Nothing on the page can be selected (or long-pressed for a callout
+         on iOS) but the instructions and the credits, below. The DOS
+         prompt's hidden input opts back in, as Safari needs to type. */
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
 
     /* touch screens: see --screen-w above */
@@ -1035,6 +1041,12 @@
     }
 
     .hint { margin: 0; font-size: 13px; color: #8b87b5; text-align: center; }
+    .hint,
+    .credit {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
     .hint kbd {
       padding: 1px 6px;
       border: 1px solid #4b4784;
