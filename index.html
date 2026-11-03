@@ -1593,6 +1593,38 @@
       clip-path: ellipse(50% calc(var(--rim) - .07em) at 50% calc(var(--rim) - .2em));
     }
 
+    /* steam off the coffee: soft wisps that rise from the rim, sway, widen
+       and thin out, one after another */
+    .mug-steam {
+      left: .2em;
+      right: .2em;
+      bottom: calc(100% - var(--rim));
+      height: 3.4em;
+    }
+    .mug-steam > b {
+      position: absolute;
+      bottom: 0;
+      width: .7em;
+      height: 2em;
+      margin-left: -.35em;
+      border-radius: 50%;
+      background: radial-gradient(50% 50% at 50% 55%, #fffaf2e0, #fffaf255 50%, #fff0 74%);
+      filter: blur(.06em);
+      opacity: 0;
+      transform-origin: 50% 100%;
+      animation: steam 4.8s ease-out infinite;
+    }
+    .mug-steam > b:nth-child(1) { --sway: .3em;  animation-delay: 0s;    left: 38%; }
+    .mug-steam > b:nth-child(2) { --sway: -.35em; animation-delay: 1.2s; left: 60%; }
+    .mug-steam > b:nth-child(3) { --sway: .2em;  animation-delay: 2.4s;  left: 47%; }
+    .mug-steam > b:nth-child(4) { --sway: -.2em; animation-delay: 3.6s;  left: 54%; }
+    @keyframes steam {
+      0%   { opacity: 0;  transform: translate(0, .4em) scale(.45, .5) skewX(0); }
+      15%  { opacity: .9; }
+      45%  { transform: translate(calc(var(--sway) * -.6), -.8em) scale(.85, .95) skewX(10deg); }
+      100% { opacity: 0;  transform: translate(var(--sway), -2.2em) scale(1.6, 1.25) skewX(-12deg); }
+    }
+
     /* an anglepoise: two arms, sprung, a shade with the bulb lit */
     .room-lamp {
       left: calc(50% + 13em);
@@ -1922,6 +1954,7 @@
 
     @media (prefers-reduced-motion: reduce) {
       html, .room, .room > *, .room-front, .room-front > * { transition: none; }
+      .mug-steam { display: none; }
     }
   </style>
 </head>
@@ -1984,6 +2017,7 @@
         <i class="mug-handle"></i>
         <i class="mug-body"><i class="mug-band"></i></i>
         <i class="mug-top"></i>
+        <i class="mug-steam"><b></b><b></b><b></b><b></b></i>
       </div>
     </div>
     <div class="room-front" aria-hidden="true">
