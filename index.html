@@ -152,6 +152,49 @@
       .crt > .monitor-holder-container { display: none; }
     }
 
+    /* A phone held sideways has no room for the MS-DOS prompt and the
+       keyboard it brings up, so until a game is running a black page asks
+       for it to be turned upright. Phones only: a tablet held sideways is
+       still well over 500px tall. */
+    .rotate-notice { display: none; }
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+      html:not(.has-game) .rotate-notice {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 16px;
+        background: #000;
+        color: #aaa;
+        font: 20px/1.4 "Less Perfect DOS VGA", "Consolas", "Lucida Console", ui-monospace, monospace;
+        text-align: center;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+    }
+    .rotate-notice p { margin: 0; }
+    /* a phone turning from sideways to upright */
+    .rotate-notice svg {
+      width: 56px;
+      height: 56px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+      animation: rotate-phone 2.6s ease-in-out infinite;
+    }
+    @keyframes rotate-phone {
+      0%, 25% { transform: rotate(-90deg); }
+      55%, 100% { transform: rotate(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .rotate-notice svg { animation: none; }
+    }
+
     .masthead { text-align: center; }
     .masthead h1 {
       margin: 0;
@@ -2003,6 +2046,14 @@
     </svg>
     <span>Info</span>
   </button>
+
+  <div class="rotate-notice">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="7" y="2.5" width="10" height="19" rx="2"/>
+      <path d="M10.5 18.5h3"/>
+    </svg>
+    <p>Turn your phone upright<br>to use the MS-DOS prompt.</p>
+  </div>
 
   <header class="masthead">
     <h1>JS ScummVM</h1>
