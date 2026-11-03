@@ -179,7 +179,7 @@ function assert(condition) {
     if (!eng || !eng._timer || eng._menuOpen || e.metaKey || e.altKey) return;
     if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
     // Enter or Space on a focused sound control is for the control
-    if (e.target && /^(speaker-knob|sound-switch|room-switch|info-switch)$/.test(e.target.id) && /^(Enter| )$/.test(e.key)) return;
+    if (e.target && /^(speaker-knob|sound-switch|info-switch)$/.test(e.target.id) && /^(Enter| )$/.test(e.key)) return;
     if (e.key.length == 1) ascii = e.key.charCodeAt(0) & 0xFF;
     else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[e.key] || 0;
     if (!ascii && !/^F[1-9]$/.test(e.code)) return;
@@ -257,23 +257,21 @@ function assert(condition) {
   });
   updateSpeakerLight();
 
-  // --- the switches at the top of the page --------------------------------
-  // One puts the computer on a 90s desk (all CSS, in index.html), the other
-  // shows the engine log and the instructions. Each is a class on <html>,
-  // kept in localStorage; the head script applies the saved choice (or the
-  // default) before the first paint, and this keeps it.
-  var root = document.documentElement;
-  [["room-switch", "has-room", "jsscummvm.room"],
-   ["info-switch", "has-info", "jsscummvm.info"]].forEach(function(sw) {
-    var el = document.getElementById(sw[0]);
-    if (!el) return;
-    el.setAttribute("aria-pressed", root.classList.contains(sw[1]) ? "true" : "false");
-    el.addEventListener("click", function(e) {
-      var on = root.classList.toggle(sw[1]);
-      el.setAttribute("aria-pressed", on ? "true" : "false");
-      try { window.localStorage.setItem(sw[2], on ? "1" : "0"); } catch (err) { /* not kept */ }
-      if (e.detail) el.blur();
+  // --- the Info switch ----------------------------------------------------
+  // At the top of the page: info mode shows the engine log, the
+  // instructions and the credits on the plain page, in place of the 90s
+  // desk around the computer (all CSS, in index.html). Kept in
+  // localStorage; the head script applies it before the first paint.
+  var root = document.documentElement, infoSwitch = document.getElementById("info-switch");
+  if (infoSwitch) {
+    infoSwitch.setAttribute("aria-pressed", root.classList.contains("has-info") ? "true" : "false");
+    infoSwitch.addEventListener("click", function(e) {
+      var on = root.classList.toggle("has-info");
+      root.classList.toggle("has-room", !on);
+      infoSwitch.setAttribute("aria-pressed", on ? "true" : "false");
+      try { window.localStorage.setItem("jsscummvm.info", on ? "1" : "0"); } catch (err) { /* not kept */ }
+      if (e.detail) infoSwitch.blur();
     });
-  });
+  }
 
 }());
