@@ -103,6 +103,27 @@
       :root { --fit-w: calc((100vw - 40px) * 0.5); }
     }
 
+    /* On a touch screen the game is the point, so the monitor takes as much
+       of the screen as it can: no 640px cap, 8px gutters, and the speakers
+       swapped for the monitor's sound button whatever the width (below).
+       Held sideways, where the height is what runs out, the heading and
+       the stand go too, so the case alone fills it. Measured, the case is
+       1.286 screen widths wide and 1.091 tall, 1.49 with its stand; the
+       heading and gutters above and below it come to about 110px, the
+       gutters alone (and a pixel or two of rounding) to 24px. */
+    @supports (height: 100dvh) {
+      @media (hover: none) and (pointer: coarse) {
+        :root {
+          --screen-w: max(200px, min(calc((100vw - 16px) / 1.286), calc((100dvh - 110px) / 1.49)));
+        }
+      }
+      @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+        :root {
+          --screen-w: max(200px, min(calc((100vw - 16px) / 1.286), calc((100dvh - 24px) / 1.091)));
+        }
+      }
+    }
+
     * { box-sizing: border-box; }
 
     body {
@@ -116,6 +137,19 @@
       color: #b9b5d4;
       font: 14px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
       -webkit-font-smoothing: antialiased;
+    }
+
+    /* touch screens: see --screen-w above */
+    @media (hover: none) and (pointer: coarse) {
+      body { padding: 8px 8px 12px; gap: 8px; }
+      /* taps on the game are clicks, never zooms */
+      .crt { touch-action: manipulation; }
+    }
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+      /* (more specific than the parts' own display, further down) */
+      body > .masthead,
+      .crt > .monitor-base,
+      .crt > .monitor-holder-container { display: none; }
     }
 
     .masthead { text-align: center; }
@@ -881,7 +915,7 @@
       transition: opacity .35s ease, display .35s allow-discrete;
     }
     .sound-switch { display: none; opacity: 0; }
-    @media (max-width: 899px) {
+    @media (max-width: 899px), (hover: none) and (pointer: coarse) {
       .speaker { display: none; opacity: 0; }
       .sound-switch { display: grid; opacity: 1; }
     }
