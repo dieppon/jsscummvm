@@ -174,17 +174,26 @@ function assert(condition) {
   // a cutscene, '.' a line of speech, space pauses, the rest reach the
   // game's input script (verb shortcuts and so on). keydown, because Esc
   // never fires keypress.
-  window.document.addEventListener("keydown", function(e) {
+  // A key for the game, as processKeyboard takes it, from the keyboard
+  // (below) or from a touch screen's keys. False if the game does not take
+  // it: not running, the save menu up, or not a key it uses.
+  ScummVM.pressKey = function(key, code, ctrl) {
     var eng = ScummVM.engine, ascii;
-    if (!eng || !eng._timer || eng._menuOpen || e.metaKey || e.altKey) return;
+    if (!eng || !eng._timer || eng._menuOpen) return false;
+    if (key.length == 1) ascii = key.charCodeAt(0) & 0xFF;
+    else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[key] || 0;
+    if (!ascii && !/^F[1-9]$/.test(code)) return false;
+    eng._keyHit = {code: code, ascii: ascii, ctrl: !!ctrl};
+    return true;
+  };
+
+  window.document.addEventListener("keydown", function(e) {
+    if (e.metaKey || e.altKey) return;
     if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
-    // Enter or Space on a focused sound control is for the control
+    // Enter or Space on a focused control is for the control
     if (e.target && /^(speaker-knob|sound-switch|info-switch)$/.test(e.target.id) && /^(Enter| )$/.test(e.key)) return;
-    if (e.key.length == 1) ascii = e.key.charCodeAt(0) & 0xFF;
-    else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[e.key] || 0;
-    if (!ascii && !/^F[1-9]$/.test(e.code)) return;
-    eng._keyHit = {code: e.code, ascii: ascii, ctrl: e.ctrlKey};
-    e.preventDefault();
+    if (e.target && e.target.classList && e.target.classList.contains("vkey") && /^(Enter| )$/.test(e.key)) return;
+    if (ScummVM.pressKey(e.key, e.code, e.ctrlKey)) e.preventDefault();
   });
 
   // --- the speakers' light and knob --------------------------------------
@@ -313,17 +322,23 @@ function assert(condition) {
 
   // --- keys on a touch screen ---------------------------------------------
   // Phones and tablets have no Esc or F5, so buttons stand in for the keys
-  // the game needs (index.html shows them while a game runs). Each one is
-  // sent as that key pressed, so the save menu and the game take it just as
-  // they would from a keyboard.
+  // the game needs (index.html shows them while a game runs). Each does
+  // what that key does: F5 opens and closes the save menu, Esc also closes
+  // it, and the rest go to the game. They call the menu and the game
+  // directly rather than faking a key event, which mobile Safari need not
+  // deliver as a real one.
   document.querySelectorAll(".vkey").forEach(function(el) {
     el.addEventListener("click", function(e) {
-      document.dispatchEvent(new KeyboardEvent("keydown", {
-        key: el.getAttribute("data-key"),
-        code: el.getAttribute("data-code"),
-        bubbles: true,
-        cancelable: true
-      }));
+      var key = el.getAttribute("data-key"), eng = ScummVM.engine,
+          menuOpen = !!(eng && eng._menuOpen);
+      if (key == "F5") {
+        if (menuOpen) ScummVM.closeSaveMenu();
+        else if (ScummVM.openSaveMenu) ScummVM.openSaveMenu();
+      } else if (key == "Escape" && menuOpen) {
+        ScummVM.closeSaveMenu();
+      } else {
+        ScummVM.pressKey(key, el.getAttribute("data-code"));
+      }
       // give the keyboard, if there is one, back to the game
       if (e.detail) el.blur();
     });
