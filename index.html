@@ -1240,36 +1240,120 @@
     .room-books > :nth-child(2) { background: var(--bands), linear-gradient(#86302b, #4c1311); }
     .room-books > :nth-child(3) { background: var(--bands), linear-gradient(#2b4270, #15223c); }
 
-    /* a cactus in a terracotta pot, on the books */
+    /* a cactus in a terracotta pot, on the books. The pot is a cylinder
+       like the mug, seen from a little above: a saucer, the body tapering
+       to a curved foot, the rim's top an ellipse with the soil inside it,
+       then the cactus, then the front of the rim's thick lip, which hides
+       where the cactus goes into the soil. */
     .room-cactus {
-      left: 2em;
-      bottom: 2.7em;
-      width: 1.8em;
-      height: 1.55em;
-      background: linear-gradient(90deg, #8a3f1f, #d4774a 35%, #e89a6c 45%, #b45a31 80%, #7a3519);
-      clip-path: polygon(0 0, 100% 0, 88% 100%, 12% 100%);
+      left: 1.9em;
+      bottom: 2.72em;
+      width: 2em;
+      height: 4.4em;
+      --rim: .26em;
+      --clay: linear-gradient(90deg, #6e2f15, #a9532c 16%, #d98a5e 48%, #e9a47a 56%, #c26a3f 74%, #6a2c13);
     }
-    .room-cactus::before {
-      content: "";
-      position: absolute;
+    .room-cactus > i { position: absolute; display: block; }
+    .pot-saucer {
+      left: .15em;
+      right: .15em;
+      bottom: 0;
+      height: .36em;
+      border-radius: 50%;
+      background: var(--plaster), radial-gradient(closest-side, #5a2410 55%, #b05a32 78%, #e09468 88%, #7a3519);
+    }
+    .pot-body {
+      left: .1em;
+      right: .1em;
+      bottom: .1em;
+      height: 1.4em;
+      /* tapering to the foot, whose front edge curves round */
+      clip-path: polygon(0 0, 100% 0, 88% 85%, 80% 92%, 70% 97%, 60% 99.5%, 50% 100%, 40% 99.5%, 30% 97%, 20% 92%, 12% 85%);
+      background:
+        /* in the lip's shadow at the top */
+        linear-gradient(#0006, #0000 .22em),
+        var(--plaster),
+        var(--clay);
+    }
+    .pot-rim {
       left: 0;
       right: 0;
-      top: 0;
-      height: .32em;
-      background: linear-gradient(90deg, #8a3f1f, #e2895a 40%, #9c4824);
-      box-shadow: 0 .04em .05em #0006;
-    }
-    .room-cactus-body {
-      left: 2.3em;
-      bottom: 4.1em;
-      width: 1.2em;
-      height: 2.1em;
-      border-radius: .6em .6em .1em .1em;
+      bottom: calc(1.86em - var(--rim));
+      height: calc(var(--rim) * 2);
+      border-radius: 50%;
+      /* soil, the inside of the pot at the back, the rim's flat top */
       background:
-        radial-gradient(circle, #f3f0d0 .05em, #0000 .07em) 0 0 / .37em .37em,
-        repeating-linear-gradient(90deg, #2d6b33 0 .17em, #4f9a4d .17em .25em, #3a7d3d .25em .37em),
-        #3a7d3d;
-      box-shadow: inset -.2em 0 .3em #0006, inset .14em 0 .2em #ffffff30;
+        radial-gradient(closest-side, #2b1d12 0 60%, #3d2a1b 72%, #6b3a20 80%, #9a4e2a 84%, #e8a67c 87%, #f2b98f 95%, #b8653c 100%);
+    }
+    .pot-lip {
+      left: 0;
+      right: 0;
+      bottom: calc(1.86em - .4em - var(--rim));
+      height: calc(.4em + var(--rim));
+      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
+      background:
+        linear-gradient(#0000 calc(100% - .08em), #0003),
+        var(--plaster),
+        var(--clay);
+      -webkit-mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+      mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+    }
+
+    /* the cactus: ribs that crowd together towards its sides, as they would
+       round a column, spines on each ridge, and a flower on top */
+    .cactus {
+      left: .4em;
+      right: .4em;
+      bottom: 1.78em;
+      height: 2.3em;
+      border-radius: 50% 50% 22% 22% / 30% 30% 5% 5%;
+      background:
+        /* rounded, and catching the light over the top */
+        radial-gradient(60% 18% at 50% 4%, #9fd48f88, #0000),
+        linear-gradient(90deg, #0008, #0000 35%, #ffffff18 62%, #0005),
+        /* areoles: a small woolly tuft on each ridge, staggered, its
+           spines a faint halo round it */
+        radial-gradient(circle at 11.8% 50%, #eee6c8 .018em, #0000 .03em, #fff2 .035em, #0000 .06em) 0 0 / 100% .26em,
+        radial-gradient(circle at 28.8% 50%, #f3ecd2 .022em, #0000 .035em, #fff3 .04em, #0000 .075em) 0 .13em / 100% .26em,
+        radial-gradient(circle at 50% 50%, #f6f0d8 .026em, #0000 .04em, #fff3 .045em, #0000 .085em) 0 0 / 100% .26em,
+        radial-gradient(circle at 71.2% 50%, #f3ecd2 .022em, #0000 .035em, #fff3 .04em, #0000 .075em) 0 .13em / 100% .26em,
+        radial-gradient(circle at 88.1% 50%, #eee6c8 .018em, #0000 .03em, #fff2 .035em, #0000 .06em) 0 0 / 100% .26em,
+        /* the ribs: furrows at even steps round the column */
+        linear-gradient(90deg,
+          #0f2c12 0%, #3a7e3e 2.5%, #0f2c12 4.9%, #3f8a45 11.8%, #0f2c12 18.8%,
+          #4fa053 28.8%, #0f2c12 38.9%, #5cb05e 50%, #0f2c12 61.1%,
+          #4fa053 71.2%, #0f2c12 81.2%, #3f8a45 88.1%, #0f2c12 95.1%, #3a7e3e 97.5%, #0f2c12 100%);
+      box-shadow: inset 0 -.1em .12em #0005;
+    }
+    /* its flower */
+    .cactus::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: -.16em;
+      width: .62em;
+      height: .4em;
+      margin-left: -.31em;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 50% 55%, #ffe36a .05em, #f7b733 .08em, #0000 .09em),
+        radial-gradient(ellipse 22% 40% at 22% 55%, #ff7aa8 90%, #0000),
+        radial-gradient(ellipse 22% 40% at 78% 55%, #ff7aa8 90%, #0000),
+        radial-gradient(ellipse 28% 36% at 50% 30%, #ff9ec0 90%, #0000),
+        radial-gradient(ellipse 30% 30% at 50% 78%, #e64f85 90%, #0000);
+      filter: drop-shadow(0 .03em .03em #0006);
+    }
+    /* the soil darkens round its foot */
+    .cactus::before {
+      content: "";
+      position: absolute;
+      left: -.12em;
+      right: -.12em;
+      bottom: -.08em;
+      height: .2em;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, #000a, #0000);
+      z-index: -1;
     }
 
     /* drawn at the sizes here, then all a size larger next to the
@@ -1699,8 +1783,13 @@
       </div>
       <div class="room-stack">
         <div class="room-books room-shadow"><span><b>ON STRANGER TIDES</b></span><span><b>MS-DOS 5.0 USER'S GUIDE</b></span><span><b>C PROGRAMMING</b></span></div>
-        <div class="room-cactus"></div>
-        <div class="room-cactus-body"></div>
+        <div class="room-cactus">
+          <i class="pot-saucer"></i>
+          <i class="pot-body"></i>
+          <i class="pot-rim"></i>
+          <i class="cactus"></i>
+          <i class="pot-lip"></i>
+        </div>
       </div>
       <div class="room-lamp">
         <div class="lamp-base room-shadow"></div>
