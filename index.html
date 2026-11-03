@@ -1589,14 +1589,66 @@
       width: 0;
       height: 0;
     }
+    /* its base, a heavy round foot seen from a little above like the mug:
+       the front of its edge, its top an ellipse, a dome rising from the
+       middle of that, and the collar the arm pivots in */
     .lamp-base {
       position: absolute;
       left: -1.8em;
-      bottom: -.3em;
+      bottom: -.75em;
       width: 3.6em;
-      height: .95em;
-      border-radius: 50% 50% 12% 12% / 95% 95% 10% 10%;
-      background: radial-gradient(120% 140% at 38% 15%, #ff8f78, #c9221a 40%, #6a0c09);
+      height: 1.6em;
+      --rim: .45em;
+    }
+    .lamp-base > i { position: absolute; display: block; }
+    .lamp-foot-edge {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: calc(.32em + var(--rim));
+      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
+      background:
+        linear-gradient(#0000 55%, #0005),
+        linear-gradient(90deg, #4f0704, #a8170f 18%, #e04a3c 42%, #f07a6c 50%, #c22117 66%, #4a0603);
+      -webkit-mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+      mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+    }
+    .lamp-foot-top {
+      left: 0;
+      right: 0;
+      bottom: .32em;
+      height: calc(var(--rim) * 2);
+      border-radius: 50%;
+      background:
+        radial-gradient(closest-side, #0000 86%, #ffffff40 92%, #0000 97%),
+        radial-gradient(70% 90% at 42% 28%, #ff9483, #d42c20 48%, #8a120c 92%);
+    }
+    .lamp-foot-dome {
+      left: 1.05em;
+      right: 1.05em;
+      bottom: .55em;
+      height: .78em;
+      border-radius: 50% 50% 50% 50% / 64% 64% 36% 36%;
+      background: radial-gradient(70% 80% at 38% 28%, #ffc0b2, #e8463a 30%, #a8170f 70%, #5e0906);
+      box-shadow: 0 .06em .12em #0006;
+    }
+    .lamp-foot-collar {
+      left: 1.56em;
+      right: 1.56em;
+      bottom: 1.12em;
+      height: .48em;
+      border-radius: 0 0 50% 50% / 0 0 .12em .12em;
+      background: linear-gradient(90deg, #2a2a2a, #9a9a9a 38%, #e2e2e2 48%, #6a6a6a 70%, #222);
+    }
+    .lamp-foot-collar::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -.12em;
+      height: .24em;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, #1a1a1a 45%, #8a8a8a 70%, #c8c8c8);
     }
     .lamp-arm {
       position: absolute;
@@ -1902,7 +1954,12 @@
         </div>
       </div>
       <div class="room-lamp">
-        <div class="lamp-base room-shadow"></div>
+        <div class="lamp-base room-shadow">
+          <i class="lamp-foot-edge"></i>
+          <i class="lamp-foot-top"></i>
+          <i class="lamp-foot-dome"></i>
+          <i class="lamp-foot-collar"></i>
+        </div>
         <div class="lamp-arm"><div class="lamp-arm"><div class="lamp-shade"></div></div></div>
       </div>
       <div class="room-pens room-shadow">
