@@ -122,6 +122,18 @@
           --screen-w: max(200px, min(calc((100vw - 16px) / 1.286), calc((100dvh - 24px) / 1.091)));
         }
       }
+      /* while a game runs, room for its keys: a row or two under the
+         monitor upright, a 100px column down the left held sideways */
+      @media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+        :root.has-game {
+          --screen-w: max(200px, min(calc((100vw - 16px) / 1.286), calc((100dvh - 230px) / 1.49)));
+        }
+      }
+      @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+        :root.has-game {
+          --screen-w: max(200px, min(calc((100vw - 216px) / 1.286), calc((100dvh - 24px) / 1.091)));
+        }
+      }
     }
 
     * { box-sizing: border-box; }
@@ -2068,6 +2080,71 @@
       }
     }
 
+    /* Keys for a touch screen, which has no Esc or F5: beige keycaps, after
+       the keyboards of the day, for what the game needs. They show only
+       while a game runs (jsscumm.js sends each as the key it stands for).
+       Upright they sit in rows under the monitor; held sideways, in a
+       column down the left of the screen. */
+    .vkeys { display: none; }
+    @media (hover: none) and (pointer: coarse) {
+      html.has-game .vkeys {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+        gap: 8px;
+        width: var(--case-w);
+        max-width: 100%;
+      }
+    }
+    @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+      html.has-game .vkeys {
+        position: fixed;
+        z-index: 3;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        grid-template-columns: 84px;
+        width: auto;
+        gap: 6px;
+      }
+    }
+    .vkey {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      min-height: 44px;
+      padding: 6px 8px 9px;
+      border: 0;
+      border-radius: 6px;
+      background: linear-gradient(#f3eee2, #dcd5c3);
+      box-shadow:
+        inset 0 -4px 0 #bdb59f,
+        inset 0 1px 0 #fff,
+        0 2px 0 #8f8873,
+        0 3px 6px #0007;
+      color: #3a3528;
+      font: 600 13px/1.1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .vkey small {
+      font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #7a7360;
+    }
+    .vkey:active {
+      transform: translateY(2px);
+      box-shadow:
+        inset 0 -2px 0 #bdb59f,
+        inset 0 1px 0 #fff,
+        0 0 0 #8f8873,
+        0 1px 3px #0007;
+    }
+    .vkey:focus-visible { outline: 2px solid #7d78ff; outline-offset: 2px; }
+
     @media (prefers-reduced-motion: reduce) {
       html, .room, .room > *, .room-front, .room-front > * { transition: none; }
       .mug-steam { display: none; }
@@ -2243,6 +2320,15 @@
       </div>
       <div class="speaker-base"></div>
     </div>
+  </div>
+
+  <div class="vkeys" role="group" aria-label="Game keys">
+    <button type="button" class="vkey" data-key="Escape" data-code="Escape">Skip scene<small>Esc</small></button>
+    <button type="button" class="vkey" data-key="." data-code="Period">Skip line<small>.</small></button>
+    <button type="button" class="vkey" data-key=" " data-code="Space">Pause<small>Space</small></button>
+    <button type="button" class="vkey" data-key="F5" data-code="F5">Save / Load<small>F5</small></button>
+    <button type="button" class="vkey" data-key="-" data-code="Minus">Text slower<small>&minus;</small></button>
+    <button type="button" class="vkey" data-key="+" data-code="Equal">Text faster<small>+</small></button>
   </div>
 
   <details class="log">

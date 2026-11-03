@@ -311,4 +311,22 @@ function assert(condition) {
   window.addEventListener("resize", queueFit);
   fitRoom();
 
+  // --- keys on a touch screen ---------------------------------------------
+  // Phones and tablets have no Esc or F5, so buttons stand in for the keys
+  // the game needs (index.html shows them while a game runs). Each one is
+  // sent as that key pressed, so the save menu and the game take it just as
+  // they would from a keyboard.
+  document.querySelectorAll(".vkey").forEach(function(el) {
+    el.addEventListener("click", function(e) {
+      document.dispatchEvent(new KeyboardEvent("keydown", {
+        key: el.getAttribute("data-key"),
+        code: el.getAttribute("data-code"),
+        bubbles: true,
+        cancelable: true
+      }));
+      // give the keyboard, if there is one, back to the game
+      if (e.detail) el.blur();
+    });
+  });
+
 }());
