@@ -241,7 +241,8 @@ function assert(condition) {
       ctx.addEventListener("statechange", updateSpeakerLight);
     }
     ok = activated || !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
-    if (ctx && ctx.state != "running") ok = false;
+    // (suspended by the save menu is still sound that may play)
+    if (ctx && ctx.state != "running" && !ScummVM.soundSuspended) ok = false;
     if (!desk) return;
     desk.classList.toggle("is-muted", !ok);
     desk.querySelectorAll(".speaker").forEach(function(el) {

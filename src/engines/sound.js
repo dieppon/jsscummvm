@@ -110,6 +110,8 @@
     last = Date.now();
     t._musicClock = window.setInterval(function() {
       var now = Date.now(), ticks;
+      // held by the save menu: the music waits, and does not catch up after
+      if (t._soundPaused) { last = now; return; }
       if (ctx && ctx.state == "running" && now - lastAudio < 250) { last = now; return; }
       ticks = Math.floor((now - last) * ScummVM.AdLibDriver.CALLBACK_FREQUENCY / 1000);
       last += ticks * 1000 / ScummVM.AdLibDriver.CALLBACK_FREQUENCY;
@@ -138,7 +140,9 @@
       ScummVM.audioOut.gain.value = ScummVM.muted ? 0 : 1;
       ScummVM.audioOut.connect(ScummVM.audioContext.destination);
       var resume = function() {
-        if (ScummVM.audioContext.state == "suspended") ScummVM.audioContext.resume();
+        // (not while the save menu holds the sound: see pauseSound)
+        if (ScummVM.audioContext.state == "suspended" && !ScummVM.soundSuspended)
+          ScummVM.audioContext.resume();
       };
       window.addEventListener("mousedown", resume, true);
       window.addEventListener("keydown", resume, true);
@@ -309,6 +313,8 @@
       // the point the game has reached (the CD timer counts 1/60 s)
       if (p && p.catch) p.catch(function() {
         var resume = function() {
+          // a click in the save menu is not the time; wait for the next
+          if (t._soundPaused) return;
           window.removeEventListener("mousedown", resume, true);
           window.removeEventListener("keydown", resume, true);
           if (t._cdAudio !== audio || !audio.paused) return;
@@ -420,10 +426,39 @@
     if (t._imuse) t._imuse.stopAllSounds();
   };
 
+  // The save menu holds the game, and this holds its sound with it, as
+  // ScummVM's pauseEngine pauses the mixer: the AudioContext -- samples and
+  // AdLib music -- is suspended and the CD track paused, and both carry on
+  // from where they were. Only a context that was running is suspended, so
+  // one still waiting for the first click is left as it is.
+  s.pauseSound = function(pause) {
+    var t = this, ctx = ScummVM.audioContext, cd = t._cdAudio, now = Date.now(), id;
+    pause = !!pause;
+    if (pause == !!t._soundPaused) return;
+    t._soundPaused = pause;
+    if (pause) {
+      t._soundPausedAt = now;
+      ScummVM.soundSuspended = !!(ctx && ctx.state == "running");
+      if (ScummVM.soundSuspended) ctx.suspend();
+      t._cdWasPlaying = !!(cd && !cd.paused);
+      if (t._cdWasPlaying) cd.pause();
+    } else {
+      // samples count as playing until _endsAt: move that on by the pause
+      for (id in t._sfx)
+        if (t._sfx[id]._endsAt) t._sfx[id]._endsAt += now - t._soundPausedAt;
+      if (ScummVM.soundSuspended && ctx) ctx.resume();
+      ScummVM.soundSuspended = false;
+      if (t._cdWasPlaying && cd) cd.play().catch(function() {});
+      t._cdWasPlaying = false;
+    }
+  };
+
   // The machine is switched off: silence everything, and take down the
   // AdLib chip's audio callback and clock, which run outside the game loop
   s.shutdownSound = function() {
     var t = this;
+    // let go of the context if the save menu was holding it
+    t.pauseSound(false);
     t.stopAllSounds();
     t._musicQueue = [];
     if (t._musicNode) {

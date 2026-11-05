@@ -1,7 +1,7 @@
 /*
  * The save/load menu: F5 during the game, as in the original interpreter.
- * Nine slots kept in the browser (engines/saveload.js); the game is held
- * while the menu is open.
+ * Nine slots kept in the browser (engines/saveload.js); the game and its
+ * sound are held while the menu is open.
  */
 (function(){
   var SLOTS = 9, menu = null;
@@ -21,13 +21,18 @@
   function close() {
     var e = ScummVM.engine;
     if (menu) { menu.remove(); menu = null; }
-    if (e) e._menuOpen = false;
+    if (e) {
+      e._menuOpen = false;
+      if (e.pauseSound) e.pauseSound(false);
+    }
   }
 
   function open() {
     var e = engine(), view, slots, i, row, label, save, load;
     if (!e || menu) return;
     e._menuOpen = true;
+    // the game is held, and so is its sound
+    if (e.pauseSound) e.pauseSound(true);
     slots = e.listSlots(SLOTS);
 
     view = document.querySelector(".screen-view");
