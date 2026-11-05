@@ -27,9 +27,21 @@
     }
   }
 
+  // Why the menu cannot open now, or null if it can. As ScummVM, not while
+  // the scripts have turned the menu key off (VAR_MAINMENU_KEY 0); and, as
+  // asked for here though ScummVM allows it, not during a cutscene, so a
+  // save is never taken (or a game loaded) halfway through one.
+  function refused(e) {
+    if (e.scummVar("mainmenu_key") == 0) return "Not right now";
+    if (e._vm.cutSceneStackPointer > 0) return "Not during a cutscene";
+    return null;
+  }
+
   function open() {
-    var e = engine(), view, slots, i, row, label, save, load;
+    var e = engine(), view, slots, i, row, label, save, load, why;
     if (!e || menu) return;
+    why = refused(e);
+    if (why) { showBanner(why); return; }
     e._menuOpen = true;
     // the game is held, and so is its sound
     if (e.pauseSound) e.pauseSound(true);
@@ -51,6 +63,8 @@
       save = document.createElement("button");
       save.type = "button";
       save.textContent = "Save";
+      // ScummVM's canSaveGameStateCurrently: never in room 0
+      save.disabled = e._currentRoom == 0;
       save.onclick = (function(n) {
         return function() {
           var g = ScummVM.engine;
