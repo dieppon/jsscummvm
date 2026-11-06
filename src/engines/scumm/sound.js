@@ -133,10 +133,18 @@
   // An ADL resource: hand iMUSE its bytes (the MDhd header and the MIDI)
   s.playADL = function(id, chunk) {
     var t = this, imuse = t.initMusic(), data, i;
-    if (!imuse) return;
+    if (!imuse) return false;
     data = new Uint8Array(chunk.size);
     for (i = 0; i < chunk.size; i++) data[i] = chunk.stream.readByteAt(chunk.offset + i);
-    imuse.startSound(id, data);
+    return imuse.startSound(id, data);
+  };
+
+  // iMUSE's own start command (doCommand 8, and commands a tune's marker
+  // sets off) starts the tune there and then, not on the next queue flush
+  s.startMusicNow = function(id) {
+    var t = this, chunk = t.getSoundChunk(id);
+    if (!chunk || chunk.tag != ScummVM.system.MKID_BE("ADL ")) return false;
+    return t.playADL(id, chunk);
   };
 
   // One AudioContext for the page, resumed on the first user gesture.
@@ -497,10 +505,11 @@
   // --- what the opcodes call ---------------------------------------------
 
   s.isSoundRunning = function(sound) {
-    var t = this, i;
+    var t = this, i, st;
     if (sound == t._currentCDSound) return t.pollCD();
     if (t.isSFXActive(sound)) return 1;
-    if (t._imuse && t._imuse.getSoundStatus(sound)) return 1;
+    // 1 playing, 2 queued to start when another tune reaches a marker
+    if (t._imuse && (st = t._imuse.getSoundStatus(sound, true))) return st;
     for (i = 0; i < t._soundQueue.length; i++)
       if (t._soundQueue[i] == sound) return 1;
     return 0;

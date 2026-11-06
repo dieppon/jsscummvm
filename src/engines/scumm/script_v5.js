@@ -276,6 +276,9 @@
       varId = s.fetchScriptWord();
       a = s.readVar(varId);
       b = s.getVarOrDirectWord(PARAM_1);
+      // ScummVM's hack for bug #441: MI2 plays Largo's screams only for
+      // sound card 5, and other effects only for 3 (what we report)
+      if(s._game == "monkey2" && varId == 48 && b == 5) b = a;
       s.jumpRelative(b == a);
     },
     isGreater: function() {
@@ -947,7 +950,15 @@
       // s._screenEndStrip = s._gdi.numStrips - 1;
     },
     startSound: function() {
-      var sound = s.getVarOrDirectByte(PARAM_1);
+      var start = s._scriptPointer.offset - 1, sound = s.getVarOrDirectByte(PARAM_1);
+      // ScummVM: in MI2, Largo talking to the bartender (103) or Mad Marty
+      // (110) waits for Largo's theme (151) to finish -- try again next
+      // frame
+      if(s._game == "monkey2" && (sound == 103 || sound == 110) && s.isSoundRunning(151)) {
+        s._scriptPointer.offset = start;
+        s._opcodeCommands.breakHere();
+        return;
+      }
       s.scummVar("music_timer", 0);
       s.startSound(sound);
     },
