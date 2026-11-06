@@ -5,7 +5,7 @@
  *
  *  - CD stubs: a 32-byte SOUN naming a CD audio track, a loop flag and a
  *    start and end time. The music lives on the disc. Ripped tracks are
- *    played, when its archive has any (trackN.{webm,ogg,mp3,flac,wav}),
+ *    played, when its archive has any (trackN.{webm,ogg,mp3,flac,fla,wav}),
  *    from the game's archive (feed.js);
  *    without them the music is silent, but the CD timer still runs, since
  *    scripts time scenes against VAR_MUSIC_TIMER.
@@ -27,10 +27,12 @@
   // (Safari before 15), so an MP3 beside it is the fallback. Opus goes in
   // WebM rather than Ogg because Safari reports the wrong position in Ogg
   // Opus, and scenes are timed against the track's position.
-  var CD_EXTENSIONS = ["webm", "ogg", "mp3", "flac", "wav"];
+  // (.fla is FLAC under a DOS 8.3 name, as ScummVM also takes it)
+  var CD_EXTENSIONS = ["webm", "ogg", "mp3", "flac", "fla", "wav"];
   var CD_TYPES = {webm: 'audio/webm; codecs="opus"'};
   // what a track unzipped into a Blob is labelled
-  var CD_MIME = {webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav"};
+  var CD_MIME = {webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg", flac: "audio/flac",
+                 fla: "audio/flac", wav: "audio/wav"};
 
   function canPlay(ext) {
     var type = CD_TYPES[ext];
