@@ -230,6 +230,56 @@
     }
   };
 
+  // gfx.cpp drawBox: fill a rectangle on the screen. ScummVM fills the
+  // screen buffer, not the room's background, so -- like drawString's text
+  // -- the box covers what was drawn there before it and stays until the
+  // room is repainted. It goes on the text layer, in order with the text:
+  // MI2 wipes its copy protection's recipe with one before the menu.
+  s.drawBox = function(x, y, x2, y2, color) {
+    var t = this, vs, keep = [], i, g, main;
+    if(x > x2) { i = x; x = x2; x2 = i; }
+    if(y > y2) { i = y; y = y2; y2 = i; }
+    x = Math.max(0, x); y = Math.max(0, y);
+    x2 = Math.min(ScummVM.width - 1, x2); y2 = Math.min(ScummVM.height - 1, y2);
+    if(x > x2 || y > y2) return;
+    vs = t._virtscreens[0];
+    main = !vs || (y >= vs.topline && y < vs.topline + vs.h);
+    // drawn text and boxes wholly under it are gone for good
+    for(i = 0; i < t._textLayer.length; i++) {
+      g = t._textLayer[i];
+      if(!g.mask && g.x >= x && g.x <= x2 && g.y >= y && g.y <= y2) continue;
+      keep.push(g);
+    }
+    keep.push({box: true, x: x, y: y, x2: x2, y2: y2, color: color, main: main, mask: false});
+    t._textLayer = keep;
+  };
+
+  // Something drawn from the room on to the screen at x, y, w by h -- an
+  // object -- covers the boxes and printed text there: boxes lose that part
+  // (split around it), text under it goes. Speech stays above it all.
+  s.uncoverText = function(x, y, w, h) {
+    var t = this, keep = [], x2 = x + w - 1, y2 = y + h - 1, i, g;
+    for(i = 0; i < t._textLayer.length; i++) {
+      g = t._textLayer[i];
+      if(g.mask || !g.main) { keep.push(g); continue; }
+      if(!g.box) {
+        if(!(g.x >= x && g.x <= x2 && g.y >= y && g.y <= y2)) keep.push(g);
+        continue;
+      }
+      if(g.x > x2 || g.x2 < x || g.y > y2 || g.y2 < y) { keep.push(g); continue; }
+      // the parts of the box above, below, left and right of the hole
+      if(g.y < y) keep.push(boxPart(g, g.x, g.y, g.x2, y - 1));
+      if(g.y2 > y2) keep.push(boxPart(g, g.x, y2 + 1, g.x2, g.y2));
+      if(g.x < x) keep.push(boxPart(g, g.x, Math.max(g.y, y), x - 1, Math.min(g.y2, y2)));
+      if(g.x2 > x2) keep.push(boxPart(g, x2 + 1, Math.max(g.y, y), g.x2, Math.min(g.y2, y2)));
+    }
+    t._textLayer = keep;
+  };
+
+  function boxPart(b, x, y, x2, y2) {
+    return {box: true, x: x, y: y, x2: x2, y2: y2, color: b.color, main: b.main, mask: false};
+  }
+
   // Text drawString put on the room is part of the picture in ScummVM, so it
   // goes when the background is redrawn rather than with the speech
   s.clearDrawnText = function() {
@@ -513,6 +563,7 @@
     img = ctx.getImageData(0, 0, width, height);
     for(i = 0; i < glyphs.length; i++) {
       g = glyphs[i];
+      if(g.box) { fillBox(img.data, width, g, t._currentPalette[g.color]); continue; }
       cs = t.getCharsetRenderer(g.cs);
       if(!cs) continue;
       // The charset's own colour table, then colour 1 replaced by the
@@ -524,4 +575,15 @@
     }
     ctx.putImageData(img, 0, 0);
   };
+
+  function fillBox(data, width, b, rgb) {
+    var x, y, idx;
+    if(!rgb) return;
+    for(y = b.y; y <= b.y2; y++) {
+      for(x = b.x; x <= b.x2; x++) {
+        idx = (y * width + x) * 4;
+        data[idx] = rgb[0]; data[idx + 1] = rgb[1]; data[idx + 2] = rgb[2]; data[idx + 3] = 255;
+      }
+    }
+  }
 }());

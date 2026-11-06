@@ -360,7 +360,8 @@
 
   s.clearClickedStatus = function() {
     var t = this;
-    t._keyHit = null;
+    // (ScummVM resets the key pressed here: keys typed ahead go too)
+    t._keyQueue = [];
     t._mouseAndKeyboardStat = 0;
     t._leftBtnPressed  &= ~MS_CLICKED;
     t._rightBtnPressed &= ~MS_CLICKED;
@@ -2564,8 +2565,7 @@
       x2 = s.getVarOrDirectWord(PARAM_1);
       y2 = s.getVarOrDirectWord(PARAM_2);
       color = s.getVarOrDirectByte(PARAM_3);
-
-      // s.drawBox(x, y, x2, y2, color);
+      s.drawBox(x, y, x2, y2, color);
     },
     pseudoRoom: function() {
       var i = s.fetchScriptByte(), j;

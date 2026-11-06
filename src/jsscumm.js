@@ -183,7 +183,9 @@ function assert(condition) {
     if (key.length == 1) ascii = key.charCodeAt(0) & 0xFF;
     else ascii = {Enter: 13, Tab: 9, Escape: 27, Backspace: 8}[key] || 0;
     if (!ascii && !/^F[1-9]$/.test(code)) return false;
-    eng._keyHit = {code: code, ascii: ascii, ctrl: !!ctrl};
+    // queued, one taken a frame: keys typed faster than the game's frames
+    // (a copy protection answer, say) would otherwise overwrite each other
+    if (eng._keyQueue.length < 16) eng._keyQueue.push({code: code, ascii: ascii, ctrl: !!ctrl});
     return true;
   };
 

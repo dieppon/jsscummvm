@@ -891,6 +891,9 @@
     if(numstrip != 0) {
       var flags = od.flags | t._gdi.dbObjectMode;
       t._gdi.drawBitmap(ptr, t._virtscreens[0], x, ypos, width * 8, height, x - xpos, numstrip, flags);
+      // ScummVM copies what it drew on to the screen buffer, over any box or
+      // printed text there (see drawBox)
+      t.uncoverText((x - t._screenStartStrip) * 8, ypos + t._virtscreens[0].topline, numstrip * 8, height);
     }
   };
 

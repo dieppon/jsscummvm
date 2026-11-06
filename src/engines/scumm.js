@@ -85,7 +85,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
     _curCharset: 1,
     _actors: [],
     _sortedActors: [],
-    _keyHit: null,
+    _keyQueue: [],
     _paused: false,
     // input.cpp: _mouse is in screen coords, _virtualMouse is offset by the
     // main virtual screen's scroll and topline. msDown/msClicked mirror
@@ -271,8 +271,7 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
       return false;
     },
     processInput: function() {
-      var t = this, vs, key = t._keyHit;
-      t._keyHit = null;
+      var t = this, vs, key = t._keyQueue.shift() || null;
 
       // clip the pointer, then derive the virtual (room-space) position
       if(t._mouse.x < 0) t._mouse.x = 0;
