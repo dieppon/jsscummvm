@@ -57,15 +57,24 @@
 
   /* --- the cache -------------------------------------------------------- */
 
+  // The cache is only ever a help: if it cannot be opened, or opening it
+  // waits on another page (an upgrade or delete held up by one still open
+  // somewhere), do without it rather than wait. And let go of it when
+  // another page needs to, so this one never holds anyone else up.
   var dbPromise = null;
   function db() {
     if (!dbPromise) {
       dbPromise = new Promise(function (resolve) {
-        var req;
-        try { req = window.indexedDB.open("jsscummvm-files", 1); } catch (e) { resolve(null); return; }
+        var req, timer = window.setTimeout(function () { resolve(null); }, 1500);
+        function done(d) { window.clearTimeout(timer); resolve(d); }
+        try { req = window.indexedDB.open("jsscummvm-files", 1); } catch (e) { done(null); return; }
         req.onupgradeneeded = function () { req.result.createObjectStore("files"); };
-        req.onsuccess = function () { resolve(req.result); };
-        req.onerror = req.onblocked = function () { resolve(null); };
+        req.onsuccess = function () {
+          var d = req.result;
+          d.onversionchange = function () { d.close(); dbPromise = null; };
+          done(d);
+        };
+        req.onerror = req.onblocked = function () { done(null); };
       });
     }
     return dbPromise;

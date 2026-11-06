@@ -45,9 +45,11 @@
   // The speaker's knob (jsscumm.js) mutes the whole game -- samples, AdLib
   // and CD audio -- without stopping anything, so the game keeps time as
   // it would with the sound up; only a CD track that starts while it is off
-  // is not fetched (playCDTrack). Kept in the browser across visits.
+  // is not fetched (playCDTrack). A visit starts with it off, so nothing is
+  // downloaded for music nobody asked for; switched on, it stays on through
+  // reloads for the rest of the session (sessionStorage).
   var MUTE_KEY = "jsscummvm.muted";
-  try { ScummVM.muted = window.localStorage.getItem(MUTE_KEY) == "1"; } catch (e) { ScummVM.muted = false; }
+  try { ScummVM.muted = window.sessionStorage.getItem(MUTE_KEY) != "0"; } catch (e) { ScummVM.muted = true; }
 
   ScummVM.setMuted = function(muted) {
     var cd = s._cdAudio;
@@ -57,7 +59,7 @@
     // a track that was left unfetched with the speakers off: fetch it now,
     // and play it from where the game has got to
     else if (!muted && s._cdStatus && s._cdTimerRunning) s.loadCDTrack(s._cdStatus, s._cdMusicTimer / 60);
-    try { window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) { /* not kept */ }
+    try { window.sessionStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) { /* not kept */ }
   };
 
   s.initSound = function() {
@@ -72,6 +74,7 @@
     t._cdAudio = null;
     t._cdStatus = null;
     t._soundsWarned = {};
+    t._cdHold = null;
     t._imuse = null;
     t._musicQueue = [];
   };
@@ -301,36 +304,55 @@
     var t = this;
     t.scummVar("music_timer", 0);
     t._cdMusicTimer = 0;
-    t._cdTimerRunning = true;
     t.stopCD();
     t._cdStatus = {track: track, loops: numLoops, start: startFrame / 75,
                    end: duration ? (startFrame + duration) / 75 : 0};
     // With the speakers off the track is not fetched at all: the game goes
     // on as without CD audio, its music timer running, and switching them
     // on fetches it then (ScummVM.setMuted)
-    if (ScummVM.muted) return;
+    if (ScummVM.muted) { t._cdTimerRunning = true; return; }
+    // Otherwise the timer -- which scripts time scenes by -- starts when the
+    // music is heard, not when it is asked for (loadCDTrack)
+    t._cdTimerRunning = false;
     t.loadCDTrack(t._cdStatus, 0);
   };
 
   // Fetch a cue's track and play it from `into` seconds into the cue --
   // looping round to where it would be by then, or not at all if a cue
   // that does not loop would be over
+  //
+  // The game waits for it, as for a CD drive spinning up (scumm.js's loop
+  // holds while _cdHold is set): until the browser says it is playing, so
+  // the scene goes on with the music and not ahead of it -- fetching it,
+  // when it has to be fetched, and then the moment the audio takes to
+  // start. The music timer starts then too. If there is no music after
+  // all, it cannot play yet (no click on the page so far), or it takes
+  // too long, the game goes on without waiting further.
   s.loadCDTrack = function(status, into) {
-    var t = this;
+    var t = this, giveUp;
+    function release() {
+      window.clearTimeout(giveUp);
+      if (t._cdHold === status) t._cdHold = null;
+      if (t._cdStatus === status) t._cdTimerRunning = true;
+    }
+    t._cdHold = status;
+    giveUp = window.setTimeout(release, 8000);
     t.findCDTrack(status.track, function(url) {
       var audio;
-      if (!url || t._cdStatus !== status || t._cdAudio) return;
+      if (!url || t._cdStatus !== status || t._cdAudio) { release(); return; }
       audio = t._cdAudio = new Audio(url);
       audio.muted = ScummVM.muted;
       audio.addEventListener("timeupdate", function() {
         if (status.end && audio.currentTime >= status.end) t.cdTrackEnded(audio, status);
       });
       audio.addEventListener("ended", function() { t.cdTrackEnded(audio, status); });
+      // heard: the game and the timer go on from here
+      audio.addEventListener("playing", release);
       if (!into) { audio.currentTime = status.start; start(); return; }
       audio.addEventListener("loadedmetadata", function() {
         var len = (status.end || audio.duration) - status.start;
         if (len > 0 && into >= len) {
-          if (status.loops >= 0) { if (t._cdAudio === audio) t._cdAudio = null; return; }
+          if (status.loops >= 0) { if (t._cdAudio === audio) t._cdAudio = null; release(); return; }
           into %= len;
         }
         audio.currentTime = status.start + into;
@@ -338,11 +360,13 @@
       });
 
       function start() {
-        if (t._cdAudio !== audio) return;
+        if (t._cdAudio !== audio) { release(); return; }
         var p = audio.play();
-        // Blocked until the user clicks or presses a key: start it then, at
-        // the point the game has reached (the CD timer counts 1/60 s)
+        // Blocked until the user clicks or presses a key: the game goes on,
+        // and the track starts then, at the point the game has reached (the
+        // CD timer counts 1/60 s)
         if (p && p.catch) p.catch(function() {
+          release();
           var resume = function() {
             // a click in the save menu is not the time; wait for the next
             if (t._soundPaused) return;
@@ -372,11 +396,12 @@
   };
 
   // A ripped copy of the track, out of the game's archive (feed.js) in the
-  // first format the browser plays. The archive remembers it, so asking
-  // again -- even while it is still being read -- waits for the same one.
+  // first format the browser plays: callback(url), or callback(null) if
+  // there is none. The archive remembers it, so asking again -- even while
+  // it is still being read -- waits for the same one.
   s.findCDTrack = function(track, callback) {
     var src = ScummVM.source, shown = false, timer;
-    if (!src || src.game != this._game) return;
+    if (!src || src.game != this._game) { callback(null); return; }
     // a CD spins in the corner of the screen while a track is fetched --
     // if it takes long enough to notice, so not for one already kept
     timer = window.setTimeout(function() { shown = true; cdLoading(1); }, 250);
@@ -385,7 +410,7 @@
     })).then(function(url) {
       window.clearTimeout(timer);
       if (shown) cdLoading(-1);
-      if (url) callback(url);
+      callback(url);
     });
   };
 

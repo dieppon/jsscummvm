@@ -202,15 +202,16 @@ function assert(condition) {
   // (and the game's AudioContext, if it has one yet, is running) it turns
   // green. The knob mutes the game (sound.js), and so does the sound button
   // on the monitor that stands in for it when the speakers are hidden; the
-  // light is out while the sound is off.
+  // light is red while the sound is off.
   var desk = document.querySelector(".desk"),
       soundControls = [document.getElementById("speaker-knob"), document.getElementById("sound-switch")],
-      activated = false, watched = null, unblockedNow = false, unblockUsed = false;
+      activated = false, watched = null;
 
-  // The controls show whether sound is actually coming out: off while it
-  // is muted, and also, on load, while the browser is holding it back
+  // The controls show the choice -- sound on or off -- which the session
+  // keeps (sound.js); that the browser is still holding it back after a
+  // reload is the light's to say
   function updateSoundControls() {
-    var blocked = !!desk && desk.classList.contains("is-muted"), on = !ScummVM.muted && !blocked;
+    var on = !ScummVM.muted;
     if (desk) desk.classList.toggle("is-sound-off", !!ScummVM.muted);
     soundControls.forEach(function(el) {
       if (!el) return;
@@ -222,11 +223,7 @@ function assert(condition) {
   soundControls.forEach(function(el) {
     if (!el) return;
     el.addEventListener("click", function(e) {
-      // The click that lets the page play sound at all is taken to be
-      // asking for sound: it does not also turn it off
-      if (unblockedNow && !ScummVM.muted) unblockUsed = true;
-      else if (ScummVM.setMuted) ScummVM.setMuted(!ScummVM.muted);
-      unblockedNow = false;
+      if (ScummVM.setMuted) ScummVM.setMuted(!ScummVM.muted);
       updateSoundControls();
       // after a mouse click, give the keyboard back to the game
       if (e.detail) el.blur();
@@ -254,18 +251,16 @@ function assert(condition) {
 
   ["mousedown", "keydown", "touchstart"].forEach(function(type) {
     window.addEventListener(type, function() {
-      var wasBlocked = desk && desk.classList.contains("is-muted");
       activated = true;
       updateSpeakerLight();
-      // (the AudioContext may take a moment to resume, so this goes by the
-      // light having been red when the gesture came, once only)
-      unblockedNow = wasBlocked && !unblockUsed;
       // the AudioContext resumes asynchronously; statechange covers it once
       // it exists, this covers the one created by this same gesture
       window.setTimeout(updateSpeakerLight, 200);
     }, true);
   });
   updateSpeakerLight();
+  // sound.js, which reads whether the sound was left on, loads after this
+  document.addEventListener("DOMContentLoaded", updateSpeakerLight);
 
   // --- the Info switch ----------------------------------------------------
   // At the top of the page: info mode shows the engine log, the

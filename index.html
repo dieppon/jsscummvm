@@ -963,9 +963,8 @@
        knob's centre: up and to the right when the sound is on, round to the
        stop when it is off, with a little overshoot, as into a detent. */
     .speaker-knob.is-volume { cursor: pointer; --angle: 40deg; }
-    /* off when muted, and on load, while the browser is holding sound back */
-    .desk.is-sound-off .speaker-knob.is-volume,
-    .desk.is-muted .speaker-knob.is-volume { --angle: -135deg; }
+    /* off when the sound is off; the light says if the browser holds it back */
+    .desk.is-sound-off .speaker-knob.is-volume { --angle: -135deg; }
     .speaker-knob.is-volume::before {
       content: "";
       position: absolute;
@@ -1022,14 +1021,12 @@
     }
 
     /* The sound button on the monitor: the knob's job when the speakers are
-       not there. Waves when the sound is on; a red cross, like the
-       speaker's red light, when it is off or the browser is still holding
-       sound back. */
+       not there. Waves when the sound is on, a cross when it is off; red,
+       like the speaker's light, when it is off or the browser is still
+       holding sound back. */
     .sound-switch .sw-cross { display: none; }
-    .desk.is-sound-off .sound-switch .sw-waves,
-    .desk.is-muted .sound-switch .sw-waves { display: none; }
-    .desk.is-sound-off .sound-switch .sw-cross,
-    .desk.is-muted .sound-switch .sw-cross { display: inline; }
+    .desk.is-sound-off .sound-switch .sw-waves { display: none; }
+    .desk.is-sound-off .sound-switch .sw-cross { display: inline; }
     .desk.is-muted .sound-switch .button,
     .desk.is-sound-off .sound-switch .button { color: #c8361f; border-color: #8a2a1a; }
 

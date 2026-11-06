@@ -168,8 +168,9 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
     loop: function(delta) {
       var t = ScummVM.engines.SCUMM;
 
-      // A room transition is playing, or the save menu is open: the game waits
-      if(t._effectBusy || t._menuOpen) return;
+      // A room transition is playing, the save menu is open, or a CD track
+      // is being fetched (sound.js loadCDTrack): the game waits
+      if(t._effectBusy || t._menuOpen || t._cdHold) return;
 
       // Paused: only watch for the key that ends it
       if(t._paused) {
