@@ -1267,33 +1267,83 @@
 
     /* -- on the wall -- */
 
-    /* a framed picture: a moonlit sea with an island on it */
-    .room-picture {
-      left: calc(50% - 14.4em);
-      bottom: 9.4em;
-      width: 4.4em;
-      height: 3.4em;
-      padding: .3em;
-      border: .2em solid #5c371d;
-      border-color: #7a4b28 #5c371d #3f2412 #6a4022;
-      background: #ece4d2;
-      box-shadow: 0 .25em .5em #000a, inset 0 0 .15em #0005;
+    /* a shelf on the wall, a box standing on it for each game in the feed,
+       spine out (jsscumm.js fills it from the feed's spine pictures) */
+    .room-shelf {
+      left: calc(50% - 15.8em);
+      bottom: 8.6em;
+      min-width: 5.8em;
+      height: 4.5em;
+      padding: 0 .45em .26em;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: .03em;
     }
-    .room-picture::before {
+    /* the plank: its top just showing, its front edge, its shadow on the
+       wall; and an iron bracket under each end */
+    .room-shelf::before {
       content: "";
-      display: block;
-      height: 100%;
-      box-shadow: inset 0 0 .1em #0008;
+      position: absolute;
+      left: .7em;
+      right: .7em;
+      top: 100%;
+      height: .5em;
       background:
-        /* the moon, and its light on the water */
-        radial-gradient(circle at 74% 24%, #fff6d8 .18em, #fff6d855 .24em, #0000 .7em),
-        linear-gradient(90deg, #0000 64%, #fff6d833 70%, #fff6d855 74%, #fff6d833 78%, #0000 84%) 0 100% / 100% 32% no-repeat,
-        /* the island, and a palm on it */
-        radial-gradient(ellipse 30% 16% at 30% 70%, #0a120f 97%, #0000 100%),
-        linear-gradient(80deg, #0000 47%, #0a120f 47% 53%, #0000 53%) 25% 52% / 12% 22% no-repeat,
-        radial-gradient(ellipse 50% 30% at 50% 50%, #0a120f 90%, #0000 100%) 26% 42% / 18% 9% no-repeat,
-        /* sea and sky */
-        linear-gradient(#0c1838, #23396b 50%, #4d5a8c 68%, #12283c 68.5%, #081521);
+        linear-gradient(90deg, #4a4440, #1d1a18) 0 0 / .09em 100% no-repeat,
+        linear-gradient(90deg, #4a4440, #1d1a18) 100% 0 / .09em 100% no-repeat;
+      filter: drop-shadow(.05em .08em .05em #0009);
+    }
+    .room-shelf::after {
+      content: "";
+      position: absolute;
+      z-index: 1;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: .26em;
+      background:
+        /* the top face, lit from the lamp below and to the right */
+        linear-gradient(#e2b57c, #c48f55) 0 0 / 100% .07em no-repeat,
+        var(--wood) 0 0 / 100% 2em,
+        linear-gradient(#9c6635, #7b4a22);
+      border-radius: .02em;
+      box-shadow: 0 .18em .3em #000a, inset 0 -.03em #0006;
+    }
+    .room-shelf > span {
+      position: relative;
+      flex: none;
+      height: 4.2em;
+      width: calc(4.2em * var(--aspect, .17));
+      background: #3a3f5a center / 100% 100% no-repeat;
+      box-shadow:
+        /* rounded a little where the cardboard folds, darker away from the lamp */
+        inset .03em 0 .02em #fff3, inset -.04em 0 .03em #0007,
+        .04em 0 .06em #0008;
+    }
+    /* the box's top, seen just from below eye level: a sliver of shade */
+    .room-shelf > span::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(#0006, #0000 .25em, #0000 85%, #0003);
+    }
+    /* a game with no spine picture gets a plain box with its name on it */
+    .room-shelf > .no-spine {
+      width: .7em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(90deg, #23264a, #3b4180 40%, #2a2e5a);
+    }
+    .room-shelf > .no-spine b {
+      writing-mode: vertical-rl;
+      font: bold .26em/1 sans-serif;
+      color: #f1d27a;
+      white-space: nowrap;
+      overflow: hidden;
+      max-height: 14em;
+      text-overflow: ellipsis;
     }
 
     /* a cork board in an aluminium frame, things pinned to it */
@@ -1525,124 +1575,6 @@
       --deep: 1.2em;
       --spine: linear-gradient(#2b4270, #15223c);
       --cover: linear-gradient(#1e3156, #34507f);
-    }
-
-    /* a cactus in a terracotta pot, on the books. The pot is a cylinder
-       like the mug, seen from a little above: a saucer, the body tapering
-       to a curved foot, the rim's top an ellipse with the soil inside it,
-       then the cactus, then the front of the rim's thick lip, which hides
-       where the cactus goes into the soil. */
-    .room-cactus {
-      /* standing in the middle of the top book's cover, so in front of it */
-      z-index: 4;
-      left: 1.4em;
-      bottom: 3.2em;
-      width: 2em;
-      height: 4.4em;
-      --rim: .26em;
-      --clay: linear-gradient(90deg, #6e2f15, #a9532c 16%, #d98a5e 48%, #e9a47a 56%, #c26a3f 74%, #6a2c13);
-    }
-    .room-cactus > i { position: absolute; display: block; }
-    .pot-saucer {
-      left: .15em;
-      right: .15em;
-      bottom: 0;
-      height: .36em;
-      border-radius: 50%;
-      background: var(--plaster), radial-gradient(closest-side, #5a2410 55%, #b05a32 78%, #e09468 88%, #7a3519);
-    }
-    .pot-body {
-      left: .1em;
-      right: .1em;
-      bottom: .1em;
-      height: 1.4em;
-      /* tapering to the foot, whose front edge curves round */
-      clip-path: polygon(0 0, 100% 0, 88% 85%, 80% 92%, 70% 97%, 60% 99.5%, 50% 100%, 40% 99.5%, 30% 97%, 20% 92%, 12% 85%);
-      background:
-        /* in the lip's shadow at the top */
-        linear-gradient(#0006, #0000 .22em),
-        var(--plaster),
-        var(--clay);
-    }
-    .pot-rim {
-      left: 0;
-      right: 0;
-      bottom: calc(1.86em - var(--rim));
-      height: calc(var(--rim) * 2);
-      border-radius: 50%;
-      /* soil, the inside of the pot at the back, the rim's flat top */
-      background:
-        radial-gradient(closest-side, #2b1d12 0 60%, #3d2a1b 72%, #6b3a20 80%, #9a4e2a 84%, #e8a67c 87%, #f2b98f 95%, #b8653c 100%);
-    }
-    .pot-lip {
-      left: 0;
-      right: 0;
-      bottom: calc(1.86em - .4em - var(--rim));
-      height: calc(.4em + var(--rim));
-      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
-      background:
-        linear-gradient(#0000 calc(100% - .08em), #0003),
-        var(--plaster),
-        var(--clay);
-      -webkit-mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
-      mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
-    }
-
-    /* the cactus: ribs that crowd together towards its sides, as they would
-       round a column, spines on each ridge, and a flower on top */
-    .cactus {
-      left: .4em;
-      right: .4em;
-      bottom: 1.78em;
-      height: 2.3em;
-      border-radius: 50% 50% 22% 22% / 30% 30% 5% 5%;
-      background:
-        /* rounded, and catching the light over the top */
-        radial-gradient(60% 18% at 50% 4%, #9fd48f88, #0000),
-        linear-gradient(90deg, #0008, #0000 35%, #ffffff18 62%, #0005),
-        /* areoles: a small woolly tuft on each ridge, staggered, its
-           spines a faint halo round it */
-        radial-gradient(circle at 11.8% 50%, #eee6c8 .018em, #0000 .03em, #fff2 .035em, #0000 .06em) 0 0 / 100% .26em,
-        radial-gradient(circle at 28.8% 50%, #f3ecd2 .022em, #0000 .035em, #fff3 .04em, #0000 .075em) 0 .13em / 100% .26em,
-        radial-gradient(circle at 50% 50%, #f6f0d8 .026em, #0000 .04em, #fff3 .045em, #0000 .085em) 0 0 / 100% .26em,
-        radial-gradient(circle at 71.2% 50%, #f3ecd2 .022em, #0000 .035em, #fff3 .04em, #0000 .075em) 0 .13em / 100% .26em,
-        radial-gradient(circle at 88.1% 50%, #eee6c8 .018em, #0000 .03em, #fff2 .035em, #0000 .06em) 0 0 / 100% .26em,
-        /* the ribs: furrows at even steps round the column */
-        linear-gradient(90deg,
-          #0f2c12 0%, #3a7e3e 2.5%, #0f2c12 4.9%, #3f8a45 11.8%, #0f2c12 18.8%,
-          #4fa053 28.8%, #0f2c12 38.9%, #5cb05e 50%, #0f2c12 61.1%,
-          #4fa053 71.2%, #0f2c12 81.2%, #3f8a45 88.1%, #0f2c12 95.1%, #3a7e3e 97.5%, #0f2c12 100%);
-      box-shadow: inset 0 -.1em .12em #0005;
-    }
-    /* its flower */
-    .cactus::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: -.16em;
-      width: .62em;
-      height: .4em;
-      margin-left: -.31em;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle at 50% 55%, #ffe36a .05em, #f7b733 .08em, #0000 .09em),
-        radial-gradient(ellipse 22% 40% at 22% 55%, #ff7aa8 90%, #0000),
-        radial-gradient(ellipse 22% 40% at 78% 55%, #ff7aa8 90%, #0000),
-        radial-gradient(ellipse 28% 36% at 50% 30%, #ff9ec0 90%, #0000),
-        radial-gradient(ellipse 30% 30% at 50% 78%, #e64f85 90%, #0000);
-      filter: drop-shadow(0 .03em .03em #0006);
-    }
-    /* the soil darkens round its foot */
-    .cactus::before {
-      content: "";
-      position: absolute;
-      left: -.12em;
-      right: -.12em;
-      bottom: -.08em;
-      height: .2em;
-      border-radius: 50%;
-      background: radial-gradient(closest-side, #000a, #0000);
-      z-index: -1;
     }
 
     /* drawn at the sizes here, then all a size larger next to the
@@ -2324,7 +2256,7 @@
     <div class="room" aria-hidden="true">
       <div class="room-wall"></div>
       <div class="room-desktop"></div>
-      <div class="room-picture"></div>
+      <div class="room-shelf"></div>
       <div class="room-cork">
         <div class="cork-polaroid"></div>
         <div class="cork-card"><span><b>How to be a pirate:</b>1. Swordplay<br>2. Thievery<br>3. Treasure hunting</span></div>
@@ -2335,13 +2267,6 @@
       </div>
       <div class="room-stack">
         <div class="room-books room-shadow"><span><b>ON STRANGER TIDES</b></span><span><b>MS-DOS 5.0 USER'S GUIDE</b></span><span><b>C PROGRAMMING</b></span></div>
-        <div class="room-cactus">
-          <i class="pot-saucer"></i>
-          <i class="pot-body"></i>
-          <i class="pot-rim"></i>
-          <i class="cactus"></i>
-          <i class="pot-lip"></i>
-        </div>
       </div>
       <div class="room-pens room-shadow">
         <i class="pot-back"></i>

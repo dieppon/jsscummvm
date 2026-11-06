@@ -318,6 +318,45 @@ function assert(condition) {
   window.addEventListener("resize", queueFit);
   fitRoom();
 
+  // --- the shelf ----------------------------------------------------------
+  // A box on the shelf for each game in the feed, showing the spine picture
+  // the feed gives it (made as wide as that picture is for its height), or
+  // just its name if it has none.
+  function stockShelf(games) {
+    var shelf = document.querySelector(".room-shelf");
+    if (!shelf) return;
+    shelf.textContent = "";
+    games.forEach(function(game) {
+      var box = document.createElement("span"),
+          spine = game.item && game.item.spine,
+          name = document.createElement("b");
+      box.title = game.longTitle || game.title;
+      shelf.appendChild(box);
+      function plain() {
+        box.classList.add("no-spine");
+        box.style.backgroundImage = "";
+        name.textContent = game.title;
+        box.appendChild(name);
+        queueFit();
+      }
+      if (typeof spine != "string" || !/^https?:\/\//i.test(spine)) { plain(); return; }
+      var img = new Image();
+      img.onload = function() {
+        if (!img.naturalWidth || !img.naturalHeight) { plain(); return; }
+        box.style.setProperty("--aspect", (img.naturalWidth / img.naturalHeight).toFixed(4));
+        box.style.backgroundImage = "url(\"" + spine.replace(/["\\\n]/g, encodeURIComponent) + "\")";
+        queueFit();
+      };
+      img.onerror = plain;
+      img.src = spine;
+    });
+    queueFit();
+  }
+
+  document.addEventListener("DOMContentLoaded", function() {
+    if (ScummVM.feedLoaded) ScummVM.feedLoaded.then(stockShelf);
+  });
+
   // --- keys on a touch screen ---------------------------------------------
   // Phones and tablets have no Esc or F5, so buttons stand in for the keys
   // the game needs (index.html shows them while a game runs). Each does
