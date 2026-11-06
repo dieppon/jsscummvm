@@ -499,11 +499,17 @@
     field.addEventListener("keydown", onKeyDown);
     field.addEventListener("input", onInput);
 
-    // clicking the screen puts the caret back
+    // clicking the screen puts the caret back -- in info mode, where its
+    // text can be selected, only once a click has not selected anything
     screenEl.addEventListener("mousedown", function (e) {
-      if (running || off) return;
+      if (running || off || document.documentElement.classList.contains("has-info")) return;
       e.preventDefault();
       field.focus();
+    });
+    screenEl.addEventListener("mouseup", function () {
+      if (running || off || !document.documentElement.classList.contains("has-info")) return;
+      var sel = window.getSelection && window.getSelection();
+      if (!sel || sel.isCollapsed) field.focus();
     });
     // A phone only brings its keyboard up for a tap, so while the prompt is
     // up a tap anywhere on the page raises it -- other than on a button or

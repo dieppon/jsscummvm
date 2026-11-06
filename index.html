@@ -2225,6 +2225,17 @@
       html, .room, .room > *, .room-front, .room-front > * { transition: none; }
       .mug-steam { display: none; }
     }
+
+    /* In info mode, for debugging, what is on the screen inside the
+       monitor can be selected and copied (dos-shell.js lets a drag on it
+       select rather than only putting the caret back). Last, to win over
+       the rules that turn selection off. */
+    .has-info .screen-view,
+    .has-info .screen-view * {
+      -webkit-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
   </style>
 </head>
 <body>
