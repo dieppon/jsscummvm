@@ -338,8 +338,19 @@
     t._cdHold = status;
     giveUp = window.setTimeout(release, 8000);
     t.findCDTrack(status.track, function(url) {
-      var audio;
       if (!url || t._cdStatus !== status || t._cdAudio) { release(); return; }
+      // MI1's intro starts track 17 from its first frame; skip the quiet
+      // lead-in rips of it carry (see leadIn)
+      var intro = t._game == "monkey1" && status.track == 17 && status.start == 0;
+      (intro ? leadIn(url) : Promise.resolve(0)).then(function(skip) {
+        status.start += skip;
+        startTrack(url);
+      });
+    });
+
+    function startTrack(url) {
+      var audio;
+      if (t._cdStatus !== status || t._cdAudio) { release(); return; }
       audio = t._cdAudio = new Audio(url);
       audio.muted = ScummVM.muted;
       audio.addEventListener("timeupdate", function() {
@@ -380,8 +391,36 @@
           window.addEventListener("keydown", resume, true);
         });
       }
-    });
+    }
   };
+
+  // How long a track is near-silent before its music starts, in seconds.
+  // The intro's pictures are timed by the music timer from the first frame
+  // of track 17, but rips of it carry a second or so of hiss before the
+  // music, which put the pictures ahead of it -- ScummVM offers an "intro
+  // adjustment" for this in its MI1 options; here it is measured instead.
+  // Only the first part of the file is decoded, which every format here
+  // decodes on its own; if it will not, nothing is skipped.
+  var leadIns = {};
+  function leadIn(url) {
+    var Ctx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    if (!Ctx) return Promise.resolve(0);
+    if (!leadIns[url]) {
+      leadIns[url] = fetch(url).then(function(r) { return r.arrayBuffer(); }).then(function(buf) {
+        return new Ctx(1, 44100, 44100).decodeAudioData(buf.slice(0, 1 << 20));
+      }).then(function(audio) {
+        // the first 10ms that is louder than -48dB, looking at up to 3s
+        var ch = audio.getChannelData(0), win = Math.floor(audio.sampleRate / 100),
+            max = Math.min(ch.length, audio.sampleRate * 3), i, j, sum;
+        for (i = 0; i + win <= max; i += win) {
+          for (sum = 0, j = i; j < i + win; j++) sum += ch[j] * ch[j];
+          if (Math.sqrt(sum / win) > 0.004) return i / audio.sampleRate;
+        }
+        return 0;
+      }).catch(function() { return 0; });
+    }
+    return leadIns[url];
+  }
 
   // A track reached its end: loop it, or stop
   s.cdTrackEnded = function(audio, status) {
