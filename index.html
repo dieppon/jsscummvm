@@ -1272,11 +1272,11 @@
     /* a shelf on the wall, a box standing on it for each game in the feed,
        spine out (jsscumm.js fills it from the feed's spine pictures) */
     .room-shelf {
-      left: calc(50% - 15.8em);
-      bottom: 8.6em;
-      min-width: 5.8em;
-      height: 4.5em;
-      padding: 0 .45em .26em;
+      left: calc(50% - 17em);
+      bottom: 9.8em;
+      min-width: 7em;
+      height: 5.6em;
+      padding: 0 .55em .32em;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -1287,10 +1287,10 @@
     .room-shelf::before {
       content: "";
       position: absolute;
-      left: .7em;
-      right: .7em;
+      left: .85em;
+      right: .85em;
       top: 100%;
-      height: .5em;
+      height: .6em;
       background:
         linear-gradient(90deg, #4a4440, #1d1a18) 0 0 / .09em 100% no-repeat,
         linear-gradient(90deg, #4a4440, #1d1a18) 100% 0 / .09em 100% no-repeat;
@@ -1303,10 +1303,10 @@
       left: 0;
       right: 0;
       bottom: 0;
-      height: .26em;
+      height: .32em;
       background:
         /* the top face, lit from the lamp below and to the right */
-        linear-gradient(#e2b57c, #c48f55) 0 0 / 100% .07em no-repeat,
+        linear-gradient(#e2b57c, #c48f55) 0 0 / 100% .08em no-repeat,
         var(--wood) 0 0 / 100% 2em,
         linear-gradient(#9c6635, #7b4a22);
       border-radius: .02em;
@@ -1323,8 +1323,8 @@
       pointer-events: auto;
       cursor: pointer;
       transition: transform .15s ease;
-      height: 4.2em;
-      width: calc(4.2em * var(--aspect, .17));
+      height: 5.2em;
+      width: calc(5.2em * var(--aspect, .17));
       background: #3a3f5a center / 100% 100% no-repeat;
       box-shadow:
         /* rounded a little where the cardboard folds, darker away from the lamp */
@@ -1350,7 +1350,7 @@
 
     /* a game with no spine picture gets a plain box with its name on it */
     .room-shelf > .no-spine {
-      width: .7em;
+      width: .85em;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1358,7 +1358,7 @@
     }
     .room-shelf > .no-spine b {
       writing-mode: vertical-rl;
-      font: bold .26em/1 sans-serif;
+      font: bold .32em/1 sans-serif;
       color: #f1d27a;
       white-space: nowrap;
       overflow: hidden;
