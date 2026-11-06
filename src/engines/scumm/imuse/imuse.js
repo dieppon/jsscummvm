@@ -239,20 +239,25 @@
         }
       }
 
-      // MidiParser_SMF::loadMusic, then setTrack(0)
+      // MidiParser_SMF::loadMusic: a type 2 file holds several tracks one
+      // after the other (MI2 keeps a tune's ending in a second track, and
+      // jumps there on a hook); then setTrack(0)
       t.ppqn = (data[mthd + 12] << 8) | data[mthd + 13];
-      p = t.se.findTag(data, 0x4D54726B, mthd);   // 'MTrk'
-      if (p < 0) { t.active = false; return false; }
-      t.trackStart = t.pos = p + 8;
-      t.trackEnd = p + 8 + be32(data, p + 4);
-      t.runningStatus = 0;
+      t.tracks = [];
+      p = mthd + 8 + be32(data, mthd + 4);
+      while (p + 8 <= data.length && be32(data, p) == 0x4D54726B) {   // 'MTrk'
+        t.tracks.push({start: p + 8, end: Math.min(data.length, p + 8 + be32(data, p + 4))});
+        p += 8 + be32(data, p + 4);
+      }
+      if (!t.tracks.length) {
+        p = t.se.findTag(data, 0x4D54726B, mthd);
+        if (p < 0) { t.active = false; return false; }
+        t.tracks.push({start: p + 8, end: p + 8 + be32(data, p + 4)});
+      }
+      t.activeTrack = -1;
       t.setTempo(500000);
       t.setSpeed(t.speed);
-      t.playTime = 0;
-      t.playTick = 0;
-      t.lastEventTime = 0;
-      t.lastEventTick = 0;
-      t.nextEvent = t.parseNextEvent();
+      t.setTrack(0);
       return true;
     },
     clear: function() {
@@ -526,6 +531,10 @@
       t.activeNotes = [];
       for (i = 0; i < 128; i++) t.activeNotes.push(0);
       t.scanning = true;
+      // to another track: play this one out first, so everything it sets up
+      // is set up
+      if (totrack != t.trackIndex) t.jumpToTick(0x7FFFFFFF, true);
+      t.setTrack(totrack);
       if (!t.jumpToTick((tobeat - 1) * TICKS_PER_BEAT + totick, true)) {
         t.scanning = false;
         return -1;
@@ -635,10 +644,32 @@
       t.playTick = Math.floor((endTime - t.lastEventTime) / t.psecPerTick) + t.lastEventTick;
     },
 
-    // Player::jump: only one track here; beats are 1-based
+    // MidiParser::setTrack: start reading another of the tune's tracks from
+    // its beginning (the one already playing carries on as it is). The
+    // notes sounding are let go.
+    setTrack: function(n) {
+      var t = this, tr = t.tracks[n], i;
+      if (!tr) return false;
+      if (n == t.activeTrack) return true;
+      if (t.activeTrack >= 0)
+        for (i = 0; i < t.parts.length; i++) t.parts[i].allNotesOff();
+      t.activeTrack = n;
+      t.trackStart = t.pos = tr.start;
+      t.trackEnd = tr.end;
+      t.runningStatus = 0;
+      t.playTime = 0;
+      t.playTick = 0;
+      t.lastEventTime = 0;
+      t.lastEventTick = 0;
+      t.nextEvent = t.parseNextEvent();
+      return true;
+    },
+
+    // Player::jump: to a track, and a beat (1-based) and tick in it
     jump: function(track, beat, tick) {
       var t = this, i;
-      if (!t.jumpToTick((beat - 1) * 480 + tick)) return false;
+      if (t.setTrack(track)) t.trackIndex = track;
+      if (!t.jumpToTick((beat - 1) * TICKS_PER_BEAT + tick)) return false;
       // turn_off_pedals
       for (i = 0; i < t.parts.length; i++)
         if (t.parts[i].pedal) t.parts[i].sustain(false);
