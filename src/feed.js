@@ -13,9 +13,10 @@
  * there, any folder) and, when the game asks for them, its CD tracks
  * (trackN or TrackN, in whichever format the browser plays). See zip.js.
  *
- * The feed is ?feed=<url>. Without one, a box asks for it on loading
- * (index.html's #feed-dialog), filled in with the last one used, and the
- * page loads again with it in the address.
+ * The feed is ?feed=<url>. Without one, or if it cannot be read, a box asks
+ * for it on loading (index.html's #feed-dialog), filled in with the last
+ * one used, and the page loads again with it in the address. The computer
+ * stays off until it has been read (ScummVM.feedLoaded, dos-shell.js).
  */
 (function () {
   "use strict";
@@ -103,6 +104,24 @@
     return new URL(window.location.href).searchParams.get("feed");
   }
 
+  // The feed in the address, fetched once and remembered as the last used
+  var feedRead = null;
+  function readFeed() {
+    if (!feedRead) {
+      feedRead = fetch(feedUrl()).then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }).then(function (feed) {
+        if (!feed || !feed.categories) throw new Error("not a feed");
+        try { window.localStorage.setItem(LAST_FEED_KEY, feedUrl()); } catch (e) { /* not kept */ }
+        return feed;
+      });
+      // a failure is not kept: the next try fetches again
+      feedRead.catch(function () { feedRead = null; });
+    }
+    return feedRead;
+  }
+
   // entries that are not the game's: macOS's resource forks and the like
   function junk(name) {
     return /(^|\/)(__MACOSX|\.)/.test(name);
@@ -187,13 +206,9 @@
     try { host = new URL(url, window.location.href).hostname || url; } catch (e) { host = url; }
 
     report("Reading the webRcade feed at " + host + "...");
-    return fetch(url).then(function (res) {
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
-    }).catch(function () {
+    return readFeed().catch(function () {
       throw new Error("Cannot read the game feed at " + host + ".");
     }).then(function (feed) {
-      try { window.localStorage.setItem(LAST_FEED_KEY, url); } catch (e) { /* not kept */ }
       item = findItem(feed, game);
       if (!item) throw new Error(game.title + " is not in the feed.");
       report("Found " + (item.longTitle || item.title) + ".");
@@ -229,11 +244,14 @@
   // is one that can be bookmarked or shared.
   var dialog = document.getElementById("feed-dialog");
 
-  function askForFeed() {
-    var input = document.getElementById("feed-url"), last = null;
+  // message: why it is asking again, if it is
+  function askForFeed(message) {
+    var input = document.getElementById("feed-url"), err = document.getElementById("feed-error"), last = null;
     if (!dialog || dialog.open || !dialog.showModal) return;
     try { last = window.localStorage.getItem(LAST_FEED_KEY); } catch (e) { /* none */ }
     if (last && !input.value) input.value = last;
+    err.textContent = message || "";
+    err.hidden = !message;
     dialog.showModal();
     input.focus();
     input.select();
@@ -277,8 +295,19 @@
     });
   }
 
-  if (!feedUrl()) {
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", askForFeed);
-    else askForFeed();
-  }
+  ScummVM.askForFeed = function () { askForFeed(); };
+
+  // The feed in the address, read once: the box asks for it until then
+  ScummVM.feedLoaded = new Promise(function (resolve) {
+    function start() {
+      var url = feedUrl();
+      if (!url) { askForFeed(); return; }
+      readFeed().then(resolve, function () {
+        askForFeed("No webRcade feed could be read at that address.");
+        document.getElementById("feed-url").value = url;
+      });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+    else start();
+  });
 }());

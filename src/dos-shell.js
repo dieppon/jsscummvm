@@ -69,7 +69,8 @@
   var lines = [];
   var current = "";
   var history = [], histPos = 0;
-  var booting = true, running = false, off = false;
+  // off until the game feed has been read: see init()
+  var booting = false, running = false, off = true, feedReady = false;
   var bootTimers = [];
 
   // how long the power fade lasts; must match the CSS animations
@@ -321,7 +322,9 @@
     }, OFF_MS);
   }
 
-  function powerOn() {
+  // Switch on: a cold boot from the BIOS, or with a game to start (?game=)
+  // straight into fetching it
+  function powerOn(game) {
     if (!off) return;
     off = false;
     powerBtn.setAttribute("aria-pressed", "true");
@@ -331,9 +334,14 @@
     // a power cycle is a cold boot, so start from the BIOS again and let
     // the fade peel back over it
     reset();
-    render();
-    boot();
-    try { field.focus(); } catch (err) {}
+    if (game) {
+      booting = false;
+      startGame(game);
+    } else {
+      render();
+      boot();
+      try { field.focus(); } catch (err) {}
+    }
 
     setTimeout(function () {
       root.classList.remove("is-powering-on");
@@ -472,6 +480,8 @@
     if (!root || !out || !field || !powerBtn) return;
 
     powerBtn.addEventListener("click", function () {
+      // with no feed yet there is nothing to switch on for: ask for one
+      if (off && !feedReady) { if (ScummVM.askForFeed) ScummVM.askForFeed(); return; }
       if (off) powerOn(); else powerOff();
     });
 
@@ -505,17 +515,14 @@
       field.focus();
     }, { passive: true });
 
-    var auto = requestedGame();
-    if (auto) {
-      booting = false;
-      startGame(auto);
-      return;
-    }
-
-    try { field.focus(); } catch (err) {}
-
+    // The machine stays off until the game feed has been read (feed.js
+    // asks for one if there is none, or it cannot be read), then switches
+    // on: into the game if the address names one, else to the prompt.
     render();
-    boot();
+    ScummVM.feedLoaded.then(function () {
+      feedReady = true;
+      powerOn(requestedGame());
+    });
   }
 
   if (document.readyState === "loading")
