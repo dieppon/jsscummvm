@@ -5,6 +5,19 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
     MBS_MOUSE_MASK = MBS_LEFT_CLICK | MBS_RIGHT_CLICK,
     MS_DOWN = 1, MS_CLICKED = 2;
 
+// object.h: where an object is, and what owns one in the room
+var OF_OWNER_ROOM = 0x0F, kObjectClassUntouchable = 32,
+    WIO_NOT_FOUND = -1, WIO_INVENTORY = 0, WIO_ROOM = 1, WIO_FLOBJECT = 3;
+
+// verbs.h: verb kinds, and the area a click happened in, passed to the
+// verb script
+var kTextVerbType = 0, kImageVerbType = 1,
+    kVerbClickArea = 1, kSceneClickArea = 2, kInventoryClickArea = 3,
+    kKeyClickArea = 4, kSentenceClickArea = 5;
+
+// script.h: how many sentences can be queued
+var NUM_SENTENCE = 6;
+
 (function(){
   var _system = ScummVM.system, Point = _system.Point;
 
@@ -105,8 +118,13 @@ var MBS_LEFT_CLICK = 0x8000, MBS_RIGHT_CLICK = 0x4000, MBS_MAX_KEY = 0x0200,
     _cursorAnimateIndex: 0,
     _currentCursor: 0,
     _camera: {cur: Point(0,0), dest: Point(0,0), accel: Point(0,0), last: Point(0,0), follows: 0, mode: "normal", movingToActor:false, leftTrigger: 10, rightTrigger: 30},
-    init: function(game) {
+    // game: its ScummVM id; version: its SCUMM version, which picks the
+    // opcodes its scripts run (script_v5.js and so on)
+    init: function(game, version) {
       this._game = game;
+      this._version = version || 5;
+      this._opcodes = this._opcodeTables[this._version];
+      if(!this._opcodes) error("SCUMM v" + this._version + " games are not supported yet");
       this.initGraphics();
     },
     setFile: function(file_no, filename, data) {

@@ -24,11 +24,12 @@
 
   var LAST_FEED_KEY = "jsscummvm.feed";
 
-  // The games that run here, and the base name of the data files to pick
-  // when an archive has more than one pair
+  // The games that run here: their SCUMM version, which picks the engine's
+  // opcodes, and the base name of the data files to pick when an archive
+  // has more than one pair
   var SUPPORTED = {
-    monkey: {title: "The Secret of Monkey Island", files: /^(monkey1?|secret)$/},
-    monkey2: {title: "Monkey Island 2: LeChuck's Revenge", files: /^monkey2$/}
+    monkey: {title: "The Secret of Monkey Island", version: 5, files: /^(monkey1?|secret)$/},
+    monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/}
   };
 
   // Names games go by besides ScummVM's, normalised as norm() leaves them
@@ -296,6 +297,7 @@
       var pair = findDataFiles(archive, support), source;
       if (!pair) throw new Error("The archive has no " + gameId.toUpperCase() + ".000 and .001.");
       source = new Source(gameId, game.item, archive, pair);
+      source.version = support.version;
       // the index file is small; the bar is for the data file
       return archive.read(pair[0]).then(function (index) {
         source.files[0] = binaryString(index);

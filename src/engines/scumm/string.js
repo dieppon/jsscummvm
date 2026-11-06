@@ -586,4 +586,113 @@
       }
     }
   }
+
+  // string.cpp resStrLen. A 0xFF escape is followed by a code byte, and
+  // every code except 1, 2, 3 and 8 carries a 2-byte parameter -- usually a
+  // variable number, whose high byte is often 0. Stopping at the first 0
+  // measured "\xFF\x05k\0..." as three bytes long and left the script
+  // pointer inside the string, executing the rest of the text as opcodes.
+  s.resStrLen = function(stream) {
+    var t = this, chr, num = 0, seekStream;
+    if(!stream)
+      stream = t._scriptPointer;
+    seekStream = stream.newRelativeStream(0);
+    while((chr = seekStream.readUI8()) != 0) {
+      num++;
+      if(chr == 0xFF) {
+        chr = seekStream.readUI8();
+        num++;
+        if(chr != 1 && chr != 2 && chr != 3 && chr != 8) {
+          seekStream.seek(2);
+          num += 2;
+        }
+      }
+    }
+    return num;
+  };
+
+  // The bytes of the message at the stream's current offset, escape codes and
+  // their parameters intact, without the terminator. The stream is not moved.
+  s.readMessage = function(stream, len) {
+    var t = this, r, out = "", i;
+    if(!stream) return "";
+    if(len === undefined) len = t.resStrLen(stream);
+    r = stream.newRelativeStream(0);
+    for(i = 0; i < len; i++) out += String.fromCharCode(r.readUI8());
+    return out;
+  };
+
+  // A string-like resource (verb, string, actor_name, object_name) as a message
+  s.getResourceMessage = function(type, idx) {
+    var t = this, r = t.getResourceAddress(type, idx);
+    if(!r) return null;
+    r = r.newRelativeStream(0);
+    r.offset = 0;
+    return t.readMessage(r);
+  };
+
+  // string.cpp convertMessageToString and its helpers. Expands the variable,
+  // verb, name and string codes; the ones that drive the text output itself
+  // (newline, keep, wait, colour...) are passed through for the renderer.
+  s.convertMessageToString = function(msg) {
+    var t = this, dst = "", i = 0, chr, val;
+
+    if(!msg) return "";
+
+    while(i < msg.length) {
+      chr = msg.charCodeAt(i++);
+      if(chr == 0) break;
+      if(chr == 0xFF) {
+        chr = msg.charCodeAt(i++);
+        if(chr == 1 || chr == 2 || chr == 3 || chr == 8) {
+          dst += "\xFF" + String.fromCharCode(chr);
+        } else {
+          val = (msg.charCodeAt(i) | (msg.charCodeAt(i + 1) << 8)) & 0xFFFF;
+          switch(chr) {
+            case 4: dst += t.convertIntMessage(val); break;
+            case 5: dst += t.convertVerbMessage(val); break;
+            case 6: dst += t.convertNameMessage(val); break;
+            case 7: dst += t.convertStringMessage(val); break;
+            case 9: case 10: case 12: case 13: case 14:
+              dst += "\xFF" + String.fromCharCode(chr) + msg.charAt(i) + msg.charAt(i + 1);
+              break;
+            default:
+              i -= 2;
+          }
+          i += 2;
+        }
+      } else if(chr != 0x40) { // '@' is padding
+        dst += String.fromCharCode(chr);
+      }
+    }
+    return dst;
+  };
+
+  s.convertIntMessage = function(v) {
+    return String(this.readVar(v));
+  };
+
+  s.convertVerbMessage = function(v) {
+    var t = this, num = t.readVar(v), k, vs;
+    if(num) {
+      for(k = 1; k < t._nums['verbs']; k++) {
+        vs = t._verbs[k];
+        if(vs && num == vs.verbid && !vs.type && !vs.saveid)
+          return t.convertMessageToString(t.getResourceMessage("verb", k));
+      }
+    }
+    return "";
+  };
+
+  s.convertNameMessage = function(v) {
+    var t = this, num = t.readVar(v);
+    if(num) return t.convertMessageToString(t.getObjOrActorName(num));
+    return "";
+  };
+
+  s.convertStringMessage = function(v) {
+    var t = this;
+    if(v) return t.convertMessageToString(t.getResourceMessage("string", v));
+    return "";
+  };
 }());

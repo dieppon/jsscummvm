@@ -1,6 +1,6 @@
 /*
  * The save/load menu: F5 during the game, as in the original interpreter.
- * Nine slots kept in the browser (engines/saveload.js); the game and its
+ * Nine slots kept in the browser (engines/scumm/saveload.js); the game and its
  * sound are held while the menu is open.
  */
 (function(){

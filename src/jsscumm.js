@@ -50,7 +50,7 @@ function assert(condition) {
     // shutdown() leaves this set; clear it or the new run quits on its
     // first tick.
     t.engine._shouldQuit = false;
-    t.engine.init(game);
+    t.engine.init(game, t.source && t.source.version);
     t.engine.go();
   };
 
