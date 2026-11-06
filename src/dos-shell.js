@@ -439,10 +439,10 @@
     }, ON_MS);
   }
 
-  // ?game=monkey (or monkey1) boots straight into the game, skipping the
-  // prompt. Handy for linking to it, and for testing without walking the
-  // terminal every time.
-  var ALIASES = { monkey1: "monkey", mi: "monkey", mi1: "monkey" };
+  // ?game=monkey boots straight into the game, skipping the prompt. Handy
+  // for linking to it, and for testing without walking the terminal every
+  // time.
+  var ALIASES = { mi: "monkey", mi1: "monkey" };
 
   function requestedGame() {
     var m = /[?&]game=([A-Za-z0-9_-]+)/.exec(window.location.search);
