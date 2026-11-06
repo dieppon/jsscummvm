@@ -341,7 +341,7 @@
       if (!url || t._cdStatus !== status || t._cdAudio) { release(); return; }
       // MI1's intro starts track 17 from its first frame; skip the quiet
       // lead-in rips of it carry (see leadIn)
-      var intro = t._game == "monkey1" && status.track == 17 && status.start == 0;
+      var intro = t._game == "monkey" && status.track == 17 && status.start == 0;
       (intro ? leadIn(url) : Promise.resolve(0)).then(function(skip) {
         status.start += skip;
         startTrack(url);

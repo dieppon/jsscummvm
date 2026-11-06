@@ -2489,12 +2489,15 @@
       in the address, or paste its address when asked; the last one is
       remembered.</p>
     <ul>
-      <li><b>Which games.</b> For now, The Secret of Monkey Island: an item of
-        type <code>scumm</code>. Feed items have no id, so it is found by its
-        title or its zip's file name &mdash; &ldquo;The Secret of Monkey
-        Island&rdquo;, &ldquo;Monkey Island&rdquo;,
-        <code>Monkey-Island-CD-DOS.zip</code>, <code>monkey1.zip</code>
-        &mdash; and never taken for Monkey Island 2 or later.</li>
+      <li><b>Which games.</b> Every item of type <code>scumm</code>. Feed
+        items have no id, so each is told by its title or its zip's file name
+        against ScummVM's names for its games &mdash; &ldquo;The Secret of
+        Monkey Island&rdquo;, &ldquo;Monkey Island&rdquo;,
+        <code>Monkey-Island-CD-DOS.zip</code> &mdash; and gets a folder in
+        <code>C:\GAMES</code> named by ScummVM's id for it
+        (<code>MONKEY</code>, <code>DIG</code>, <code>ATLANTIS</code>&hellip;),
+        holding the zip's files and an <code>.EXE</code> to run it. For now
+        only The Secret of Monkey Island runs.</li>
       <li><b>The zip.</b> The game's two data files, <code>MONKEY.000</code> and
         <code>MONKEY.001</code> (or <code>MONKEY1.000</code> and
         <code>.001</code>), in any folder; and for the music, the CD tracks as
@@ -2505,8 +2508,9 @@
       <li><b>Downloading.</b> Only the files the game needs are taken out of the
         zip, when it needs them, and kept in the browser for next time.</li>
     </ul>
-    <p>Then at the <code>C:\&gt;</code> prompt type <kbd>cd games</kbd> and
-      <kbd>monkey1</kbd>. The power button switches the monitor off and on.</p>
+    <p>Then at the <code>C:\&gt;</code> prompt type <kbd>cd games\monkey</kbd>
+      and <kbd>monkey</kbd>. The power button switches the monitor off and
+      on.</p>
   </section>
 
   <p class="credit">
@@ -2538,6 +2542,7 @@
   <script type="text/javascript" src="src/engines/boxes.js"></script>
   <script type="text/javascript" src="src/engines/costume.js"></script>
   <script type="text/javascript" src="src/zip.js"></script>
+  <script type="text/javascript" src="src/scummvm-games.js"></script>
   <script type="text/javascript" src="src/feed.js"></script>
   <script type="text/javascript" src="src/dos-shell.js"></script>
 </body>

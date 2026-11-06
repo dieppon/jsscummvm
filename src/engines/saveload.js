@@ -133,7 +133,7 @@
 
   s.loadState = function(state) {
     var t = this, i, k, room, sl;
-    if (!state || state.version != VERSION || state.game != t._game) return false;
+    if (!state || state.version != VERSION || (state.game != t._game && OLD_IDS[state.game] != t._game)) return false;
 
     // whatever was going on stops
     t.stopTalk();
@@ -202,6 +202,21 @@
   // --- slots in localStorage ------------------------------------------------
 
   function slotKey(game, n) { return "jsscummvm." + game + ".save." + n; }
+
+  // Ids games had here before they took ScummVM's: saves made under one
+  // load as the game's now, and its stored settings are carried over once
+  var OLD_IDS = {monkey1: "monkey"};
+  (function () {
+    var store, keys = [], i, m, to;
+    try { store = window.localStorage; for (i = 0; i < store.length; i++) keys.push(store.key(i)); }
+    catch (e) { return; }
+    keys.forEach(function (key) {
+      m = /^jsscummvm\.([^.]+)\.(.*)$/.exec(key);
+      if (!m || !OLD_IDS[m[1]]) return;
+      to = "jsscummvm." + OLD_IDS[m[1]] + "." + m[2];
+      try { if (store.getItem(to) === null) store.setItem(to, store.getItem(key)); } catch (e) { /* full */ }
+    });
+  }());
 
   s.saveToSlot = function(n, name) {
     var t = this, data = {name: name, date: Date.now(), room: t._currentRoom, state: t.saveState()};

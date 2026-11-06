@@ -165,7 +165,10 @@
           compressedSize: u32(cd, p + 20),
           size: u32(cd, p + 24),
           offset: u32(cd, p + 42),
-          extraLen: extraLen
+          extraLen: extraLen,
+          // MS-DOS time and date, as the DOS shell shows them
+          dosTime: u16(cd, p + 12),
+          dosDate: u16(cd, p + 14)
         });
         p += 46 + nameLen + extraLen + commentLen;
       }

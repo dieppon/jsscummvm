@@ -3,12 +3,13 @@
  * until you launch the game.
  *
  * It is all smoke and mirrors: one fake C: drive, a handful of commands and
- * an 80x25 text mode faked with a monospace font. The only real things in it
- * are the sizes of MONKEY1.000 and MONKEY1.001, which are the actual byte
- * counts of the game's files.
+ * an 80x25 text mode faked with a monospace font. The real thing in it is
+ * C:\GAMES, made from the game feed (feed.js): a folder for each ScummVM
+ * game in it, named by ScummVM's id for the game, holding the files of its
+ * archive (as they are there, bar any .EXE) and an <ID>.EXE.
  *
- * Typing MONKEY1 (or MONKEY1.EXE) in C:\GAMES fetches the game (feed.js),
- * showing how that goes, and hands the screen to ScummVM.
+ * Running that .EXE fetches the game, showing how that goes, and hands the
+ * screen to ScummVM -- for the games that run here; the rest say so.
  */
 (function () {
   "use strict";
@@ -35,14 +36,15 @@
       ["FORMAT",   "COM", 32911,   "04-09-91", " 5:00a"],
       ["MORE",     "COM", 2618,    "04-09-91", " 5:00a"]
     ],
+    // a folder for each game in the feed: see addGames()
     "C:\\GAMES": [
       [".",        "",    DIR,     "08-02-91", " 3:14p"],
-      ["..",       "",    DIR,     "08-02-91", " 3:14p"],
-      ["MONKEY1",  "EXE", 63488,   "10-15-90", "12:00p"],
-      ["MONKEY1",  "000", 8955,    "10-15-90", "12:00p"],
-      ["MONKEY1",  "001", 4779713, "10-15-90", "12:00p"]
+      ["..",       "",    DIR,     "08-02-91", " 3:14p"]
     ]
   };
+
+  // the game whose folder each path in C:\GAMES is
+  var GAME_DIRS = {};
 
   var FILES = {
     "C:\\AUTOEXEC.BAT": [
@@ -71,6 +73,8 @@
   var history = [], histPos = 0;
   // off until the game feed has been read: see init()
   var booting = false, running = false, off = true, feedReady = false;
+  // a command waiting on something (a game's archive, for DIR)
+  var waiting = false;
   var bootTimers = [];
 
   // how long the power fade lasts; must match the CSS animations
@@ -101,7 +105,7 @@
 
   function render() {
     if (off) { out.innerHTML = ""; return; }
-    var view = lines.slice(), showPrompt = !booting && !running;
+    var view = lines.slice(), showPrompt = !booting && !running && !waiting;
     if (showPrompt) view.push(cwd + ">" + current);
     view = view.slice(-ROWS);
 
@@ -117,12 +121,15 @@
     if (!p) return cwd;
     if (p === "." ) return cwd;
     if (p === "\\" || p === "C:" || p === "C:\\") return "C:\\";
-    // the drive is only ever one level deep, so ".." is always the root
-    if (p === ".." || p === "..\\") return "C:\\";
     if (p.indexOf("C:") === 0) p = p.slice(2);
     if (p.charAt(0) !== "\\") p = (cwd === "C:\\" ? "\\" : cwd.slice(2) + "\\") + p;
-    p = "C:" + p.replace(/\\+$/, "");
-    return p === "C:" ? "C:\\" : p;
+    // walk it, so ".." goes up a level and "." stays
+    var parts = [];
+    p.split("\\").forEach(function (part) {
+      if (part === "..") parts.pop();
+      else if (part && part !== ".") parts.push(part);
+    });
+    return parts.length ? "C:\\" + parts.join("\\") : "C:\\";
   }
 
   function entryLine(e) {
@@ -132,7 +139,22 @@
   }
 
   function doDir(arg) {
-    var path = resolve(arg);
+    var path = resolve(arg), game = GAME_DIRS[path];
+    // a game's folder is listed once its archive has been read
+    if (game && !DRIVE[path].read) {
+      waiting = true;
+      render();
+      readGameDir(path).then(function () {
+        waiting = false;
+        listDir(path);
+        render();
+      });
+      return;
+    }
+    listDir(path);
+  }
+
+  function listDir(path) {
     var entries = DRIVE[path];
     if (!entries) { echo("Invalid directory"); return; }
 
@@ -145,6 +167,7 @@
     echo(" Directory of " + path);
     echo("");
     for (i = 0; i < entries.length; i++) echo(entryLine(entries[i]));
+    if (entries.unreadable) echo(entries.unreadable);
     echo(padLeft(entries.length, 9) + " file(s)" + padLeft(bytes, 11) + " bytes");
     echo(padLeft(FREE_BYTES, 28) + " bytes free");
     echo("");
@@ -194,15 +217,82 @@
   }
 
   function doExec(verb) {
-    var name = verb.toUpperCase().replace(/\.EXE$/, "");
-    var entries = DRIVE[cwd] || [];
-    for (var i = 0; i < entries.length; i++) {
-      if (entries[i][0] === name && entries[i][1] === "EXE") {
-        if (name === "MONKEY1") { launch(); return; }
-        break;
-      }
-    }
+    var name = verb.toUpperCase().replace(/\.EXE$/, ""), game = GAME_DIRS[cwd];
+    // a game's .EXE, in its folder
+    if (game && name === exeName(game)) { launch(game); return; }
     echo("Bad command or file name");
+  }
+
+  /* --- the games, from the feed ---------------------------------------- */
+
+  // a game's folder and .EXE are its ScummVM id, cut to DOS's 8 letters
+  function exeName(game) { return game.id.toUpperCase().slice(0, 8); }
+
+  // MS-DOS dates and times as DIR shows them: 10-15-90, 12:00p
+  function dosDate(d) {
+    var y = ((d >> 9) & 0x7F) + 1980, m = (d >> 5) & 0x0F, day = d & 0x1F;
+    return padLeft(m, 2).replace(" ", "0") + "-" + padLeft(day, 2).replace(" ", "0") + "-" +
+           String(y % 100 + 100).slice(1);
+  }
+  function dosTime(t) {
+    var h = (t >> 11) & 0x1F, min = (t >> 5) & 0x3F, p = h >= 12 ? "p" : "a";
+    h = h % 12 || 12;
+    return padLeft(h, 2) + ":" + String(min + 100).slice(1) + p;
+  }
+
+  // A file name in 8.3, as DOS would show a long one: TRACK17 FLA, and
+  // MT32_C~1 ROM for MT32_CONTROL.ROM or ATLANT~1 SCU for atlantis.scummvm
+  // (~2 and on if that is taken)
+  function shortName(name, taken) {
+    var dot = name.lastIndexOf("."), stem = (dot > 0 ? name.slice(0, dot) : name).toUpperCase(),
+        ext = (dot > 0 ? name.slice(dot + 1) : "").toUpperCase(), n = 1, short, long = ext.length > 3;
+    stem = stem.replace(/[^A-Z0-9_$~!#%&\-{}@^'`()]/g, "_");
+    ext = ext.slice(0, 3);
+    if (stem.length <= 8 && !long && !taken[stem + "." + ext]) short = stem;
+    else do { short = stem.slice(0, 8 - 1 - String(n).length) + "~" + n; n++; } while (taken[short + "." + ext]);
+    taken[short + "." + ext] = true;
+    return [short, ext];
+  }
+
+  // A folder in C:\GAMES for each game in the feed, with its .EXE in it;
+  // the rest of what is in it comes from its archive, read in the
+  // background from here (readGameDir)
+  function addGames(games) {
+    games.forEach(function (game) {
+      var name = exeName(game), path = "C:\\GAMES\\" + name;
+      if (GAME_DIRS[path]) return;
+      GAME_DIRS[path] = game;
+      DRIVE["C:\\GAMES"].push([name, "", DIR, "11-06-26", "12:00p"]);
+      DRIVE[path] = [
+        [".",  "", DIR, "11-06-26", "12:00p"],
+        ["..", "", DIR, "11-06-26", "12:00p"],
+        [name, "EXE", 63488, "10-15-90", "12:00p"]
+      ];
+      readGameDir(path);
+    });
+  }
+
+  // Fill in a game's folder from its archive, once: everything in it but
+  // its own .EXEs (the folder's .EXE stands for the game); if it cannot be
+  // read, the folder holds the .EXE alone and says why when listed
+  var dirReads = {};
+  function readGameDir(path) {
+    if (!dirReads[path]) {
+      dirReads[path] = ScummVM.gameFiles(GAME_DIRS[path]).then(function (files) {
+        var taken = {}, entries = DRIVE[path];
+        taken[entries[2][0] + ".EXE"] = true;
+        files.forEach(function (f) {
+          if (/\.exe$/i.test(f.name)) return;
+          var n = shortName(f.name, taken);
+          entries.push([n[0], n[1], f.size, dosDate(f.dosDate), dosTime(f.dosTime)]);
+        });
+        entries.read = true;
+      }, function (err) {
+        DRIVE[path].read = true;
+        DRIVE[path].unreadable = "The disk could not be read (" + err.message + ")";
+      });
+    }
+    return dirReads[path];
   }
 
   function run(cmd) {
@@ -228,12 +318,13 @@
 
   /* --- launching the game ---------------------------------------------- */
 
-  function launch() {
+  function launch(game) {
     echo("");
-    echo("The Secret of Monkey Island");
-    echo("Copyright (C) 1990 Lucasfilm Games");
+    echo(game.title);
+    if (!game.supported) { echo("This game does not run here yet."); echo(""); return; }
+    if (game.id === "monkey") echo("Copyright (C) 1990 Lucasfilm Games");
     echo("");
-    startGame("monkey1");
+    startGame(game.id);
   }
 
   function repeat(c, n) { var s = ""; while (n-- > 0) s += c; return s; }
@@ -351,7 +442,7 @@
   // ?game=monkey (or monkey1) boots straight into the game, skipping the
   // prompt. Handy for linking to it, and for testing without walking the
   // terminal every time.
-  var ALIASES = { monkey: "monkey1", mi: "monkey1", mi1: "monkey1" };
+  var ALIASES = { monkey1: "monkey", mi: "monkey", mi1: "monkey" };
 
   function requestedGame() {
     var m = /[?&]game=([A-Za-z0-9_-]+)/.exec(window.location.search);
@@ -417,6 +508,7 @@
 
   function onKeyDown(e) {
     if (running || off) return;
+    if (waiting) { e.preventDefault(); return; }
 
     if (booting) { e.preventDefault(); finishBoot(); return; }
 
@@ -442,7 +534,7 @@
 
   // `input` rather than keydown for the characters, so phone keyboards work
   function onInput() {
-    if (booting || running || off) { field.value = ""; return; }
+    if (booting || running || off || waiting) { field.value = ""; return; }
     var max = COLS - (cwd.length + 1) - 1;
     if (field.value.length > max) field.value = field.value.slice(0, max);
     current = field.value;
@@ -525,8 +617,9 @@
     // asks for one if there is none, or it cannot be read), then switches
     // on: into the game if the address names one, else to the prompt.
     render();
-    ScummVM.feedLoaded.then(function () {
+    ScummVM.feedLoaded.then(function (games) {
       feedReady = true;
+      addGames(games);
       powerOn(requestedGame());
     });
   }

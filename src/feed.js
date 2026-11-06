@@ -3,11 +3,12 @@
  *
  * A feed is a JSON list of categories of items, each with a title and, for
  * ScummVM games (type "scumm"), a zip archive of the game's files in its
- * props. Items carry no id that says which game they are, so the game is
- * looked for by name: its title, its long title without the "(1990)
+ * props. Items carry no id that says which game they are, so each ScummVM
+ * item is told by name: its title, its long title without the "(1990)
  * (LucasArts)" tags, and its archive's file name, all normalised, against
- * a list of the names it goes by -- and against the sequels it must not be
- * taken for.
+ * ScummVM's names for its games (scummvm-games.js) and a few more they go
+ * by. Each comes out as the id ScummVM knows it by (ScummVM.feedGames),
+ * which the DOS shell makes a folder of. Only SUPPORTED ones run.
  *
  * Out of the archive come the game's data files (whatever they are called
  * there, any folder) and, when the game asks for them, its CD tracks
@@ -23,16 +24,27 @@
 
   var LAST_FEED_KEY = "jsscummvm.feed";
 
-  // What each game goes by, normalised as norm() leaves it, and words that
-  // mean another game of the same name
-  var GAMES = {
-    monkey1: {
-      title: "The Secret of Monkey Island",
-      names: ["secret of monkey island", "monkey island", "monkey island 1", "monkey1", "monkey"],
-      not: ["2", "ii", "3", "4", "5", "lechuck", "revenge", "curse", "escape", "tales", "return"],
-      files: /^(monkey1?|secret)$/
-    }
+  // The games that run here, and the base name of the data files to pick
+  // when an archive has more than one pair
+  var SUPPORTED = {
+    monkey: {title: "The Secret of Monkey Island", files: /^(monkey1?|secret)$/}
   };
+
+  // Names games go by besides ScummVM's, normalised as norm() leaves them
+  var MORE_NAMES = {
+    monkey: ["monkey island", "monkey island 1", "monkey1", "mi1"],
+    monkey2: ["monkey island 2", "lechucks revenge", "mi2"],
+    comi: ["monkey island 3", "curse of monkey island"],
+    tentacle: ["day of the tentacle", "dott"],
+    samnmax: ["sam and max", "sam max", "sam and max hit the road"],
+    atlantis: ["fate of atlantis", "indiana jones fate of atlantis", "indy4"],
+    indy3: ["indiana jones and the last crusade", "last crusade", "indy3"],
+    zak: ["zak mckracken"],
+    ft: ["full throttle"]
+  };
+
+  // Packs of several games, taken only on their exact names
+  var COMPILATIONS = ["pass", "indyzak", "indyloom", "zakloom"];
 
   // Tags that say nothing about which game it is: platform, media, version
   var NOISE = ["cd", "dos", "pc", "vga", "ega", "floppy", "talkie", "english",
@@ -63,30 +75,92 @@
     return p.archive || p.zip || p.rom || p.url || null;
   }
 
-  // How well an item matches: 3 its title, 2 its file name, 1 near enough;
-  // 0 not at all, or one of the games it must not be
-  function score(item, game) {
-    var names = [norm(item.title), norm(item.longTitle), norm(fileName(archiveOf(item)))],
-        all = names.join(" ").split(" "), i;
-    for (i = 0; i < game.not.length; i++) if (all.indexOf(game.not[i]) >= 0) return 0;
-    if (game.names.indexOf(names[0]) >= 0 || game.names.indexOf(names[1]) >= 0) return 3;
-    if (game.names.indexOf(names[2]) >= 0) return 2;
-    for (i = 0; i < names.length; i++) if (names[i].indexOf(game.names[0]) >= 0) return 1;
-    return 0;
+  // ScummVM's games with the names each goes by, normalised, made once
+  var known = null;
+  function knownGames() {
+    if (!known) known = (ScummVM.SCUMM_GAMES || []).map(function (g) {
+      return {id: g[0], title: g[1], names: [norm(g[1])].concat(MORE_NAMES[g[0]] || [])};
+    });
+    return known;
   }
 
-  function findItem(feed, game) {
-    var best = null, bestScore = 0;
-    (feed.categories || []).forEach(function (cat) {
-      (cat.items || []).forEach(function (item) {
-        if (!archiveOf(item)) return;
-        // a ScummVM item if it says so; anything else only on its title
-        var s = score(item, game) - (item.type && item.type != "scumm" ? 2 : 0);
-        if (s > bestScore) { best = item; bestScore = s; }
-      });
-    });
+  // the numbers in a name: "monkey island 2" is not "monkey island"
+  function numbers(s) { return s.split(" ").filter(function (w) { return /^\d+$/.test(w); }).join(" "); }
+
+  // Which of ScummVM's games an item is, or null. Its title or long title
+  // being one of a game's names beats its file name being one, which beats
+  // a name merely holding (or held in) another -- then the nearest in
+  // length, with the same numbers in it, and never a compilation.
+  function identify(item) {
+    var names = [norm(item.title), norm(item.longTitle), norm(fileName(archiveOf(item)))],
+        best = null, bestScore = 0, games = knownGames(), i, j, k, g, n, sc;
+    for (i = 0; i < games.length; i++) {
+      g = games[i];
+      for (j = 0; j < g.names.length; j++) {
+        n = g.names[j];
+        if (!n) continue;
+        sc = 0;
+        if (n == names[0] || n == names[1]) sc = 300;
+        else if (n == names[2]) sc = 200;
+        else if (COMPILATIONS.indexOf(g.id) < 0) {
+          for (k = 0; k < names.length; k++) {
+            if (!names[k] || numbers(names[k]) != numbers(n)) continue;
+            if (names[k].indexOf(n) >= 0 || n.indexOf(names[k]) >= 0)
+              sc = Math.max(sc, 100 - Math.abs(names[k].length - n.length));
+          }
+        }
+        if (sc > bestScore) { best = g; bestScore = sc; }
+      }
+    }
     return best;
   }
+
+  // Every ScummVM game in the feed, by id: {id, title, item, url}. The first
+  // item taken for a game is the one used.
+  function gamesIn(feed) {
+    var games = [], seen = {};
+    (feed.categories || []).forEach(function (cat) {
+      (cat.items || []).forEach(function (item) {
+        var g;
+        if (item.type != "scumm" || !archiveOf(item)) return;
+        g = identify(item);
+        if (!g || seen[g.id]) return;
+        seen[g.id] = true;
+        games.push({id: g.id, title: item.title || g.title, longTitle: item.longTitle || item.title || g.title,
+                    item: item, url: directUrl(archiveOf(item)), supported: !!SUPPORTED[g.id]});
+      });
+    });
+    return games;
+  }
+
+  function findGame(feed, id) {
+    var games = gamesIn(feed), i;
+    for (i = 0; i < games.length; i++) if (games[i].id == id) return games[i];
+    return null;
+  }
+
+  // A game's archive, opened once (its directory read)
+  var archives = {};
+  function openArchive(game) {
+    if (!archives[game.id]) {
+      archives[game.id] = ScummVM.Zip.open(game.url);
+      archives[game.id].catch(function () { delete archives[game.id]; });
+    }
+    return archives[game.id];
+  }
+
+  // The files a game's archive holds, for the DOS shell to list: {name,
+  // size, dosDate, dosTime} for each, folders and macOS's leftovers
+  // left out. Rejects if the archive cannot be read.
+  ScummVM.gameFiles = function (game) {
+    return openArchive(game).then(function (archive) {
+      return archive.entries.filter(function (e) {
+        return !junk(e.name) && !/\/$/.test(e.name);
+      }).map(function (e) {
+        return {name: base(e.name), size: e.size, dosDate: e.dosDate, dosTime: e.dosTime};
+      });
+    });
+  };
 
   // A share link as a URL the browser can download from: Dropbox's pages
   // become its download host, which allows ranges and other sites
@@ -196,9 +270,8 @@
   // start, ScummVM.source set; rejects with an Error whose message says,
   // for the screen, what went wrong (with no feed given, after asking).
   ScummVM.prepareGame = function (gameId, report) {
-    var game = GAMES[gameId], url = feedUrl(), item, host;
+    var support = SUPPORTED[gameId], url = feedUrl(), game, host;
     ScummVM.source = null;
-    if (!game) return Promise.reject(new Error("There is no " + gameId.toUpperCase() + " to load."));
     if (!url) {
       askForFeed();
       return Promise.reject(new Error("No game feed has been given."));
@@ -209,18 +282,19 @@
     return readFeed().catch(function () {
       throw new Error("Cannot read the game feed at " + host + ".");
     }).then(function (feed) {
-      item = findItem(feed, game);
-      if (!item) throw new Error(game.title + " is not in the feed.");
-      report("Found " + (item.longTitle || item.title) + ".");
-      report("Opening " + fileName(archiveOf(item)) + "...");
-      return ScummVM.Zip.open(directUrl(archiveOf(item))).catch(function (err) {
+      game = findGame(feed, gameId);
+      if (!game) throw new Error("There is no " + gameId.toUpperCase() + " in the feed.");
+      if (!support) throw new Error(game.title + " does not run here yet.");
+      report("Found " + game.longTitle + ".");
+      report("Opening " + fileName(archiveOf(game.item)) + "...");
+      return openArchive(game).catch(function (err) {
         debug(1, "archive: " + err.message);
         throw new Error("Cannot open the game's archive (" + err.message + ").");
       });
     }).then(function (archive) {
-      var pair = findDataFiles(archive, game), source;
+      var pair = findDataFiles(archive, support), source;
       if (!pair) throw new Error("The archive has no " + gameId.toUpperCase() + ".000 and .001.");
-      source = new Source(gameId, item, archive, pair);
+      source = new Source(gameId, game.item, archive, pair);
       // the index file is small; the bar is for the data file
       return archive.read(pair[0]).then(function (index) {
         source.files[0] = binaryString(index);
@@ -297,12 +371,13 @@
 
   ScummVM.askForFeed = function () { askForFeed(); };
 
-  // The feed in the address, read once: the box asks for it until then
+  // The feed in the address, read once: the box asks for it until then.
+  // Resolves to the ScummVM games in it (see gamesIn).
   ScummVM.feedLoaded = new Promise(function (resolve) {
     function start() {
       var url = feedUrl();
       if (!url) { askForFeed(); return; }
-      readFeed().then(resolve, function () {
+      readFeed().then(function (feed) { resolve(gamesIn(feed)); }, function () {
         askForFeed("No webRcade feed could be read at that address.");
         document.getElementById("feed-url").value = url;
       });
