@@ -22,6 +22,8 @@
 
   var DRIVE = {
     "C:\\": [
+      ["IO",       "SYS", 33430,   "04-09-91", " 5:00a", "", "HSRA"],
+      ["MSDOS",    "SYS", 37394,   "04-09-91", " 5:00a", "", "HSRA"],
       ["DOS",      "",    DIR,     "05-15-91", "10:22a"],
       ["GAMES",    "",    DIR,     "08-02-91", " 3:14p"],
       ["AUTOEXEC", "BAT", 128,     "05-15-91", "10:20a"],
@@ -98,7 +100,11 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  // where echo() writes: the screen, or a command's output being captured
+  // for MORE (see run)
+  var sink = null;
   function echo(s) {
+    if (sink) { sink.push(s === undefined ? "" : s); return; }
     lines.push(s === undefined ? "" : s);
     if (lines.length > 400) lines = lines.slice(-400);
   }
@@ -132,45 +138,229 @@
     return parts.length ? "C:\\" + parts.join("\\") : "C:\\";
   }
 
-  function entryLine(e) {
-    var left = padRight(e[0], 8) + " " + padRight(e[1], 3);
-    var size = e[2] === DIR ? padRight(" <DIR>", 10) : padLeft(e[2], 10);
-    return left + size + " " + e[3] + "  " + e[4];
+  /* --- DIR ------------------------------------------------------------- */
+
+  // DIR with the switches it grew up to have (Windows' dir, see
+  // learn.microsoft.com/windows-server/administration/windows-commands/dir),
+  // in MS-DOS 5's look. Each entry is [name, ext, size or DIR, date, time,
+  // long name, attributes]: the last two only where they differ from the
+  // 8.3 name and from plain "A" (files) or "D" (folders).
+  var DIR_HELP = [
+    "Displays a list of files and subdirectories in a directory.",
+    "",
+    "DIR [drive:][path][filename] [/P] [/Q] [/W] [/D] [/A[[:]attributes]]",
+    "  [/O[[:]sortorder]] [/T[[:]timefield]] [/S] [/B] [/L] [/N] [/X] [/C] [/4]",
+    "",
+    "  [drive:][path][filename]",
+    "              Specifies drive, directory, and/or files to list.",
+    "  /P          Pauses after each screenful of information.",
+    "  /Q          Displays the owner of each file.",
+    "  /W          Uses wide list format.",
+    "  /D          Same as wide but files are list sorted by column.",
+    "  /A          Displays files with specified attributes.",
+    "  attributes   D  Directories                R  Read-only files",
+    "               H  Hidden files               A  Files ready for archiving",
+    "               S  System files               -  Prefix meaning not",
+    "  /O          List by files in sorted order.",
+    "  sortorder    N  By name (alphabetic)       S  By size (smallest first)",
+    "               E  By extension (alphabetic)  D  By date/time (oldest first)",
+    "               G  Group directories first    -  Prefix to reverse order",
+    "  /T          Controls which time field displayed or used for sorting",
+    "  timefield    C  Creation  A  Last Access  W  Last Written",
+    "  /S          Displays files in specified directory and all subdirectories.",
+    "  /B          Uses bare format (no heading information or summary).",
+    "  /L          Uses lowercase.",
+    "  /N          New long list format where filenames are on the far right.",
+    "  /X          Displays the short names generated for non-8dot3 file",
+    "              names, before the long name.",
+    "  /C          Displays the thousand separator in file sizes.",
+    "  /4          Displays four-digit years.",
+    ""
+  ];
+
+  function isDir(e) { return e[2] === DIR; }
+  function shortOf(e) { return e[1] ? e[0] + "." + e[1] : e[0]; }
+  function longOf(e) { return e[5] || shortOf(e); }
+  function attrsOf(e) { return e[6] || (isDir(e) ? "D" : "A"); }
+
+  function fullYear(date) { var y = +date.slice(6); return (y < 80 ? 2000 : 1900) + y; }
+  function sortableTime(e) {
+    var d = e[3], t = e[4], h = +t.slice(0, 2) % 12 + (t.slice(-1) === "p" ? 12 : 0);
+    return fullYear(d) * 1e8 + +d.slice(0, 2) * 1e6 + +d.slice(3, 5) * 1e4 + h * 100 + +t.slice(3, 5);
   }
 
-  function doDir(arg) {
-    var path = resolve(arg), game = GAME_DIRS[path];
-    // a game's folder is listed once its archive has been read
-    if (game && !DRIVE[path].read) {
-      waiting = true;
-      render();
-      readGameDir(path).then(function () {
-        waiting = false;
-        listDir(path);
-        render();
+  function withCommas(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+  // A DOS wildcard as a test of a name: * any run, ? any one (or none)
+  function wildcard(pattern) {
+    var re = pattern.toUpperCase().replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".?");
+    // "*.*" and "NAME.*" also take names with no extension
+    re = re.replace(/\\\.\.\*$/, "(\\..*)?");
+    return new RegExp("^" + re + "$");
+  }
+
+  // Split DIR's arguments into its switches and the paths it names
+  function dirArgs(arg) {
+    var o = {paths: [], attrs: null, order: null}, rest;
+    rest = String(arg).replace(/\/(-?)([a-z0-9?])((?::?-?[a-z]+)*)/gi, function (m, not, sw, val) {
+      sw = sw.toUpperCase();
+      val = val.replace(/:/g, "").toUpperCase();
+      if (sw === "A") o.attrs = val;
+      else if (sw === "O") o.order = val || "GN";
+      else if (sw === "C") o.commas = !not;
+      else if (sw !== "T" && sw !== "R") o[sw] = !not;
+      return " ";
+    });
+    rest.split(/[\s,;]+/).forEach(function (p) { if (p) o.paths.push(p); });
+    return o;
+  }
+
+  // What a path names: a folder and the pattern of names in it
+  function dirTarget(p) {
+    var path, cut, last;
+    if (!p) return {dir: cwd, pattern: "*.*"};
+    path = resolve(p);
+    if (DRIVE[path]) return {dir: path, pattern: "*.*"};
+    cut = path.lastIndexOf("\\");
+    last = path.slice(cut + 1);
+    return {dir: cut <= 2 ? "C:\\" : path.slice(0, cut), pattern: last};
+  }
+
+  // The folders a listing takes in: the one named, and with /S all below it
+  function dirsUnder(dir, all) {
+    var out = [dir], key;
+    if (all) for (key in DRIVE) if (key !== dir && key.indexOf(dir === "C:\\" ? dir : dir + "\\") === 0) out.push(key);
+    return out.sort();
+  }
+
+  // the entries of a folder DIR shows: filtered, sorted
+  function dirEntries(dir, pattern, o) {
+    // a name with no extension given stands for any: DIR MONKEY is MONKEY.*
+    if (pattern.indexOf(".") < 0) pattern += ".*";
+    var test = wildcard(pattern), entries = (DRIVE[dir] || []).filter(function (e) {
+      if (!test.test(shortOf(e)) && !test.test(longOf(e).toUpperCase())) return false;
+      var a = attrsOf(e), want = o.attrs, i, not = false, c;
+      // hidden and system files only show when asked for
+      if (want === null) return a.indexOf("H") < 0 && a.indexOf("S") < 0;
+      for (i = 0; i < want.length; i++) {
+        c = want.charAt(i);
+        if (c === "-") { not = true; continue; }
+        if ((a.indexOf(c) >= 0) === not) return false;
+        not = false;
+      }
+      return true;
+    });
+    if (o.order) entries.sort(function (x, y) {
+      var spec = o.order, i, c, rev = false, r;
+      for (i = 0; i < spec.length; i++) {
+        c = spec.charAt(i);
+        if (c === "-") { rev = true; continue; }
+        if (c === "N") r = shortOf(x).localeCompare(shortOf(y));
+        else if (c === "E") r = x[1].localeCompare(y[1]);
+        else if (c === "S") r = (isDir(x) ? 0 : x[2]) - (isDir(y) ? 0 : y[2]);
+        else if (c === "D") r = sortableTime(x) - sortableTime(y);
+        else if (c === "G") r = (isDir(y) ? 1 : 0) - (isDir(x) ? 1 : 0);
+        else r = 0;
+        if (r) return rev ? -r : r;
+        rev = false;
+      }
+      return 0;
+    });
+    return entries;
+  }
+
+  // One folder's listing, as lines, with its file and byte counts
+  function dirListing(dir, entries, o, out) {
+    var files = 0, bytes = 0, low = o.L ? function (s) { return s.toLowerCase(); } : function (s) { return s; },
+        size = function (n) { return o.commas ? withCommas(n) : String(n); },
+        date = function (e) { return o["4"] ? e[3].slice(0, 6) + fullYear(e[3]) : e[3]; },
+        col, rows, per, r, c, i, line, name;
+    entries.forEach(function (e) { if (!isDir(e)) { files++; bytes += e[2]; } });
+
+    if (o.B) {
+      entries.forEach(function (e) {
+        if (e[0] === "." || e[0] === "..") return;
+        out.push(low((o.S ? (dir === "C:\\" ? dir : dir + "\\") : "") + longOf(e)));
       });
-      return;
+      return {files: files, bytes: bytes};
     }
-    listDir(path);
+
+    out.push(" Directory of " + dir);
+    out.push("");
+    if (o.W || o.D) {
+      // five to a line, folders in brackets; /D runs down the columns
+      per = 5;
+      rows = Math.ceil(entries.length / per);
+      for (r = 0; r < (o.D ? rows : Math.ceil(entries.length / per)); r++) {
+        line = "";
+        for (c = 0; c < per; c++) {
+          i = o.D ? c * rows + r : r * per + c;
+          if (i >= entries.length) break;
+          name = isDir(entries[i]) ? "[" + shortOf(entries[i]) + "]" : shortOf(entries[i]);
+          line += padRight(low(name), 16);
+        }
+        out.push(line.replace(/\s+$/, ""));
+      }
+    } else if (o.N || o.X || o.Q) {
+      // date, time, size, then the names on the right
+      entries.forEach(function (e) {
+        var s = e[1] ? e[0] + "." + e[1] : e[0], longName = longOf(e);
+        line = date(e) + "  " + e[4] + "  " + (isDir(e) ? padRight("<DIR>", 14) : padLeft(size(e[2]), 14)) + " ";
+        if (o.Q) line += padRight(isDir(e) ? "BUILTIN\\Admin" : "BUILTIN\\Users", 15) + " ";
+        if (o.X) line += padRight(longName.toUpperCase() === s ? "" : s, 13);
+        out.push(line + low(longName));
+      });
+    } else {
+      entries.forEach(function (e) {
+        out.push(low(padRight(e[0], 8) + " " + padRight(e[1], 3)) +
+                 (isDir(e) ? padRight(" <DIR>", 10) : padLeft(size(e[2]), 10)) + " " + date(e) + "  " + e[4]);
+      });
+    }
+    if (DRIVE[dir] && DRIVE[dir].unreadable) out.push(DRIVE[dir].unreadable);
+    out.push(padLeft(entries.length, 9) + " file(s)" + padLeft(size(bytes), 11) + " bytes");
+    return {files: entries.length, bytes: bytes};
   }
 
-  function listDir(path) {
-    var entries = DRIVE[path];
-    if (!entries) { echo("Invalid directory"); return; }
-
-    var bytes = 0, i;
-    for (i = 0; i < entries.length; i++)
-      if (entries[i][2] !== DIR) bytes += entries[i][2];
-
-    echo(" Volume in drive C has no label");
-    echo(" Volume Serial Number is 1A2B-3C4D");
-    echo(" Directory of " + path);
-    echo("");
-    for (i = 0; i < entries.length; i++) echo(entryLine(entries[i]));
-    if (entries.unreadable) echo(entries.unreadable);
-    echo(padLeft(entries.length, 9) + " file(s)" + padLeft(bytes, 11) + " bytes");
-    echo(padLeft(FREE_BYTES, 28) + " bytes free");
-    echo("");
+  // DIR: resolves to its lines, and whether to pause each screen (/P), once
+  // any game folders it takes in have been read from their archives
+  function doDir(arg) {
+    var o = dirArgs(arg), targets, dirs = [], waits = [];
+    if (o["?"]) return Promise.resolve({lines: DIR_HELP.slice()});
+    targets = (o.paths.length ? o.paths : [""]).map(dirTarget);
+    targets.forEach(function (t) {
+      dirsUnder(t.dir, o.S).forEach(function (d) {
+        dirs.push({dir: d, pattern: t.pattern});
+        if (GAME_DIRS[d] && !DRIVE[d].read) waits.push(readGameDir(d));
+      });
+    });
+    // /S takes in the game folders below too, once they are read
+    return Promise.all(waits).then(function () {
+      var out = [], files = 0, bytes = 0, dirCount = 0, shown = 0;
+      if (!DRIVE[targets[0].dir]) return {lines: ["Invalid directory"]};
+      if (!o.B) {
+        out.push(" Volume in drive C has no label");
+        out.push(" Volume Serial Number is 1A2B-3C4D");
+      }
+      dirs.forEach(function (d) {
+        var entries = dirEntries(d.dir, d.pattern, o), r;
+        // with /S, a folder with nothing matching in it is left out
+        if (o.S && !entries.length) return;
+        if (!o.B && shown) out.push("");
+        r = dirListing(d.dir, entries, o, out);
+        files += r.files; bytes += r.bytes; dirCount++; shown++;
+      });
+      if (!shown && !o.B) { out.push(""); out.push("File not found"); }
+      if (!o.B && shown) {
+        if (o.S && dirCount > 1) {
+          out.push("");
+          out.push("     Total files listed:");
+          out.push(padLeft(files, 9) + " file(s)" + padLeft(o.commas ? withCommas(bytes) : bytes, 11) + " bytes");
+        }
+        out.push(padLeft(o.commas ? withCommas(FREE_BYTES) : FREE_BYTES, 28) + " bytes free");
+        out.push("");
+      }
+      return {lines: out, pause: !!o.P};
+    });
   }
 
   function doCd(arg) {
@@ -207,10 +397,11 @@
     echo("");
     echo("CD       Displays the name of or changes the current directory.");
     echo("CLS      Clears the screen.");
-    echo("DIR      Displays a list of files and subdirectories.");
+    echo("DIR      Displays a list of files and subdirectories. (DIR /? for more)");
     echo("ECHO     Displays messages.");
     echo("HELP     Provides Help information for MS-DOS commands.");
     echo("MEM      Displays the amount of used and free memory.");
+    echo("MORE     Displays output one screen at a time.");
     echo("TYPE     Displays the contents of a text file.");
     echo("VER      Displays the MS-DOS version.");
     echo("");
@@ -284,7 +475,7 @@
         files.forEach(function (f) {
           if (/\.exe$/i.test(f.name)) return;
           var n = shortName(f.name, taken);
-          entries.push([n[0], n[1], f.size, dosDate(f.dosDate), dosTime(f.dosTime)]);
+          entries.push([n[0], n[1], f.size, dosDate(f.dosDate), dosTime(f.dosTime), f.name]);
         });
         entries.read = true;
       }, function (err) {
@@ -295,13 +486,58 @@
     return dirReads[path];
   }
 
-  function run(cmd) {
-    var parts = cmd.split(/\s+/);
-    var verb = parts[0].toUpperCase();
-    var arg = parts.slice(1).join(" ");
+  // the output of a command that echoes, as lines
+  function captured(fn) {
+    var out = [];
+    sink = out;
+    try { fn(); } finally { sink = null; }
+    return out;
+  }
 
+  var MORE_HELP = [
+    "Displays output one screen at a time.",
+    "",
+    "MORE < [drive:][path]filename",
+    "command-name | MORE",
+    "",
+    "  [drive:][path]filename  Specifies a file to display one screen at a time.",
+    "  command-name            Specifies a command whose output will be displayed.",
+    ""
+  ];
+
+  function run(cmd) {
+    var pipe = cmd.split("|"), first = pipe[0].trim(), more = false, m, parts, verb, arg, r;
+    // COMMAND | MORE: the only filter there is
+    if (pipe.length > 1) {
+      if (pipe.length > 2 || !/^more$/i.test(pipe[1].trim())) { echo("Bad command or file name"); return; }
+      more = true;
+    }
+    // MORE < FILE, and MORE on its own
+    if ((m = /^more\s*(<\s*(.*)|\/\?)?$/i.exec(first))) {
+      if (m[0].indexOf("?") >= 0) { MORE_HELP.forEach(function (l) { echo(l); }); return; }
+      if (m[2] !== undefined) show(captured(function () { doType(m[2]); }), "more");
+      return;
+    }
+
+    parts = first.split(/\s+/);
+    verb = parts[0].toUpperCase();
+    arg = parts.slice(1).join(" ");
+    if (verb === "DIR") {
+      // a game's folder may still be being read from its archive: wait
+      waiting = true;
+      render();
+      doDir(arg).then(function (out) {
+        waiting = false;
+        show(out.lines, more ? "more" : out.pause ? "pause" : "plain");
+      });
+      return;
+    }
+    if (more) { show(captured(function () { runCommand(verb, arg); }), "more"); return; }
+    runCommand(verb, arg);
+  }
+
+  function runCommand(verb, arg) {
     switch (verb) {
-      case "DIR":                doDir(arg); break;
       case "CD": case "CHDIR":   doCd(arg); break;
       case "CLS":                lines = []; break;
       case "VER":                echo(""); echo("MS-DOS Version 5.00"); echo(""); break;
@@ -314,6 +550,58 @@
       case "EXIT":               echo("Not right now. There is a game to play."); break;
       default:                   doExec(verb);
     }
+  }
+
+  /* --- one screen at a time -------------------------------------------- */
+
+  // Show lines: all at once, or a screen at a time -- DIR /P's way, "Press
+  // any key to continue . . ." then "(continuing C:\...)", or MORE's,
+  // "-- More --" -- waiting on a key (or a tap) between screens. Ctrl+C or
+  // Esc stops it there.
+  var pager = null;
+  function show(out, mode) {
+    if (mode === "plain" || out.length < ROWS - 1) {
+      out.forEach(function (l) { echo(l); });
+      render();
+      return;
+    }
+    pager = {lines: out, pos: 0, mode: mode, dir: cwd, first: true};
+    nextPage();
+  }
+
+  function nextPage() {
+    var p = pager, n = ROWS - 1, end, m;
+    // the first screen still shows the command that was typed
+    if (p.first) { n--; p.first = false; }
+    else if (p.mode === "pause") {
+      m = /^ Directory of (.*)$/.exec(p.lines.slice(0, p.pos).reverse().filter(function (l) { return /^ Directory of /.test(l); })[0] || "");
+      echo("(continuing " + (m ? m[1] : p.dir) + ")");
+      n--;
+    }
+    end = Math.min(p.lines.length, p.pos + n);
+    for (; p.pos < end; p.pos++) echo(p.lines[p.pos]);
+    if (p.pos < p.lines.length) {
+      echo(p.mode === "more" ? "-- More --" : "Press any key to continue . . .");
+      waiting = true;
+    } else {
+      pager = null;
+      waiting = false;
+    }
+    render();
+  }
+
+  // a key while paging: on to the next screen, or stop
+  function pageKey(stop) {
+    if (!pager) return false;
+    // MORE's prompt goes when it is answered; DIR /P's stays
+    if (pager.mode === "more") lines.pop();
+    if (stop) {
+      echo("^C");
+      pager = null;
+      waiting = false;
+      render();
+    } else nextPage();
+    return true;
   }
 
   /* --- launching the game ---------------------------------------------- */
@@ -508,6 +796,12 @@
 
   function onKeyDown(e) {
     if (running || off) return;
+    if (pager) {
+      e.preventDefault();
+      if (/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key)) return;
+      pageKey(e.key === "Escape" || (e.ctrlKey && /^c$/i.test(e.key)));
+      return;
+    }
     if (waiting) { e.preventDefault(); return; }
 
     if (booting) { e.preventDefault(); finishBoot(); return; }
@@ -534,6 +828,8 @@
 
   // `input` rather than keydown for the characters, so phone keyboards work
   function onInput() {
+    // a phone's keyboard types rather than pressing keys: any of it pages on
+    if (pager && field.value) { field.value = ""; pageKey(false); return; }
     if (booting || running || off || waiting) { field.value = ""; return; }
     var max = COLS - (cwd.length + 1) - 1;
     if (field.value.length > max) field.value = field.value.slice(0, max);
@@ -610,6 +906,8 @@
     document.addEventListener("touchend", function (e) {
       if (running || off) return;
       if (e.target.closest && e.target.closest("button, a, summary, input")) return;
+      // a tap on the screen pages on, as a key would
+      if (pager && e.target.closest && e.target.closest(".screen-container")) { pageKey(false); return; }
       field.focus();
     }, { passive: true });
 
