@@ -1614,6 +1614,10 @@
       varId &= ~0x2000;
     }
     if(!(varId & 0xF000)) {
+      // script.cpp readVar: MI2's copy protection is passed by its own
+      // check reading var 518 in place of 490, as ScummVM does with its
+      // copy_protection setting off
+      if(varId == 490 && t._game == "monkey2") varId = 518;
       return t._scummVars[varId];
     }
     if(varId & 0x8000) {

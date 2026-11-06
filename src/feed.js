@@ -27,7 +27,8 @@
   // The games that run here, and the base name of the data files to pick
   // when an archive has more than one pair
   var SUPPORTED = {
-    monkey: {title: "The Secret of Monkey Island", files: /^(monkey1?|secret)$/}
+    monkey: {title: "The Secret of Monkey Island", files: /^(monkey1?|secret)$/},
+    monkey2: {title: "Monkey Island 2: LeChuck's Revenge", files: /^monkey2$/}
   };
 
   // Names games go by besides ScummVM's, normalised as norm() leaves them

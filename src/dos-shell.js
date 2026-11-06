@@ -627,9 +627,19 @@
   // (reset() moves launchId on); a failure says why and goes back to the
   // prompt.
   var launchId = 0;
+  // the game that is running, named under the heading and in the tab
+  function nameGame(gameId) {
+    var dir, title = null, el = document.getElementById("sub-game");
+    for (dir in GAME_DIRS) if (GAME_DIRS[dir].id === gameId) title = GAME_DIRS[dir].title;
+    if (!title) return;
+    if (el) el.textContent = title;
+    document.title = "JS ScummVM \u2014 " + title;
+  }
+
   function startGame(game) {
     var id = ++launchId, bar = -1;
     running = true;
+    nameGame(game);
     render();
     ScummVM.prepareGame(game, function (text, fraction) {
       if (id !== launchId) return;
@@ -694,6 +704,7 @@
       root.classList.remove("is-running");
       root.classList.add("is-off");
       document.documentElement.classList.remove("has-game");
+      document.title = "JS ScummVM";
       // whatever was on screen -- game or prompt -- is gone
       if (window.ScummVM && ScummVM.shutdown) ScummVM.shutdown();
       reset();

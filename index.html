@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JS ScummVM &mdash; The Secret of Monkey Island</title>
+  <title>JS ScummVM</title>
   <script>
     // ?game= boots straight into the game: name it under the heading from
     // the first paint (dos-shell.js keeps this class up to date after)
@@ -2317,7 +2317,7 @@
 
   <header class="masthead">
     <h1>JS ScummVM</h1>
-    <p><span class="sub-dos">MS-DOS</span><span class="sub-game">The Secret of Monkey Island</span></p>
+    <p><span class="sub-dos">MS-DOS</span><span class="sub-game" id="sub-game"></span></p>
   </header>
 
   <div class="desk">
@@ -2497,7 +2497,8 @@
         <code>C:\GAMES</code> named by ScummVM's id for it
         (<code>MONKEY</code>, <code>DIG</code>, <code>ATLANTIS</code>&hellip;),
         holding the zip's files and an <code>.EXE</code> to run it. For now
-        only The Secret of Monkey Island runs.</li>
+        The Secret of Monkey Island runs, and Monkey Island 2 is on its
+        way.</li>
       <li><b>The zip.</b> The game's two data files, <code>MONKEY.000</code> and
         <code>MONKEY.001</code> (or <code>MONKEY1.000</code> and
         <code>.001</code>), in any folder; and for the music, the CD tracks as
