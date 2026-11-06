@@ -358,6 +358,49 @@
     .savemenu-foot { margin-top: auto; text-align: center; color: #777; }
 
     /* the text speed slider, shown for a moment after + or - */
+    /* A CD spinning in the corner of the screen while a music track is
+       fetched out of the game's archive (sound.js). The disc turns; its
+       sheen, lit from above, stays put. */
+    .cd-loading {
+      position: absolute;
+      top: 3.5%;
+      right: 3%;
+      z-index: 4;
+      width: calc(var(--screen-w) * 0.075);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      opacity: 0;
+      transition: opacity .3s ease;
+      pointer-events: none;
+      filter: drop-shadow(0 1px 3px #000c);
+    }
+    .cd-loading::before,
+    .cd-loading::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      /* the hole in the middle */
+      -webkit-mask: radial-gradient(circle, #0000 0 12%, #000 13%);
+      mask: radial-gradient(circle, #0000 0 12%, #000 13%);
+    }
+    .cd-loading::before {
+      background:
+        /* the clear hub around the hole, and the edge of the data area */
+        radial-gradient(circle, #0000 0 13%, #ffffff55 13.5% 30%, #8a909822 31% 33%, #0000 33.5% 97%, #ffffffaa 98%),
+        conic-gradient(#c9ced6, #f2d4ff, #c5ecff, #fff3bf, #d3d8df, #ffcfe1, #c2ffe7, #dfe3ea, #c9ced6);
+      animation: cd-spin 1s linear infinite paused;
+    }
+    .cd-loading::after {
+      background: linear-gradient(160deg, #ffffff99, #fff0 40%, #fff0 65%, #0000004d);
+    }
+    .crt.is-running.is-loading-cd .cd-loading { opacity: 1; }
+    .crt.is-running.is-loading-cd .cd-loading::before { animation-play-state: running; }
+    @keyframes cd-spin { to { transform: rotate(1turn); } }
+    @media (prefers-reduced-motion: reduce) {
+      .cd-loading::before { animation: none; }
+    }
+
     .banner {
       position: absolute;
       left: 50%;
@@ -2362,6 +2405,7 @@
           <div class="screen-container">
             <div class="screen-view">
               <canvas id="jsscummvm" width="640" height="480"></canvas>
+              <div class="cd-loading" title="Loading music" aria-hidden="true"></div>
               <div class="dos" id="dos">
                 <pre class="dos-out" id="dos-out" aria-live="polite"></pre>
                 <input class="dos-input" id="dos-input" type="text"

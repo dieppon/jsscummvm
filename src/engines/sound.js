@@ -44,7 +44,8 @@
 
   // The speaker's knob (jsscumm.js) mutes the whole game -- samples, AdLib
   // and CD audio -- without stopping anything, so the game keeps time as
-  // it would with the sound up. Kept in the browser across visits.
+  // it would with the sound up; only a CD track that starts while it is off
+  // is not fetched (playCDTrack). Kept in the browser across visits.
   var MUTE_KEY = "jsscummvm.muted";
   try { ScummVM.muted = window.localStorage.getItem(MUTE_KEY) == "1"; } catch (e) { ScummVM.muted = false; }
 
@@ -53,6 +54,9 @@
     ScummVM.muted = !!muted;
     if (ScummVM.audioOut) ScummVM.audioOut.gain.value = muted ? 0 : 1;
     if (cd) cd.muted = !!muted;
+    // a track that was left unfetched with the speakers off: fetch it now,
+    // and play it from where the game has got to
+    else if (!muted && s._cdStatus && s._cdTimerRunning) s.loadCDTrack(s._cdStatus, s._cdMusicTimer / 60);
     try { window.localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch (e) { /* not kept */ }
   };
 
@@ -301,32 +305,57 @@
     t.stopCD();
     t._cdStatus = {track: track, loops: numLoops, start: startFrame / 75,
                    end: duration ? (startFrame + duration) / 75 : 0};
-    t.findCDTrack(track, function(url) {
-      var status = t._cdStatus, audio;
-      if (!url || status == null || status.track != track) return;
+    // With the speakers off the track is not fetched at all: the game goes
+    // on as without CD audio, its music timer running, and switching them
+    // on fetches it then (ScummVM.setMuted)
+    if (ScummVM.muted) return;
+    t.loadCDTrack(t._cdStatus, 0);
+  };
+
+  // Fetch a cue's track and play it from `into` seconds into the cue --
+  // looping round to where it would be by then, or not at all if a cue
+  // that does not loop would be over
+  s.loadCDTrack = function(status, into) {
+    var t = this;
+    t.findCDTrack(status.track, function(url) {
+      var audio;
+      if (!url || t._cdStatus !== status || t._cdAudio) return;
       audio = t._cdAudio = new Audio(url);
       audio.muted = ScummVM.muted;
-      audio.currentTime = status.start;
       audio.addEventListener("timeupdate", function() {
         if (status.end && audio.currentTime >= status.end) t.cdTrackEnded(audio, status);
       });
       audio.addEventListener("ended", function() { t.cdTrackEnded(audio, status); });
-      var p = audio.play();
-      // Blocked until the user clicks or presses a key: start it then, at
-      // the point the game has reached (the CD timer counts 1/60 s)
-      if (p && p.catch) p.catch(function() {
-        var resume = function() {
-          // a click in the save menu is not the time; wait for the next
-          if (t._soundPaused) return;
-          window.removeEventListener("mousedown", resume, true);
-          window.removeEventListener("keydown", resume, true);
-          if (t._cdAudio !== audio || !audio.paused) return;
-          audio.currentTime = status.start + t._cdMusicTimer / 60;
-          audio.play().catch(function() {});
-        };
-        window.addEventListener("mousedown", resume, true);
-        window.addEventListener("keydown", resume, true);
+      if (!into) { audio.currentTime = status.start; start(); return; }
+      audio.addEventListener("loadedmetadata", function() {
+        var len = (status.end || audio.duration) - status.start;
+        if (len > 0 && into >= len) {
+          if (status.loops >= 0) { if (t._cdAudio === audio) t._cdAudio = null; return; }
+          into %= len;
+        }
+        audio.currentTime = status.start + into;
+        start();
       });
+
+      function start() {
+        if (t._cdAudio !== audio) return;
+        var p = audio.play();
+        // Blocked until the user clicks or presses a key: start it then, at
+        // the point the game has reached (the CD timer counts 1/60 s)
+        if (p && p.catch) p.catch(function() {
+          var resume = function() {
+            // a click in the save menu is not the time; wait for the next
+            if (t._soundPaused) return;
+            window.removeEventListener("mousedown", resume, true);
+            window.removeEventListener("keydown", resume, true);
+            if (t._cdAudio !== audio || !audio.paused) return;
+            audio.currentTime = status.start + t._cdMusicTimer / 60;
+            audio.play().catch(function() {});
+          };
+          window.addEventListener("mousedown", resume, true);
+          window.addEventListener("keydown", resume, true);
+        });
+      }
     });
   };
 
@@ -346,14 +375,27 @@
   // first format the browser plays. The archive remembers it, so asking
   // again -- even while it is still being read -- waits for the same one.
   s.findCDTrack = function(track, callback) {
-    var src = ScummVM.source;
+    var src = ScummVM.source, shown = false, timer;
     if (!src || src.game != this._game) return;
+    // a CD spins in the corner of the screen while a track is fetched --
+    // if it takes long enough to notice, so not for one already kept
+    timer = window.setTimeout(function() { shown = true; cdLoading(1); }, 250);
     src.trackUrl(track, CD_EXTENSIONS.filter(canPlay).map(function(ext) {
       return {ext: ext, type: CD_MIME[ext]};
     })).then(function(url) {
+      window.clearTimeout(timer);
+      if (shown) cdLoading(-1);
       if (url) callback(url);
     });
   };
+
+  // how many tracks are being fetched; the CD shows while any are
+  var tracksLoading = 0;
+  function cdLoading(delta) {
+    var crt = document.getElementById("crt");
+    tracksLoading += delta;
+    if (crt) crt.classList.toggle("is-loading-cd", tracksLoading > 0);
+  }
 
   s.pollCD = function() {
     var a = this._cdAudio;
