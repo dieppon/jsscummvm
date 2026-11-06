@@ -5,9 +5,8 @@
  *
  *  - CD stubs: a 32-byte SOUN naming a CD audio track, a loop flag and a
  *    start and end time. The music lives on the disc. Ripped tracks are
- *    played, when there are any, from the game's archive (feed.js), or with
- *    ?files=local from games/<game>/trackN.{webm,ogg,mp3,flac,wav} (or
- *    TrackN);
+ *    played, when its archive has any (trackN.{webm,ogg,mp3,flac,wav}),
+ *    from the game's archive (feed.js);
  *    without them the music is silent, but the CD timer still runs, since
  *    scripts time scenes against VAR_MUSIC_TIMER.
  *  - SBL: digitised Sound Blaster samples (VOC data), played through Web
@@ -64,7 +63,6 @@
     t._cdMusicTimer = 0;
     t._cdTimerRunning = false;
     t._sfx = {};             // sound id -> playing AudioBufferSourceNode
-    t._cdTracks = {};        // track -> url, or null when there is no file
     t._cdAudio = null;
     t._cdStatus = null;
     t._soundsWarned = {};
@@ -342,34 +340,17 @@
     }
   };
 
-  // Look for a ripped copy of the track once, remembering the answer
+  // A ripped copy of the track, out of the game's archive (feed.js) in the
+  // first format the browser plays. The archive remembers it, so asking
+  // again -- even while it is still being read -- waits for the same one.
   s.findCDTrack = function(track, callback) {
-    var t = this, dir = "games/" + t._game + "/", i = 0, names = [], n, e, src = ScummVM.source;
-    if (track in t._cdTracks) { callback(t._cdTracks[track]); return; }
-    t._cdTracks[track] = null;
-    // out of the game's archive (feed.js), in the first format that plays
-    if (src && src.game == t._game) {
-      src.trackUrl(track, CD_EXTENSIONS.filter(canPlay).map(function(ext) {
-        return {ext: ext, type: CD_MIME[ext]};
-      })).then(function(url) {
-        t._cdTracks[track] = url;
-        if (url) callback(url);
-      });
-      return;
-    }
-    // rippers write both "track1" and "Track1"; a case-sensitive server
-    // only finds the one that is there
-    for (e = 0; e < CD_EXTENSIONS.length; e++)
-      for (n = 0; n < 2 && canPlay(CD_EXTENSIONS[e]); n++)
-        names.push((n ? "Track" : "track") + track + "." + CD_EXTENSIONS[e]);
-    (function next() {
-      if (i >= names.length) { callback(null); return; }
-      var url = dir + names[i++];
-      fetch(url, {method: "HEAD"}).then(function(r) {
-        if (r.ok) { t._cdTracks[track] = url; callback(url); }
-        else next();
-      }, next);
-    }());
+    var src = ScummVM.source;
+    if (!src || src.game != this._game) return;
+    src.trackUrl(track, CD_EXTENSIONS.filter(canPlay).map(function(ext) {
+      return {ext: ext, type: CD_MIME[ext]};
+    })).then(function(url) {
+      if (url) callback(url);
+    });
   };
 
   s.pollCD = function() {

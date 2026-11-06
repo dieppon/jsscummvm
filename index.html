@@ -1041,6 +1041,70 @@
     }
 
     .hint { margin: 0; font-size: 13px; color: #8b87b5; text-align: center; }
+
+    /* how the feed works, in info mode */
+    .feed-help { width: min(640px, 92vw); text-align: left; }
+    .feed-help h2 {
+      margin: 0 0 .5em;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .feed-help p { margin: 0 0 .7em; }
+    .feed-help ul { margin: 0 0 .7em; padding-left: 18px; }
+    .feed-help li { margin-bottom: .45em; }
+    .feed-help b { color: #cfcbea; font-weight: 600; }
+    .feed-help code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: #cfcbea;
+    }
+
+    /* the box asking for the feed (feed.js), in the DOS screen's colours */
+    .feed-dialog {
+      width: min(560px, calc(100vw - 32px));
+      padding: 20px 22px;
+      border: 2px solid #aaa;
+      background: #000;
+      color: #aaa;
+      font: 16px/1.4 "Less Perfect DOS VGA", "Consolas", "Lucida Console", ui-monospace, monospace;
+      box-shadow: 0 0 0 4px #000, 0 20px 60px #000c;
+    }
+    .feed-dialog::backdrop { background: #000a; }
+    .feed-dialog h2 { margin: 0 0 .8em; font: inherit; color: #fff; text-align: center; }
+    .feed-dialog p { margin: 0 0 1em; }
+    .feed-dialog label { display: block; margin-bottom: .3em; color: #fff; }
+    .feed-dialog input {
+      width: 100%;
+      padding: .3em .4em;
+      border: 1px solid #aaa;
+      border-radius: 0;
+      background: #000;
+      color: #fff;
+      /* 16px, or iOS zooms in on it */
+      font: inherit;
+      -webkit-user-select: text;
+      user-select: text;
+    }
+    .feed-dialog input:focus { outline: none; border-color: #fff; background: #111; }
+    .feed-dialog .feed-error { margin: .6em 0 0; color: #ff5555; }
+    .feed-buttons { display: flex; justify-content: space-between; gap: 1em; margin-top: 1em; }
+    .feed-dialog .feed-help-button { background: none; color: #aaa; text-decoration: underline; padding-left: 0; }
+    .feed-dialog .feed-help-button:hover,
+    .feed-dialog .feed-help-button:focus-visible { background: none; color: #fff; }
+    .feed-dialog button {
+      padding: .15em .9em;
+      border: 0;
+      background: #aaa;
+      color: #000;
+      font: inherit;
+      cursor: pointer;
+    }
+    .feed-dialog button:hover,
+    .feed-dialog button:focus-visible { background: #fff; outline: none; }
+    .feed-dialog button:disabled { background: #555; cursor: default; }
     .hint,
     .credit {
       -webkit-user-select: text;
@@ -2183,6 +2247,23 @@
     <p>Turn your phone upright<br>to use the MS-DOS prompt.</p>
   </div>
 
+  <dialog class="feed-dialog" id="feed-dialog" aria-labelledby="feed-dialog-title">
+    <!-- feed.js checks the address itself, and says so in the box -->
+    <form novalidate>
+      <h2 id="feed-dialog-title">GAME FEED</h2>
+      <p>JS ScummVM loads its games from a webЯcade feed. Paste the address of
+        one to play.</p>
+      <label for="feed-url">Feed address</label>
+      <input id="feed-url" type="url" required autocomplete="url" spellcheck="false"
+             autocapitalize="off" placeholder="https://.../feed.json">
+      <p class="feed-error" id="feed-error" role="alert" hidden></p>
+      <div class="feed-buttons">
+        <button type="button" class="feed-help-button" id="feed-help-button">How feeds work</button>
+        <button type="submit">Load</button>
+      </div>
+    </form>
+  </dialog>
+
   <header class="masthead">
     <h1>JS ScummVM</h1>
     <p><span class="sub-dos">MS-DOS</span><span class="sub-game">The Secret of Monkey Island</span></p>
@@ -2348,8 +2429,32 @@
     <div id="console"></div>
   </details>
 
-  <p class="hint">Click the screen, then try <kbd>dir</kbd>, <kbd>cd games</kbd>,
-    <kbd>monkey1.exe</kbd>. The power button switches the monitor off and on.</p>
+  <section class="hint feed-help" aria-labelledby="feed-help-title">
+    <h2 id="feed-help-title">Where the games come from</h2>
+    <p>JS ScummVM plays games from a webЯcade feed: a JSON file listing games,
+      each with a link to a zip of its files. Give it one as <code>?feed=</code>
+      in the address, or paste its address when asked; the last one is
+      remembered.</p>
+    <ul>
+      <li><b>Which games.</b> For now, The Secret of Monkey Island: an item of
+        type <code>scumm</code>. Feed items have no id, so it is found by its
+        title or its zip's file name &mdash; &ldquo;The Secret of Monkey
+        Island&rdquo;, &ldquo;Monkey Island&rdquo;,
+        <code>Monkey-Island-CD-DOS.zip</code>, <code>monkey1.zip</code>
+        &mdash; and never taken for Monkey Island 2 or later.</li>
+      <li><b>The zip.</b> The game's two data files, <code>MONKEY.000</code> and
+        <code>MONKEY.001</code> (or <code>MONKEY1.000</code> and
+        <code>.001</code>), in any folder; and for the music, the CD tracks as
+        <code>track1</code> to <code>track24</code> in WebM, Ogg, MP3, FLAC or
+        WAV.</li>
+      <li><b>Hosting.</b> The feed and the zip must let other sites read them
+        (CORS). Dropbox share links work; archive.org's do not.</li>
+      <li><b>Downloading.</b> Only the files the game needs are taken out of the
+        zip, when it needs them, and kept in the browser for next time.</li>
+    </ul>
+    <p>Then at the <code>C:\&gt;</code> prompt type <kbd>cd games</kbd> and
+      <kbd>monkey1</kbd>. The power button switches the monitor off and on.</p>
+  </section>
 
   <p class="credit">
     CRT case adapted from
@@ -2359,7 +2464,6 @@
     DOS VGA</a> by laemeur, after Zeh Fernando's Perfect DOS VGA 437.
   </p>
 
-  <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.min.js"></script>
   <script type="text/javascript" src="src/jsscumm.js"></script>
   <script type="text/javascript" src="src/system.js"></script>
   <script type="text/javascript" src="src/stream.js"></script>

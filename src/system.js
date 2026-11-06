@@ -1,6 +1,4 @@
 (function(){
-  var filesToLoad = 0;
-
   ScummVM.system = {
     new_dir_table: [ 270, 90, 180, 0 ],
     Point: function(x, y) {
@@ -16,52 +14,16 @@
       d = new Date();
       return d.getTime();
     },
+    // The game's files, read out of its archive already (feed.js)
     loadGameFiles: function(game, file_nos, callback) {
-      var callback = callback;
-      var t = this, i, src = ScummVM.source;
-
-      // read out of the game's archive already (feed.js)
-      if(src && src.game == game) {
-        for(i = 0; i < file_nos.length; i++)
-          ScummVM.engine.setFile(file_nos[i], game + ".00" + file_nos[i], src.files[file_nos[i]]);
-        if(callback) callback();
+      var src = ScummVM.source, i;
+      if(!src || src.game != game) {
+        error("no files for " + game + ": it has not been fetched from the feed");
         return;
       }
-
-      // otherwise off this server, from games/<game>/ (?files=local)
-      filesToLoad += file_nos.length;
-
-      for(i = 0; i < file_nos.length; i++) {
-        var i = i;
-        (function() { // Fix var scope
-        var file_no = file_nos[i];
-        var filename = game + ".00"+file_no.toString();
-        var game_url = "games/"+game+"/"+filename;
-
-        if(navigator.vendor.match("Apple") && window.localStorage[game_url]) {
-          log(game_url + " loaded from cache");
-          ScummVM.engine.setFile(file_no, filename, localStorage[game_url]);
-          filesToLoad--;
-          if(t.finishedLoading() && callback)
-            callback();
-        } else {
-          $.ajax({type: "GET", url: game_url, dataType: "text", cache:false, success: function(data) {
-            log(game_url + " loaded");
-            try {
-              if(navigator.vendor.match("Apple")) window.localStorage[game_url] = data;
-            } catch(e) {
-            };
-            ScummVM.engine.setFile(file_no, filename, data);
-            filesToLoad--;
-            if(t.finishedLoading() && callback)
-              callback();
-          }, beforeSend: function(xhr) { xhr.overrideMimeType("text/plain; charset=x-user-defined"); } });
-        }
-        })();
-      }
-    },
-    finishedLoading: function() {
-      return filesToLoad == 0;
+      for(i = 0; i < file_nos.length; i++)
+        ScummVM.engine.setFile(file_nos[i], game + ".00" + file_nos[i], src.files[file_nos[i]]);
+      if(callback) callback();
     },
     xorString: function(str, encByte) {
       stream = new ScummVM.Stream(str, "", str.length);

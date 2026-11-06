@@ -13,13 +13,14 @@
  * there, any folder) and, when the game asks for them, its CD tracks
  * (trackN or TrackN, in whichever format the browser plays). See zip.js.
  *
- * The feed is ?feed=<url>, or DEFAULT_FEED. ?files=local skips all of this
- * and reads games/<game>/ off this server, as before.
+ * The feed is ?feed=<url>. Without one, a box asks for it on loading
+ * (index.html's #feed-dialog), filled in with the last one used, and the
+ * page loads again with it in the address.
  */
 (function () {
   "use strict";
 
-  var DEFAULT_FEED = "https://example.com/example-feed";
+  var LAST_FEED_KEY = "jsscummvm.feed";
 
   // What each game goes by, normalised as norm() leaves it, and words that
   // mean another game of the same name
@@ -99,12 +100,7 @@
   }
 
   function feedUrl() {
-    var m = /[?&]feed=([^&]+)/.exec(window.location.search);
-    return m ? decodeURIComponent(m[1]) : DEFAULT_FEED;
-  }
-
-  function useLocalFiles() {
-    return /[?&]files=local\b/.test(window.location.search);
+    return new URL(window.location.href).searchParams.get("feed");
   }
 
   // entries that are not the game's: macOS's resource forks and the like
@@ -178,12 +174,16 @@
   // Find a game in the feed, open its archive and read its data files.
   // report(text, fraction) tells how it is going; fraction is for a bar,
   // undefined while there is none to draw. Resolves when the engine can
-  // start (ScummVM.source is then set, or null for local files); rejects
-  // with an Error whose message says, for the screen, what went wrong.
+  // start, ScummVM.source set; rejects with an Error whose message says,
+  // for the screen, what went wrong (with no feed given, after asking).
   ScummVM.prepareGame = function (gameId, report) {
     var game = GAMES[gameId], url = feedUrl(), item, host;
     ScummVM.source = null;
-    if (useLocalFiles() || !game) return Promise.resolve(null);
+    if (!game) return Promise.reject(new Error("There is no " + gameId.toUpperCase() + " to load."));
+    if (!url) {
+      askForFeed();
+      return Promise.reject(new Error("No game feed has been given."));
+    }
     try { host = new URL(url, window.location.href).hostname || url; } catch (e) { host = url; }
 
     report("Reading the webRcade feed at " + host + "...");
@@ -193,6 +193,7 @@
     }).catch(function () {
       throw new Error("Cannot read the game feed at " + host + ".");
     }).then(function (feed) {
+      try { window.localStorage.setItem(LAST_FEED_KEY, url); } catch (e) { /* not kept */ }
       item = findItem(feed, game);
       if (!item) throw new Error(game.title + " is not in the feed.");
       report("Found " + (item.longTitle || item.title) + ".");
@@ -220,4 +221,64 @@
       });
     });
   };
+
+  /* --- asking for the feed ---------------------------------------------- */
+
+  // The box that asks for the feed's address. It checks that a feed can be
+  // read there, then loads the page again with it as ?feed=, so the address
+  // is one that can be bookmarked or shared.
+  var dialog = document.getElementById("feed-dialog");
+
+  function askForFeed() {
+    var input = document.getElementById("feed-url"), last = null;
+    if (!dialog || dialog.open || !dialog.showModal) return;
+    try { last = window.localStorage.getItem(LAST_FEED_KEY); } catch (e) { /* none */ }
+    if (last && !input.value) input.value = last;
+    dialog.showModal();
+    input.focus();
+    input.select();
+  }
+
+  if (dialog) {
+    // to info mode, where the page says how feeds work; the box comes back
+    // on the next load, or on starting the game
+    document.getElementById("feed-help-button").addEventListener("click", function () {
+      var info = document.getElementById("info-switch");
+      dialog.close();
+      if (info && !document.documentElement.classList.contains("has-info")) info.click();
+      var help = document.querySelector(".feed-help");
+      if (help && help.scrollIntoView) help.scrollIntoView({block: "start", behavior: "smooth"});
+    });
+    dialog.querySelector("form").addEventListener("submit", function (e) {
+      var input = document.getElementById("feed-url"), err = document.getElementById("feed-error"),
+          button = dialog.querySelector("button[type=submit]"), url;
+      e.preventDefault();
+      err.hidden = true;
+      try { url = new URL(input.value.trim()); } catch (x) { url = null; }
+      if (!url || !/^https?:$/.test(url.protocol)) {
+        err.textContent = "That is not a web address.";
+        err.hidden = false;
+        return;
+      }
+      button.disabled = true;
+      fetch(url.href).then(function (res) {
+        if (!res.ok) throw new Error();
+        return res.json();
+      }).then(function (feed) {
+        if (!feed || !feed.categories) throw new Error();
+        var here = new URL(window.location.href);
+        here.searchParams.set("feed", url.href);
+        window.location.href = here.href;
+      }).catch(function () {
+        err.textContent = "No webRcade feed could be read at that address.";
+        err.hidden = false;
+        button.disabled = false;
+      });
+    });
+  }
+
+  if (!feedUrl()) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", askForFeed);
+    else askForFeed();
+  }
 }());
