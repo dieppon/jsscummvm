@@ -192,6 +192,8 @@ function assert(condition) {
   window.document.addEventListener("keydown", function(e) {
     if (e.metaKey || e.altKey) return;
     if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    // nor while a box (the feed's, the shelf's) is up
+    if (document.querySelector("dialog[open]")) return;
     // Enter or Space on a focused control is for the control
     if (e.target && /^(speaker-knob|sound-switch|info-switch)$/.test(e.target.id) && /^(Enter| )$/.test(e.key)) return;
     if (e.target && e.target.classList && e.target.classList.contains("vkey") && /^(Enter| )$/.test(e.key)) return;
@@ -321,16 +323,24 @@ function assert(condition) {
   // --- the shelf ----------------------------------------------------------
   // A box on the shelf for each game in the feed, showing the spine picture
   // the feed gives it (made as wide as that picture is for its height), or
-  // just its name if it has none.
+  // just its name if it has none. Clicking one loads that game, after
+  // asking first; not the game already in the machine.
   function stockShelf(games) {
     var shelf = document.querySelector(".room-shelf");
     if (!shelf) return;
     shelf.textContent = "";
     games.forEach(function(game) {
-      var box = document.createElement("span"),
+      var box = document.createElement("button"),
           spine = game.item && game.item.spine,
           name = document.createElement("b");
-      box.title = game.longTitle || game.title;
+      box.type = "button";
+      box.title = game.title;
+      box.setAttribute("aria-label", game.title);
+      box.dataset.game = game.id;
+      box.addEventListener("click", function() { askToLoad(game); });
+      // a click leaves the focus where it was (the DOS prompt, say), for the
+      // box to give back when it closes
+      box.addEventListener("mousedown", function(e) { e.preventDefault(); });
       shelf.appendChild(box);
       function plain() {
         box.classList.add("no-spine");
@@ -350,8 +360,68 @@ function assert(condition) {
       img.onerror = plain;
       img.src = spine;
     });
+    markCurrentGame();
     queueFit();
   }
+
+  // The game in the machine (dos-shell.js says, as it starts one and as the
+  // machine goes off): its box is not one to load.
+  ScummVM.currentGame = null;
+  ScummVM.setCurrentGame = function(id) {
+    ScummVM.currentGame = id || null;
+    markCurrentGame();
+  };
+  function markCurrentGame() {
+    document.querySelectorAll(".room-shelf > button").forEach(function(box) {
+      var current = box.dataset.game === ScummVM.currentGame;
+      box.classList.toggle("is-current", current);
+      box.setAttribute("aria-disabled", current ? "true" : "false");
+    });
+  }
+
+  // Ask, then load: the address is given the game (?game=, as a link to it
+  // would be) and the page loads again, so the new game starts as cleanly as
+  // any other. While the box is up the game, and its sound, wait.
+  var shelfDialog = document.getElementById("shelf-dialog"), heldGame = null;
+
+  function askToLoad(game) {
+    var e = ScummVM.engine, text = document.getElementById("shelf-dialog-text"),
+        load = document.getElementById("shelf-load"), title = game.title;
+    if (!shelfDialog || game.id === ScummVM.currentGame || shelfDialog.open) return;
+    shelfDialog.dataset.game = game.id;
+    if (!game.supported) {
+      text.textContent = title + " does not run in JS ScummVM yet.";
+      load.hidden = true;
+      document.getElementById("shelf-cancel").textContent = "OK";
+    } else {
+      text.textContent = "Load " + title + "?" + (ScummVM.currentGame
+        ? " The game that is running now will be closed, and anything not saved will be lost."
+        : "");
+      load.hidden = false;
+      document.getElementById("shelf-cancel").textContent = "Cancel";
+    }
+    if (e && !e._menuOpen) {
+      heldGame = e;
+      e._menuOpen = true;
+      if (e.pauseSound) e.pauseSound(true);
+    }
+    shelfDialog.returnValue = "";
+    shelfDialog.showModal();
+    (load.hidden ? document.getElementById("shelf-cancel") : load).focus();
+  }
+
+  if (shelfDialog) shelfDialog.addEventListener("close", function() {
+    var url;
+    if (heldGame) {
+      heldGame._menuOpen = false;
+      if (heldGame.pauseSound) heldGame.pauseSound(false);
+      heldGame = null;
+    }
+    if (shelfDialog.returnValue !== "load") return;
+    url = new URL(window.location.href);
+    url.searchParams.set("game", shelfDialog.dataset.game);
+    window.location.assign(url.href);
+  });
 
   document.addEventListener("DOMContentLoaded", function() {
     if (ScummVM.feedLoaded) ScummVM.feedLoaded.then(stockShelf);

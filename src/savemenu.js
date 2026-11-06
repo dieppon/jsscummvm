@@ -98,6 +98,8 @@
   // sees those two; other keys reach the menu's buttons, and the game's own
   // handler ignores them while the menu is up.
   window.addEventListener("keydown", function(ev) {
+    // not while a box (the shelf's, say) is up over everything
+    if (document.querySelector("dialog[open]")) return;
     if (ev.key == "F5" && engine()) {
       ev.preventDefault();
       ev.stopImmediatePropagation();

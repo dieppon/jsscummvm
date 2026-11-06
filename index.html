@@ -1145,6 +1145,7 @@
     .feed-dialog button:hover,
     .feed-dialog button:focus-visible { background: #fff; outline: none; }
     .feed-dialog button:disabled { background: #555; cursor: default; }
+    #shelf-dialog .feed-buttons { justify-content: flex-end; }
     .hint,
     .credit {
       -webkit-user-select: text;
@@ -1200,8 +1201,9 @@
       --plaster: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .08 0 0 0 0 .02 0 0 0 0 .02 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
       --cork: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .12 0 0 0 0 .04 2.4 0 0 0 -1.05'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)'/%3E%3C/svg%3E");
     }
-    /* the lamp is the one thing in front: its shade hangs over the right
-       speaker (above the speaker's lid, which is at 1) */
+    /* in front: the lamp, whose shade hangs over the right speaker (above
+       the speaker's lid, which is at 1); and the shelf, which is behind
+       nothing but has to be over the page to be clicked */
     .room-front { z-index: 2; }
     .has-room .room,
     .has-room .room-front { display: block; opacity: 1; }
@@ -1310,9 +1312,17 @@
       border-radius: .02em;
       box-shadow: 0 .18em .3em #000a, inset 0 -.03em #0006;
     }
-    .room-shelf > span {
+    .room-shelf > button {
       position: relative;
       flex: none;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      font: inherit;
+      color: inherit;
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform .15s ease;
       height: 4.2em;
       width: calc(4.2em * var(--aspect, .17));
       background: #3a3f5a center / 100% 100% no-repeat;
@@ -1322,12 +1332,22 @@
         .04em 0 .06em #0008;
     }
     /* the box's top, seen just from below eye level: a sliver of shade */
-    .room-shelf > span::after {
+    .room-shelf > button::after {
       content: "";
       position: absolute;
       inset: 0;
       background: linear-gradient(#0006, #0000 .25em, #0000 85%, #0003);
     }
+    /* pointed at, a box comes up off the shelf a little, to be taken down;
+       not the game already in the machine */
+    .room-shelf > button:hover,
+    .room-shelf > button:focus-visible { transform: translateY(-.12em); }
+    .room-shelf > button:focus-visible { outline: .04em solid #fff; outline-offset: .03em; }
+    .room-shelf > .is-current { cursor: default; }
+    .room-shelf > .is-current:hover { transform: none; }
+    /* the room is hidden while Info is on: so are the boxes */
+    html:not(.has-room) .room-shelf > button { pointer-events: none; }
+
     /* a game with no spine picture gets a plain box with its name on it */
     .room-shelf > .no-spine {
       width: .7em;
@@ -2230,6 +2250,18 @@
     <p>Turn your phone upright<br>to use the MS-DOS prompt.</p>
   </div>
 
+  <!-- a game picked off the shelf: jsscumm.js asks before loading it -->
+  <dialog class="feed-dialog" id="shelf-dialog" aria-labelledby="shelf-dialog-title">
+    <form method="dialog">
+      <h2 id="shelf-dialog-title">LOAD GAME</h2>
+      <p id="shelf-dialog-text"></p>
+      <div class="feed-buttons">
+        <button value="cancel" id="shelf-cancel">Cancel</button>
+        <button value="load" id="shelf-load">Load</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="feed-dialog" id="feed-dialog" aria-labelledby="feed-dialog-title">
     <!-- feed.js checks the address itself, and says so in the box -->
     <form novalidate>
@@ -2256,7 +2288,6 @@
     <div class="room" aria-hidden="true">
       <div class="room-wall"></div>
       <div class="room-desktop"></div>
-      <div class="room-shelf"></div>
       <div class="room-cork">
         <div class="cork-polaroid"></div>
         <div class="cork-card"><span><b>How to be a pirate:</b>1. Swordplay<br>2. Thievery<br>3. Treasure hunting</span></div>
@@ -2290,8 +2321,9 @@
         <i class="mug-steam"><b></b><b></b><b></b><b></b></i>
       </div>
     </div>
-    <div class="room-front" aria-hidden="true">
-      <div class="room-lamp">
+    <div class="room-front">
+      <div class="room-shelf" role="group" aria-label="Games"></div>
+      <div class="room-lamp" aria-hidden="true">
         <div class="lamp-base room-shadow">
           <i class="lamp-foot-edge"></i>
           <i class="lamp-foot-top"></i>

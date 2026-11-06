@@ -640,6 +640,7 @@
     var id = ++launchId, bar = -1;
     running = true;
     nameGame(game);
+    ScummVM.setCurrentGame(game);
     render();
     ScummVM.prepareGame(game, function (text, fraction) {
       if (id !== launchId) return;
@@ -667,6 +668,7 @@
       echo(err.message);
       echo("");
       running = false;
+      ScummVM.setCurrentGame(null);
       document.documentElement.classList.remove("has-game");
       render();
     });
@@ -690,6 +692,7 @@
     histPos = 0;
     booting = true;
     running = false;
+    ScummVM.setCurrentGame(null);
     if (field) field.value = "";
   }
 
