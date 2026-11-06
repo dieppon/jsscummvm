@@ -5,8 +5,9 @@
  *
  *  - CD stubs: a 32-byte SOUN naming a CD audio track, a loop flag and a
  *    start and end time. The music lives on the disc. Ripped tracks are
- *    played from games/<game>/trackN.{webm,ogg,mp3,flac,wav} (or TrackN) when
- *    they exist;
+ *    played, when there are any, from the game's archive (feed.js), or with
+ *    ?files=local from games/<game>/trackN.{webm,ogg,mp3,flac,wav} (or
+ *    TrackN);
  *    without them the music is silent, but the CD timer still runs, since
  *    scripts time scenes against VAR_MUSIC_TIMER.
  *  - SBL: digitised Sound Blaster samples (VOC data), played through Web
@@ -29,6 +30,8 @@
   // Opus, and scenes are timed against the track's position.
   var CD_EXTENSIONS = ["webm", "ogg", "mp3", "flac", "wav"];
   var CD_TYPES = {webm: 'audio/webm; codecs="opus"'};
+  // what a track unzipped into a Blob is labelled
+  var CD_MIME = {webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg", flac: "audio/flac", wav: "audio/wav"};
 
   function canPlay(ext) {
     var type = CD_TYPES[ext];
@@ -341,9 +344,19 @@
 
   // Look for a ripped copy of the track once, remembering the answer
   s.findCDTrack = function(track, callback) {
-    var t = this, dir = "games/" + t._game + "/", i = 0, names = [], n, e;
+    var t = this, dir = "games/" + t._game + "/", i = 0, names = [], n, e, src = ScummVM.source;
     if (track in t._cdTracks) { callback(t._cdTracks[track]); return; }
     t._cdTracks[track] = null;
+    // out of the game's archive (feed.js), in the first format that plays
+    if (src && src.game == t._game) {
+      src.trackUrl(track, CD_EXTENSIONS.filter(canPlay).map(function(ext) {
+        return {ext: ext, type: CD_MIME[ext]};
+      })).then(function(url) {
+        t._cdTracks[track] = url;
+        if (url) callback(url);
+      });
+      return;
+    }
     // rippers write both "track1" and "Track1"; a case-sensitive server
     // only finds the one that is there
     for (e = 0; e < CD_EXTENSIONS.length; e++)

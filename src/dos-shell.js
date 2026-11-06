@@ -5,9 +5,10 @@
  * It is all smoke and mirrors: one fake C: drive, a handful of commands and
  * an 80x25 text mode faked with a monospace font. The only real things in it
  * are the sizes of MONKEY1.000 and MONKEY1.001, which are the actual byte
- * counts of the files in games/monkey1/.
+ * counts of the game's files.
  *
- * Typing MONKEY1 (or MONKEY1.EXE) in C:\GAMES hands the screen to ScummVM.
+ * Typing MONKEY1 (or MONKEY1.EXE) in C:\GAMES fetches the game (feed.js),
+ * showing how that goes, and hands the screen to ScummVM.
  */
 (function () {
   "use strict";
@@ -227,19 +228,58 @@
   /* --- launching the game ---------------------------------------------- */
 
   function launch() {
-    running = true;
     echo("");
     echo("The Secret of Monkey Island");
     echo("Copyright (C) 1990 Lucasfilm Games");
     echo("");
-    echo("Loading...");
-    render();
+    startGame("monkey1");
+  }
 
-    setTimeout(function () {
-      root.classList.add("is-running");
-      document.documentElement.classList.add("has-game");
-      ScummVM.load("monkey1");
-    }, 900);
+  function repeat(c, n) { var s = ""; while (n-- > 0) s += c; return s; }
+
+  function progressBar(f) {
+    var n = Math.round(f * 30);
+    return "[" + repeat("\u2588", n) + repeat("\u2591", 30 - n) + "] " + padLeft(Math.round(f * 100), 3) + "%";
+  }
+
+  // Fetch the game's files (feed.js), telling the screen how it goes, then
+  // hand the screen to ScummVM. Switching off on the way stops it there
+  // (reset() moves launchId on); a failure says why and goes back to the
+  // prompt.
+  var launchId = 0;
+  function startGame(game) {
+    var id = ++launchId, bar = -1;
+    running = true;
+    render();
+    ScummVM.prepareGame(game, function (text, fraction) {
+      if (id !== launchId) return;
+      if (fraction === undefined) {
+        echo(text);
+        bar = -1;
+      } else {
+        if (bar < 0) { echo(""); bar = lines.length - 1; }
+        lines[bar] = padRight(text, 22) + progressBar(fraction);
+      }
+      render();
+    }).then(function () {
+      if (id !== launchId) return;
+      echo("Loading...");
+      render();
+      setTimeout(function () {
+        if (id !== launchId) return;
+        root.classList.add("is-running");
+        document.documentElement.classList.add("has-game");
+        ScummVM.load(game);
+      }, 600);
+    }, function (err) {
+      if (id !== launchId) return;
+      echo("");
+      echo(err.message);
+      echo("");
+      running = false;
+      document.documentElement.classList.remove("has-game");
+      render();
+    });
   }
 
   /* --- the power switch ------------------------------------------------ */
@@ -252,6 +292,7 @@
   // back to a cold machine: no scrollback, no history, root directory
   function reset() {
     clearBootTimers();
+    launchId++;
     lines = [];
     current = "";
     cwd = "C:\\";
@@ -467,10 +508,7 @@
     var auto = requestedGame();
     if (auto) {
       booting = false;
-      running = true;
-      root.classList.add("is-running");
-      render();
-      ScummVM.load(auto);
+      startGame(auto);
       return;
     }
 

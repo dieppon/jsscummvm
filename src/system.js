@@ -18,8 +18,17 @@
     },
     loadGameFiles: function(game, file_nos, callback) {
       var callback = callback;
-      var t = this, i;
+      var t = this, i, src = ScummVM.source;
 
+      // read out of the game's archive already (feed.js)
+      if(src && src.game == game) {
+        for(i = 0; i < file_nos.length; i++)
+          ScummVM.engine.setFile(file_nos[i], game + ".00" + file_nos[i], src.files[file_nos[i]]);
+        if(callback) callback();
+        return;
+      }
+
+      // otherwise off this server, from games/<game>/ (?files=local)
       filesToLoad += file_nos.length;
 
       for(i = 0; i < file_nos.length; i++) {
