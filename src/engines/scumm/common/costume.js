@@ -961,11 +961,12 @@
       // has one colour byte in place of a palette, and offsets count from
       // its start.
       // v3/v4 (GF_SMALL_HEADER): it starts at 0
+      // v6: after the block's 8-byte header
       var old = s._resourceHeaderSize == 4, small = s._resourceHeaderSize == 6, base;
       t.id = id;
       ptr = s.getResourceAddress("costume", id).newRelativeStream();
-      ptr.seek(old ? -2 : small ? 0 : 2);
-      base = old || small ? 0 : 2;
+      base = s._version >= 6 ? 8 : old || small ? 0 : 2;
+      ptr.seek(old ? -2 : base);
       t.baseptr = ptr.newRelativeStream(old ? 2 : 0);
       t.numAnim = ptr.seek(6).readUI8();
       tmp = ptr.readUI8();
@@ -976,6 +977,13 @@
           t.numColors = 16;
         break;
         case 0x59:
+          t.numColors = 32;
+        break;
+        // new in v6
+        case 0x60:
+          t.numColors = 16;
+        break;
+        case 0x61:
           t.numColors = 32;
         break;
         default:
@@ -1094,9 +1102,17 @@
           if(cost.start[slot] != end)
             continue;
         } else {
+          // v6: 0x71-0x78 play the actor's sounds 0-7
+          if(s._version >= 6) {
+            if(nc >= 0x71 && nc <= 0x78) {
+              if(a.sounds && a.sounds[nc - 0x71]) s.startSound(a.sounds[nc - 0x71]);
+              if(cost.start[slot] != end)
+                continue;
+            }
+          }
           // 0x78 marks a frame with a sound (footsteps and the like);
           // playActorSounds plays it
-          if(nc == 0x78) {
+          else if(nc == 0x78) {
             cost.soundCounter = (cost.soundCounter | 0) + 1;
             if(cost.start[slot] != end)
               continue;
