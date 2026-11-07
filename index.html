@@ -433,6 +433,9 @@
     }
 
     .dos-cursor { animation: dos-blink 1s steps(1) infinite; }
+    /* on a character: the cursor drawn over the bottom of its cell */
+    .dos-at { position: relative; }
+    .dos-at > .dos-cursor { position: absolute; left: 0; top: 0; }
     @keyframes dos-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 
     /* a real, focusable input so that typing works and phones raise a
@@ -476,7 +479,8 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .dos-cursor, .dos-tap { animation: none !important; }
+      /* the cursor blinks still: it is where the typing goes, not motion */
+      .dos-tap { animation: none !important; }
     }
 
     /* screen overlays --------------------------------------------------- */
@@ -2390,7 +2394,7 @@
         <div class="cork-photo"></div>
       </div>
       <div class="room-stack">
-        <div class="room-books room-shadow"><span><b>ON STRANGER TIDES</b></span><span><b>MS-DOS 5.0 USER'S GUIDE</b></span><span><b>C PROGRAMMING</b></span></div>
+        <div class="room-books room-shadow"><span><b>ON STRANGER TIDES</b></span><span><b>MS-DOS 6.22 USER'S GUIDE</b></span><span><b>C PROGRAMMING</b></span></div>
       </div>
       <div class="room-pens room-shadow">
         <i class="pot-back"></i>

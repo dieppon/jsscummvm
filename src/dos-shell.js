@@ -115,8 +115,19 @@
     if (showPrompt) view.push(cwd + ">" + current);
     view = view.slice(-ROWS);
 
-    var html = esc(view.join("\n"));
-    if (showPrompt) html += '<span class="dos-cursor">_</span>';
+    var html, pos, last, before;
+    if (!showPrompt) { out.innerHTML = esc(view.join("\n")); return; }
+    // the cursor where the typing goes: after the line, or under the
+    // character it is on
+    pos = Math.min(field.selectionStart == null ? current.length : field.selectionStart, current.length);
+    last = view.pop();
+    before = last.length - (current.length - pos);
+    html = esc(view.concat([last.slice(0, before)]).join("\n"));
+    if (pos < current.length)
+      html += '<span class="dos-at">' + esc(last.charAt(before)) + '<span class="dos-cursor">_</span></span>' +
+              esc(last.slice(before + 1));
+    else
+      html += '<span class="dos-cursor">_</span>';
     out.innerHTML = html;
   }
 
@@ -142,7 +153,7 @@
 
   // DIR with the switches it grew up to have (Windows' dir, see
   // learn.microsoft.com/windows-server/administration/windows-commands/dir),
-  // in MS-DOS 5's look. Each entry is [name, ext, size or DIR, date, time,
+  // in MS-DOS 6.22's look. Each entry is [name, ext, size or DIR, date, time,
   // long name, attributes]: the last two only where they differ from the
   // 8.3 name and from plain "A" (files) or "D" (folders).
   var DIR_HELP = [
@@ -201,7 +212,8 @@
 
   // Split DIR's arguments into its switches and the paths it names
   function dirArgs(arg) {
-    var o = {paths: [], attrs: null, order: null}, rest;
+    // 6.2 and later print sizes with commas unless told /-C
+    var o = {paths: [], attrs: null, order: null, commas: true}, rest;
     rest = String(arg).replace(/\/(-?)([a-z0-9?])((?::?-?[a-z]+)*)/gi, function (m, not, sw, val) {
       sw = sw.toUpperCase();
       val = val.replace(/:/g, "").toUpperCase();
@@ -540,7 +552,7 @@
     switch (verb) {
       case "CD": case "CHDIR":   doCd(arg); break;
       case "CLS":                lines = []; break;
-      case "VER":                echo(""); echo("MS-DOS Version 5.00"); echo(""); break;
+      case "VER":                echo(""); echo("MS-DOS Version 6.22"); echo(""); break;
       case "HELP":               doHelp(); break;
       case "TYPE":               doType(arg); break;
       case "MEM":                doMem(); break;
@@ -766,8 +778,8 @@
     [900,  ""],
     [1000, "HIMEM is testing extended memory...done."],
     [1350, ""],
-    [1400, "Microsoft(R) MS-DOS(R) Version 5.00"],
-    [1460, "             (C)Copyright Microsoft Corp 1981-1991."],
+    [1400, "Microsoft(R) MS-DOS(R) Version 6.22"],
+    [1460, "             (C)Copyright Microsoft Corp 1981-1994."],
     [1520, ""],
     [1560, "Ready."],
     [1620, ""]
@@ -823,6 +835,11 @@
     if (e.key === "Enter") {
       e.preventDefault();
       submit();
+    } else if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      // as COMMAND.COM: Tab is typed, to the next tab stop (every eight
+      // columns) -- not a move to the next thing on the page
+      e.preventDefault();
+      typeTab();
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       if (!history.length) return;
@@ -838,6 +855,23 @@
       field.value = "";
       render();
     }
+  }
+
+  function typeTab() {
+    var start = field.selectionStart == null ? current.length : field.selectionStart,
+        end = field.selectionEnd == null ? start : field.selectionEnd,
+        col = cwd.length + 1 + start, n = 8 - col % 8,
+        max = COLS - (cwd.length + 1) - 1, value;
+    value = current.slice(0, start) + "        ".slice(0, n) + current.slice(end);
+    if (value.length > max) return;
+    current = field.value = value;
+    field.selectionStart = field.selectionEnd = start + n;
+    render();
+  }
+
+  // the arrows, Home and End move the cursor along the line
+  function caretMoved() {
+    if (!booting && !running && !off && !waiting && !pager) render();
   }
 
   // `input` rather than keydown for the characters, so phone keyboards work
@@ -900,6 +934,8 @@
 
     field.addEventListener("keydown", onKeyDown);
     field.addEventListener("input", onInput);
+    field.addEventListener("keyup", caretMoved);
+    field.addEventListener("select", caretMoved);
 
     // clicking the screen puts the caret back -- in info mode, where its
     // text can be selected, only once a click has not selected anything
