@@ -454,8 +454,8 @@
       a = t.getActor(t.getTalkingActor());
 
     if(a && str.overhead) {
-      str.x = a.pos.x - (vs ? vs.xstart : 0);
-      str.y = a.pos.y - a.elevation;
+      str.x = a.getPos().x - (vs ? vs.xstart : 0);
+      str.y = a.getPos().y - a.elevation;
       talkY = t.scummVar("talk_string_y");
       if(talkY >= 0x8000) talkY -= 0x10000;
       if(talkY < 0) {

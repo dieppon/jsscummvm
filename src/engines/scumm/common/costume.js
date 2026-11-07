@@ -290,8 +290,13 @@
     };
     t.prepareDrawActorCostume = function(bcr) {
       bcr.actorId = t.number;
-      bcr.actorX = t.pos.x - s._virtscreens[0].xstart;
-      bcr.actorY = t.pos.y - t.elevation;
+      // v1/v2 positions and elevation are in their coarse units
+      var p = t.getPos();
+      bcr.actorX = p.x - s._virtscreens[0].xstart;
+      bcr.actorY = p.y - t.elevation * (s._version <= 2 ? 2 : 1);
+      // actor.cpp Actor_v2::prepareDrawActorCostume: v2 actors sit a strip
+      // to the right, two when facing left
+      if(s._version <= 2) bcr.actorX += t.facing == 270 ? 16 : 8;
       bcr.scaleX = t.scalex;
       bcr.scaleY = t.scaley;
       bcr.shadow_mode = t.shadow_mode;
@@ -375,7 +380,9 @@
         t.animProgress = 0;
         t.needRedraw = true;
         t.cost.animCounter = 0;
-        if(f == t.initFrame) {
+        // actor.cpp: not in v1/v2, where the reset loses the kids their
+        // bodies (ScummVM bug #1032)
+        if(s._version >= 3 && f == t.initFrame) {
           t.cost.reset();
         }
         s.costumeLoader.costumeDecodeData(this, f, 0xFFFF);
@@ -720,8 +727,11 @@
         t.cost.reset();
       }
 
-      for(i = 0; i < 32; i++) {
-        t.palette[i] = 0xFF;
+      // actor.cpp: the old games' palette is the 16 colours as they are
+      if(s._resourceHeaderSize == 4) {
+        for(i = 0; i < 16; i++) t.palette[i] = i;
+      } else {
+        for(i = 0; i < 32; i++) t.palette[i] = 0xFF;
       }
     };
     t.setPalette = function(idx, val) {
@@ -824,7 +834,15 @@
       if(s._currentRoom == 0 || t.visible) return;
       t.adjustActorPos();
       s.ensureResourceLoaded("costume", t.costume);
-      if(t.costumeNeedsInit) {
+      // actor.cpp: v1/v2 set an actor up afresh each time it is shown --
+      // standing, its first frame, its mouth shut
+      if(s._version <= 2) {
+        t.cost.reset();
+        t.startAnimActor(t.standFrame);
+        t.startAnimActor(t.initFrame);
+        t.startAnimActor(t.talkStopFrame);
+        t.costumeNeedsInit = false;
+      } else if(t.costumeNeedsInit) {
         t.startAnimActor(t.initFrame);
         t.costumeNeedsInit = false;
       }
@@ -906,6 +924,13 @@
       return abr;
     }
 
+    // where it is in pixels; v1/v2 keep a coarser position (actor_v2.js)
+    t.getPos = function() {
+      return {x: t.pos.x, y: t.pos.y};
+    };
+
+    // an older version's actor walks its own way (Actor_v2, Actor_v3)
+    if(s.versionActor) s.versionActor(t);
     t.initActor(-1);
   };
 
@@ -925,10 +950,16 @@
     t.loadCostume = function(id) {
       var ptr, i, tmp;
 
+      // costume.cpp ClassicCostumeLoader::loadCostume. In the old games
+      // (GF_OLD_BUNDLE) the header starts two bytes earlier, the costume
+      // has one colour byte in place of a palette, and offsets count from
+      // its start.
+      var old = s._resourceHeaderSize == 4, base;
       t.id = id;
       ptr = s.getResourceAddress("costume", id).newRelativeStream();
-      ptr.seek(2);
-      t.baseptr = ptr.newRelativeStream();
+      ptr.seek(old ? -2 : 2);
+      base = old ? 0 : 2;
+      t.baseptr = ptr.newRelativeStream(old ? 2 : 0);
       t.numAnim = ptr.seek(6).readUI8();
       tmp = ptr.readUI8();
       t.format = tmp & 0x7F;
@@ -943,14 +974,17 @@
         default:
           log("costume "+id+" with format 0x"+t.format.toString(16)+" is invalid");
       }
+      if(old) t.numColors = 1;
 
       for(i = 0; i < t.numColors; i++)
         t.palette[i] = ptr.readUI8();
 
-      t.frameOffsets = ptr.offset;
-      t.dataOffsets = ptr.offset + 32;
+      // the frame and anim tables, as offsets from baseptr
+      t.frameOffsets = ptr.offset + 2 - base;
+      t.dataOffsets = ptr.offset + 34 - base;
       t.animsOffsets = ptr.readUI16();
       t.animCmds = t.baseptr.newRelativeStream(t.animsOffsets);
+      if(old) t.numColors = 16;
 
 
       var frameOffs = t.baseptr.newRelativeStream(t.frameOffsets);
@@ -981,7 +1015,13 @@
       mask = r.readUI16();
       do {
         if(mask & 0x8000) {
-          j = r.readUI16();
+          // before v4 a limb's command is a byte, 0xFF for none
+          if(s._version <= 3) {
+            j = r.readUI8();
+            if(j == 0xFF) j = 0xFFFF;
+          } else {
+            j = r.readUI16();
+          }
           if(usemask & 0x8000) {
             if(j == 0xFFFF) {
               actor.cost.curpos[i] = 0xFFFF;
@@ -1082,6 +1122,19 @@
     // silhouettes.
     t.setPalette = function(palette) {
       var i, color;
+      // the old games: the actor's 16 colours, colour 12 the EGA red, and
+      // the costume's own byte saying which colour stands for colour 0
+      if(s._resourceHeaderSize == 4) {
+        if(s.scummVar("current_lights") & 8) {
+          for(i = 0; i < 16; i++) t.palette[i] = palette ? palette[i] : i;
+          if(s._version == 2) t.palette[12] = 0x0C;
+        } else {
+          for(i = 0; i < 16; i++) t.palette[i] = 8;
+          t.palette[12] = 0;
+        }
+        t.palette[t.loader.palette[0]] = t.palette[0];
+        return;
+      }
       if(s.scummVar("current_lights") & 8) {   // LIGHTMODE_actor_use_colors
         for(i = 0; i < t.loader.numColors; i++) {
           color = palette ? palette[i] : 255;
@@ -1114,7 +1167,13 @@
       dst.w = dst.pitch;
       dst.pixels.seek(-(s._virtscreens[0].xstart & 7));
       t.numStrips = numStrips;
-      t.xmove = t.ymove = 0;
+      // base-costume.cpp: the old games' limbs are placed from (-72, -100)
+      if(s._resourceHeaderSize == 4) {
+        t.xmove = -72;
+        t.ymove = -100;
+      } else {
+        t.xmove = t.ymove = 0;
+      }
       for(i = 0; i < 16; i++)   // all 16 limbs, as base-costume.cpp
         result |= t.drawLimb(a, i);
       return result;

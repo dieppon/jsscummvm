@@ -52,14 +52,14 @@
     if(!a.isInCurrentRoom()) {
       t.startScene(a.room, 0, 0);
       camera.mode = "follow_actor";
-      camera.cur.x = a.pos.x;
+      camera.cur.x = a.getPos().x;
       t.setCameraAt(camera.cur.x, 0);
     }
 
-    i = Math.floor(a.pos.x / 8) - t._screenStartStrip;
+    i = Math.floor(a.getPos().x / 8) - t._screenStartStrip;
 
     if(i < camera.leftTrigger || i > camera.rightTrigger || setCamera == true)
-      t.setCameraAt(a.pos.x, 0);
+      t.setCameraAt(a.getPos().x, 0);
 
     for(j = 1; j < t._actors.length; j++) {
       if(t._actors[j].isInCurrentRoom())
@@ -99,13 +99,13 @@
     if(camera.mode == "follow_actor") {
       a = t.getActor(camera.follows);
       if(a) {
-        i = Math.floor(a.pos.x / 8) - t._screenStartStrip;
+        i = Math.floor(a.getPos().x / 8) - t._screenStartStrip;
 
         // The actor has wandered into the margin, so start chasing them.
         if(i < camera.leftTrigger || i > camera.rightTrigger) {
           if(snapToX) {
-            if(i > 40 - 5) camera.dest.x = a.pos.x + 80;
-            if(i < 5)      camera.dest.x = a.pos.x - 80;
+            if(i > 40 - 5) camera.dest.x = a.getPos().x + 80;
+            if(i < 5)      camera.dest.x = a.getPos().x - 80;
           } else {
             camera.movingToActor = true;
           }
@@ -115,7 +115,7 @@
 
     if(camera.movingToActor) {
       a = t.getActor(camera.follows);
-      if(a) camera.dest.x = a.pos.x;
+      if(a) camera.dest.x = a.getPos().x;
     }
 
     if(camera.dest.x < minX) camera.dest.x = minX;
@@ -129,7 +129,7 @@
     }
 
     if(camera.movingToActor && a &&
-       Math.floor(camera.cur.x / 8) == Math.floor(a.pos.x / 8))
+       Math.floor(camera.cur.x / 8) == Math.floor(a.getPos().x / 8))
       camera.movingToActor = false;
 
     t.cameraMoved();

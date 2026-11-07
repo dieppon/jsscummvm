@@ -1091,10 +1091,17 @@
         dist = Math.trunc(a.scalex * a.width / 0xFF);
         dist += Math.trunc(Math.trunc(to.scalex * to.width / 0xFF) / 2);
       }
-      x = to.pos.x;
-      y = to.pos.y;
-      if(x < a.pos.x) x += dist;
+      // v1/v2: the distance is in 8-pixel columns, and positions are
+      // converted back to their units
+      if(s._version <= 2) dist *= 8;
+      x = to.getPos().x;
+      y = to.getPos().y;
+      if(x < a.getPos().x) x += dist;
       else x -= dist;
+      if(s._version <= 2) {
+        x = Math.trunc(x / 8);
+        y = Math.trunc(y / 2);
+      }
       a.startWalkActor(x, y, -1);
     },
     walkActorToObject: function() {
