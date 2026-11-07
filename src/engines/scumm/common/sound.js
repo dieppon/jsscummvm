@@ -169,6 +169,9 @@
     return ScummVM.audioContext;
   }
 
+  // the page's AudioContext, for the older versions' players (v2/)
+  s.getAudioContext = audioContext;
+
   // sound.cpp startSound
   s.startSound = function(sound) {
     var t = this;
