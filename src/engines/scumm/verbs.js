@@ -99,6 +99,10 @@
           return;
         }
       }
+      // Fate of Atlantis fights from the keyboard on the number keys, and
+      // its script 46 expects the keypad's PC scan codes for them
+      if (t._game == "atlantis" && t._mouseAndKeyboardStat >= 48 && t._mouseAndKeyboardStat <= 57)
+        t._mouseAndKeyboardStat = [48, 335, 336, 337, 331, 332, 333, 327, 328, 329][t._mouseAndKeyboardStat - 48];
       t.runInputScript(kKeyClickArea, t._mouseAndKeyboardStat, 1);
       return;
     }

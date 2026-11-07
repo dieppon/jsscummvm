@@ -173,7 +173,7 @@
     },
     // o5_roomOps (palette effects and transitions in effects.js)
     roomOps: function() {
-      var a = 0, b = 0, c, d, e, half = Math.floor(s._screenWidth / 2);
+      var a = 0, b = 0, c, d, e, ptr, half = Math.floor(s._screenWidth / 2);
       s._opcode = s.fetchScriptByte();
       switch(s._opcode & 0x1F) {
         case 1: // room scroll: how far the camera may go
@@ -246,10 +246,36 @@
           if(op == 11) s.darkenPalette(a, b, c, d, e);
           else s.setShadowPalette(a, b, c, d, e, 0, 256);
         break;
-        case 13: // save string
-        case 14: // load string
-          s.getVarOrDirectByte(PARAM_1);
+        case 13: // save string: Fate of Atlantis keeps its Indy Quotient
+                 // points in a file, across games -- here, the browser
+          a = s.getVarOrDirectByte(PARAM_1);
           while(s.fetchScriptByte()) {}
+          ptr = s.getResourceAddress("string", a);
+          if(ptr) {
+            b = [];
+            for(c = 0; c < 1024; c++) {
+              d = ptr.newRelativeStream(0).seek(c, true).readUI8();
+              if(!d) break;
+              b.push(d);
+            }
+            try {
+              window.localStorage.setItem("jsscummvm." + s._game + ".iq", JSON.stringify(b));
+              s.scummVar("soundresult", 0);
+            } catch(err) { /* not kept */ }
+          }
+        break;
+        case 14: // load string: the points back
+          a = s.getVarOrDirectByte(PARAM_1);
+          while(s.fetchScriptByte()) {}
+          try { b = JSON.parse(window.localStorage.getItem("jsscummvm." + s._game + ".iq")); } catch(err) { b = null; }
+          if(b && b.length) {
+            s._res.nukeResource("string", a);
+            s._res.createResource("string", a, b.length + 1, -1);
+            ptr = s.getResourceAddress("string", a);
+            for(c = 0; c < b.length; c++) ptr.writeByteAt(c, b[c]);
+            ptr.writeByteAt(b.length, 0);
+            s.scummVar("soundresult", 0);
+          }
         break;
         case 15: // room transform: fade towards colours held in strings
           a = s.getVarOrDirectByte(PARAM_1);

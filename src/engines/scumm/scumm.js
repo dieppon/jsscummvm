@@ -125,6 +125,9 @@ var NUM_SENTENCE = 6;
       this._version = version || 5;
       this._opcodes = this._opcodeTables[this._version];
       if(!this._opcodes) error("SCUMM v" + this._version + " games are not supported yet");
+      // ScummVM: Fate of Atlantis is booted with -7873, which takes it past
+      // its copy protection (the floppy version's stone disk)
+      this._bootParam = game == "atlantis" ? -7873 : 0;
       this.initGraphics();
     },
     setFile: function(file_no, filename, data) {

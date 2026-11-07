@@ -29,7 +29,8 @@
   // has more than one pair
   var SUPPORTED = {
     monkey: {title: "The Secret of Monkey Island", version: 5, files: /^(monkey1?|secret)$/},
-    monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/}
+    monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/},
+    atlantis: {title: "Indiana Jones and the Fate of Atlantis", version: 5, files: /^atlantis$/}
   };
 
   // Names games go by besides ScummVM's, normalised as norm() leaves them

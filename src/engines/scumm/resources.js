@@ -374,6 +374,9 @@
 
   s.loadCharset = function(no) {
     var t = this, i, ptr;
+    // ScummVM: Fate of Atlantis asks for charset 0, which it has not got,
+    // when a game is loaded after Indy dies
+    if(t._game == "atlantis" && no == 0) no = 1;
     ptr = t.getResourceAddress("charset", no);
     if(!ptr) return;
     t._charsetData[no] = [0];
