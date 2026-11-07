@@ -150,7 +150,7 @@ var NUM_SENTENCE = 6;
     // defineVersion; this puts in the ones for `version`, after putting back
     // the v5 ones a previous game may have replaced.
     applyVersion: function(version) {
-      var t = this, chain = {2: ["4", "3", "3old", "2"], 3: ["4", "3"], 4: ["4"]}[version] || [],
+      var t = this, chain = {2: ["4", "3", "3old", "2"], 3: ["4", "3"], 4: ["4"], 6: ["6"]}[version] || [],
           base = t._baseMethods || (t._baseMethods = {}), k, i, over;
       for (k in base) t[k] = base[k];
       for (i = 0; i < chain.length; i++) {

@@ -202,7 +202,8 @@
         t.readResTypeList(file, "sound");
       break;
       case MKID_BE("AARY"):
-        log("AARY unsupported");
+        // v6's arrays, defined before the game starts (v6/resource_v6.js)
+        if(t.readArrayFromIndexFile) t.readArrayFromIndexFile(file);
       break;
       default:
         log("unknown block "+_system.reverse_MKID(blocktype));
