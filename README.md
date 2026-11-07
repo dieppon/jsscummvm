@@ -25,6 +25,8 @@ for full credits.
 
 stream.js is based on the stream implementation of [gordon](http://github.com/tobeytailor/gordon/) by Tobias Schneider.
 
+The coffee mug on the desk is adapted from Alvaro Montoro's [pure-CSS coffee mug](https://codepen.io/alvaromontoro/pen/wvxoarW).
+
 LucasArts, Monkey Island, Maniac Mansion, Full Throttle, The Dig, LOOM, and probably lots of other things are
 registered trademarks of LucasArts, Inc.. All other trademarks and registered trademarks are owned by their respective
 companies. ScummVM or JS ScummVM are not affiliated in any way with LucasArts, Inc.

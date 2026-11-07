@@ -1718,77 +1718,147 @@
        ellipse, and anything going round the mug -- the bottom edge, the
        blue band -- is the front half of the same ellipse, so it dips in the
        middle. Its shading runs across it, lit from the lamp's side. */
+    /* The mug, adapted from "Coffee mug" by Alvaro Montoro
+       (https://codepen.io/alvaromontoro/pen/wvxoarW): his drawing, at a
+       font size that makes its 35em cup the mug's width, standing on the
+       desk where his centres it on the page. The steam is this page's. */
     .room-mug {
       left: calc(50% - 12.7em);
       bottom: .2em;
       width: 2.2em;
-      height: 2.5em;
-      --rim: .32em;
-      --round: linear-gradient(90deg, #0007, #0000 22%, #ffffff40 58%, #0000 74%, #0008);
+      height: calc(2.2em * 47.5 / 35);
     }
     .room-mug > i { position: absolute; display: block; }
-    /* the handle, behind the body on the far side */
-    .mug-handle {
-      left: -.72em;
-      top: .62em;
-      width: 1.05em;
-      height: 1.3em;
-      border: .24em solid #ddd8cd;
-      border-right: 0;
-      border-radius: .65em 0 0 .65em / .65em 0 0 .65em;
-      box-shadow: inset .05em 0 .06em #0004, -.03em .02em .05em #0005;
-    }
-    .mug-body {
+    .room-mug .coffee-mug {
+      --color: #f02;
+      font-size: calc(1em * 2.2 / 35);
+      width: 51.5em;
+      height: 47.5em;
       left: 0;
-      right: 0;
-      top: var(--rim);
       bottom: 0;
-      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
-      background: var(--round), linear-gradient(90deg, #b9b4a8, #f1ede4 30%, #fff 55%, #ebe7de 75%, #a8a397);
     }
-    /* the band: its top and bottom edges are both the front of the rim's
-       ellipse -- the bottom from its own rounded corners, the top cut out
-       with a mask of that ellipse */
-    .mug-band {
+    .room-mug .coffee-mug,
+    .room-mug .coffee-mug * {
       position: absolute;
-      left: 0;
-      right: 0;
-      top: .5em;
-      height: calc(.42em + var(--rim));
-      border-radius: 0 0 50% 50% / 0 0 var(--rim) var(--rim);
-      background: var(--round), linear-gradient(90deg, #1d4f9e, #2b6fd6 40%, #4d8ae6 58%, #2b6fd6 75%, #1a4590);
-      -webkit-mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
-      mask: radial-gradient(50% var(--rim) at 50% 0, #0000 99%, #000 100%);
+      box-sizing: border-box;
     }
-    /* the rim, the inside of the mug at the back, and the coffee, whose
-       front is hidden by the near side of the rim */
-    .mug-top {
-      left: 0;
-      right: 0;
+    .room-mug .cup {
       top: 0;
-      height: calc(var(--rim) * 2);
-      border-radius: 50%;
-      background: linear-gradient(90deg, #d6d1c6, #fbf9f4 50%, #e2ded4);
-      overflow: hidden;
+      left: 0;
+      width: 35em;
+      height: 100%;
     }
-    .mug-top::before {
-      content: "";
-      position: absolute;
-      inset: .07em .08em;
-      border-radius: 50%;
-      background: linear-gradient(#a49d90, #d8d3c8 60%);
+    .room-mug .lid {
+      width: 100%;
+      height: 1.7em;
+      background:
+        radial-gradient(80% 30% at 70% 50%, #fff1, #0000 50%),
+        #111;
+      border-radius: 100% 100% 1em 1em / 0.25em 0.25em 1.5em 1.5em;
     }
-    .mug-top::after {
-      content: "";
-      position: absolute;
-      left: .08em;
-      right: .08em;
-      top: .2em;
-      height: calc(var(--rim) * 2 - .27em);
+    .room-mug .metalic {
+      width: 99.5%;
+      height: 4em;
+      top: 1.7em;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 0.25em;
+      background:
+        repeating-linear-gradient(transparent 0 13%, #ffffff02 0 calc(13% + 1px), transparent 0) 30% 0% / 40% 100%,
+        repeating-linear-gradient(transparent 0 7%, #ffffff03 0 calc(7% + 1px), transparent 0) 70% 0% / 33% 100%,
+        repeating-linear-gradient(transparent 0 11%, #ffffff02 0 calc(11% + 1px), transparent 0) -10% 0% / 35% 100%,
+        repeating-linear-gradient(transparent 0 17%, #ffffff04 0 calc(17% + 1px), transparent 0) 110% 0% / 27% 100%,
+        repeating-linear-gradient(transparent 0 13%, #00000002 0 calc(13% + 1px), transparent 0) 60% -10% / 33% 100%,
+        repeating-linear-gradient(transparent 0 8%, #00000002 0 calc(8% + 1px), transparent 0) 21% 2% / 27% 100%,
+        repeating-linear-gradient(transparent 0 8%, #00000001 0 calc(8% + 1px), transparent 0) 31% 7% / 19% 100%,
+        radial-gradient(farthest-side, #00000011, #0000 60%) 20% 50% / 50% 5%,
+        radial-gradient(farthest-side, #ffffff08, #0000 60%) 50% 30% / 50% 7%,
+        radial-gradient(100% 10% at 60% 3%, #fff1, #0000 50%),
+        radial-gradient(100% 10% at 60% 97%, #fff3, #0000 50%),
+        radial-gradient(150% 10% at 50% 99%, #0009, #0000 50%),
+        linear-gradient(#fff1, #fff0 15%, #fff1 85%, #fff3),
+        linear-gradient(#fff2, #fff0 20%, #0000 96%, #0006),
+        linear-gradient(90deg, #555, #333 10%, #ccc 33%, #666 48% 52%, #fff 66% 75%, #555 90% 95%, #ccc);
+    }
+    .room-mug .color {
+      width: 100%;
+      height: 41.8em;
+      top: 5.7em;
+      border-radius: 0.25em 0.25em 11em 10em / 0.5em 0.5em 7em 8em;
+      background:
+        radial-gradient(20% 100%, #00000007, #0000 80%) 20% 50% / 1% 40%,
+        radial-gradient(25% 80%, #ffffff11, #0000 90%) 50% 30% / 0.8% 34%,
+        radial-gradient(100% 1% at 60% 0.5%, #fff6, #0000 50%),
+        radial-gradient(at 70% 30%, #0000 50%, #0006),
+        linear-gradient(90deg, #0006, #fff1 65%, #fcc2 75%, #0000),
+        linear-gradient(90deg, #0003 5%, #0002 10%, #0000 20%),
+        linear-gradient(-100deg, #00000008, #0000 12%),
+        linear-gradient(#00000007, #0000 10%),
+        linear-gradient(90deg, #0000 50%, #0001 80%, #2200001c 90% 94%, #00000001),
+        repeating-linear-gradient(90deg, transparent 0 13%, #ffffff02 0 calc(13% + 1px), transparent 0) 30% 0% / 100% 40%,
+        repeating-linear-gradient(90deg, transparent 0 7%, #ffffff03 0 calc(7% + 1px), transparent 0) 70% 0% / 100% 33%,
+        repeating-linear-gradient(90deg, transparent 0 11%, #ffffff02 0 calc(11% + 1px), transparent 0) -10% 0% / 100% 35%,
+        repeating-linear-gradient(90deg, transparent 0 17%, #ffffff04 0 calc(17% + 1px), transparent 0) 110% 0% / 100% 27%,
+        repeating-linear-gradient(90deg, transparent 0 13%, #00000003 0 calc(13% + 1px), transparent 0) 60% -10% / 100% 33%,
+        repeating-linear-gradient(90deg, transparent 0 8%, #00000002 0 calc(8% + 1px), transparent 0) 21% 2% / 100% 27%,
+        repeating-linear-gradient(90deg, transparent 0 8%, #00000001 0 calc(8% + 1px), transparent 0) 31% 7% / 100% 19%,
+        var(--color);
+      box-shadow:
+        inset 3em -12.25em 1.5em -12em #0006,
+        inset 0 -1.5em 2em -1.5em #0004,
+        inset 1em -1.5em 3em -2em #000b,
+        inset 0 -8em 2em -5em #0002,
+        inset 0 -6.5em 3.5em -5em var(--color);
+    }
+    .room-mug .handle {
+      border-radius: 0 100% 100% 0 / 50%;
+      top: 50%;
+      right: 0;
+      width: 16.6em;
+      height: 27.5em;
+      transform: translateY(-50%);
+    }
+    .room-mug .bar {
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      -webkit-mask: radial-gradient(farthest-side at 0 50%, #0000 79.5%, #f02 80%);
+      mask: radial-gradient(farthest-side at 0 50%, #0000 79.5%, #f02 80%);
+      border-radius: 0 100% 100% 0 / 50%;
+      background:
+        linear-gradient(90deg, #00000008, #0000),
+        radial-gradient(farthest-side at 30% 50%, #000, #0000 90%) 50% 50% / 100% 90%,
+        linear-gradient(90deg, var(--color), #0000 15%),
+        radial-gradient(at 60% 70%, var(--color), #0000),
+        radial-gradient(farthest-side at 0 50%, #0000 90%, #fff5 97%, #fff0 99%),
+        var(--color);
+      background-repeat: no-repeat;
+    }
+    .room-mug .junction {
+      width: 25%;
+      aspect-ratio: 1;
+      background: var(--color);
+      transform: translate(-77%, -15%);
+      top: 0;
+      left: 0;
       border-radius: 50%;
-      background: radial-gradient(60% 50% at 62% 40%, #6e4224, #3a1f0d 60%, #241206);
-      /* only what shows inside the opening */
-      clip-path: ellipse(50% calc(var(--rim) - .07em) at 50% calc(var(--rim) - .2em));
+      box-shadow:
+        inset 0 0 0 100em #00000007,
+        -0.1em 24.75em #00000007,
+        -0.1em 24.75em var(--color);
+    }
+    .room-mug .shadow {
+      width: 85%;
+      height: 8%;
+      border-radius: 50%;
+      bottom: -2.125%;
+      left: -15%;
+      background:
+        radial-gradient(at 55% 90%, #300c, #0000),
+        linear-gradient(90deg, #5335, #4005);
+      filter: blur(0.35em);
+      box-shadow: 13em 0 0.25em -1.25em #2006;
     }
 
     /* steam off the coffee: soft wisps that rise from the rim, sway, widen
@@ -1796,7 +1866,7 @@
     .mug-steam {
       left: .2em;
       right: .2em;
-      bottom: calc(100% - var(--rim));
+      bottom: calc(100% - .1em);
       height: 3.4em;
     }
     .mug-steam > b {
@@ -2337,9 +2407,18 @@
       <div class="room-shelf" role="group" aria-label="Games"></div>
       <div class="room-shelf room-shelf-lower" role="group" aria-label="More games"></div>
       <div class="room-mug room-shadow">
-        <i class="mug-handle"></i>
-        <i class="mug-body"><i class="mug-band"></i></i>
-        <i class="mug-top"></i>
+        <div class="coffee-mug">
+          <div class="shadow"></div>
+          <div class="handle">
+            <div class="junction"></div>
+            <div class="bar"></div>
+          </div>
+          <div class="cup">
+            <div class="lid"></div>
+            <div class="metalic"></div>
+            <div class="color"></div>
+          </div>
+        </div>
         <i class="mug-steam"><b></b><b></b><b></b><b></b></i>
       </div>
     </div>
@@ -2498,7 +2577,9 @@
   <p class="credit">
     CRT case adapted from
     <a href="https://codepen.io/manz/pen/yLbrpGV" target="_blank" rel="noopener">Manz's
-    pure-CSS CRT monitor</a>. Terminal set in
+    pure-CSS CRT monitor</a>; the mug from
+    <a href="https://codepen.io/alvaromontoro/pen/wvxoarW" target="_blank" rel="noopener">Alvaro
+    Montoro's coffee mug</a>. Terminal set in
     <a href="http://laemeur.sdf.org/fonts/" target="_blank" rel="noopener">Less Perfect
     DOS VGA</a> by laemeur, after Zeh Fernando's Perfect DOS VGA 437.
   </p>
