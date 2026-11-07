@@ -935,7 +935,7 @@
   // showing -- open doors and the like -- over the freshly drawn background,
   // provided its parent is in the state it was drawn for
   s.drawRoomObject = function(i, arg) {
-    var t = this, od = t._objs[i], a;
+    var t = this, od = t._objs[i], a, mask = t._version <= 2 ? 8 : 0xF;
     if(i < 1 || !od || od.obj_nr < 1 || !od.state) return;
     do {
       a = od.parentstate;
@@ -944,13 +944,14 @@
         break;
       }
       od = t._objs[od.parent];
-    } while((od.state & 0xF) == a);
+    } while((od.state & mask) == a);
   };
 
+  // v1/v2 objects show while their intrinsic state bit (8) is set
   s.drawRoomObjects = function(arg) {
-    var t = this, i;
+    var t = this, i, mask = t._version <= 2 ? 8 : 0xF;
     for(i = t._nums['local_objects'] - 1; i > 0; i--)
-      if(t._objs[i] && t._objs[i].obj_nr > 0 && (t._objs[i].state & 0xF))
+      if(t._objs[i] && t._objs[i].obj_nr > 0 && (t._objs[i].state & mask))
         t.drawRoomObject(i, arg);
   };
 

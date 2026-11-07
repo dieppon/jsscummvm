@@ -71,12 +71,15 @@
      The do/while walks up the parent chain: a child object is only hittable
      while its parent is in the state the child was defined for. */
   s.findObject = function(x, y) {
-    var t = this, i, b, a, od, mask = 0xF;
+    // v1/v2 draw an object while its intrinsic state bit (8) is set
+    var t = this, i, b, a, od, mask = t._version <= 2 ? 8 : 0xF;
 
     for (i = 1; i < t._nums['local_objects']; i++) {
       od = t._objs[i];
       if (!od || od.obj_nr < 1) continue;
       if (t.getClass(od.obj_nr, kObjectClassUntouchable)) continue;
+      // and are not found while untouchable (state bit 2)
+      if (t._version <= 2 && (t.getState(od.obj_nr) & 2)) continue;
 
       b = i;
       do {

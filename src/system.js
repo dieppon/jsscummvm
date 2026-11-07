@@ -21,6 +21,15 @@
         error("no files for " + game + ": it has not been fetched from the feed");
         return;
       }
+      // the old games' files, one per room (00.LFL, 01.LFL...), by name;
+      // the index first, as file 0
+      if(src.names) {
+        src.names.forEach(function(name, i) {
+          ScummVM.engine.setFile(i, name, src.files[name], src.encByte);
+        });
+        if(callback) callback();
+        return;
+      }
       for(i = 0; i < file_nos.length; i++)
         ScummVM.engine.setFile(file_nos[i], game + ".00" + file_nos[i], src.files[file_nos[i]]);
       if(callback) callback();

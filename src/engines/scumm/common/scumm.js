@@ -124,6 +124,7 @@ var NUM_SENTENCE = 6;
     init: function(game, version) {
       this._game = game;
       this._version = version || 5;
+      this.applyVersion(this._version);
       this._opcodes = this._opcodeTables[this._version];
       if(!this._opcodes) error("SCUMM v" + this._version + " games are not supported yet");
       // ScummVM: Fate of Atlantis is booted with -7873, which takes it past
@@ -131,11 +132,38 @@ var NUM_SENTENCE = 6;
       this._bootParam = game == "atlantis" ? -7873 : 0;
       this.initGraphics();
     },
-    setFile: function(file_no, filename, data) {
-      stream = new ScummVM.Stream(data, filename);
-      stream.encByte = 0x69;
+    setFile: function(file_no, filename, data, encByte) {
+      var stream = new ScummVM.Stream(data, filename);
+      stream.encByte = encByte === undefined ? 0x69 : encByte;
       this._files[file_no] = stream;
       this._filenames[filename] = file_no;
+    },
+    // A version's file registers its methods here (applyVersion)
+    defineVersion: function(name, methods) {
+      var all = this._versionMethods || (this._versionMethods = {}), k;
+      all[name] = all[name] || {};
+      for (k in methods) all[name][k] = methods[k];
+    },
+    // Like ScummVM's engine classes, an older SCUMM version is the v5 engine
+    // with some of its methods replaced: ScummEngine_v4 over v5, v3 over v4,
+    // v3old over v3, v2 over v3old. Each version's file adds its methods with
+    // defineVersion; this puts in the ones for `version`, after putting back
+    // the v5 ones a previous game may have replaced.
+    applyVersion: function(version) {
+      var t = this, chain = {2: ["4", "3", "3old", "2"], 3: ["4", "3"], 4: ["4"]}[version] || [],
+          base = t._baseMethods || (t._baseMethods = {}), k, i, over;
+      for (k in base) t[k] = base[k];
+      for (i = 0; i < chain.length; i++) {
+        over = (t._versionMethods || {})[chain[i]] || {};
+        for (k in over) {
+          if (!(k in base)) base[k] = t[k];
+          t[k] = over[k];
+        }
+      }
+      t._files = [];
+      t._filenames = {};
+      // a renderer for the previous game's font goes with it
+      t._charset = null;
     },
     go: function() {
       var t = this;
@@ -236,6 +264,13 @@ var NUM_SENTENCE = 6;
       if(t.shouldQuit()) {
         window.clearTimeout(t._timer);
         return;
+      }
+
+      // v1/v2: the engine's own interface follows the pointer and the
+      // inventory (handleMouseOver, script_v2.js)
+      if(t.handleMouseOver) {
+        t.handleMouseOver(t._lastEgo !== undefined && t._lastEgo != t.scummVar("ego"));
+        t._lastEgo = t.scummVar("ego");
       }
 
       if(t._currentRoom == 0) {

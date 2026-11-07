@@ -230,16 +230,19 @@
     t.restoreCharsetBg();
   };
 
-  // gfx.cpp restoreCharsetBg: wipe the text over the room. Text in the verb
-  // area stays; ScummVM only tracks (and erases) the main screen's.
+  // gfx.cpp restoreCharsetBg: wipe the last message, wherever it was put --
+  // over the room, or (v1-v3) in the strip above it. Text in the verb area
+  // is the interface's and stays.
   s.restoreCharsetBg = function() {
-    var t = this, i, keep = [];
+    var t = this, i, g, keep = [], vs = t._virtscreens[2], verbTop = vs ? vs.topline : 1e9;
     t._nextLeft = t._string[0].x;
     t._nextTop = t._string[0].y;
     if(t._charsetHasMask) {
       t._charsetHasMask = false;
-      for(i = 0; i < t._textLayer.length; i++)
-        if(!(t._textLayer[i].main && t._textLayer[i].mask)) keep.push(t._textLayer[i]);
+      for(i = 0; i < t._textLayer.length; i++) {
+        g = t._textLayer[i];
+        if(!(g.mask && (g.main || g.y < verbTop))) keep.push(g);
+      }
       t._textLayer = keep;
     }
   };
@@ -419,7 +422,7 @@
     t._disableOffsX = false;
     main = !vs || (y >= vs.topline && y < vs.topline + vs.h);
     t._textLayer.push({x: x, y: y, c: c, color: color, cs: cs.curId, main: main, mask: mask});
-    if(main && mask) t._charsetHasMask = true;
+    if(mask) t._charsetHasMask = true;
     return x + g.w;
   };
 

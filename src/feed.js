@@ -27,7 +27,11 @@
   // The games that run here: their SCUMM version, which picks the engine's
   // opcodes, and the base name of the data files to pick when an archive
   // has more than one pair
+  // Games before v4 have no .000/.001 pair but a file per room (00.LFL,
+  // 01.LFL...): `lfl` says which files, read all of them (they are small),
+  // XOR-ed with encByte.
   var SUPPORTED = {
+    maniac: {title: "Maniac Mansion", version: 2, lfl: /^\d\d\.lfl$/i, encByte: 0xFF},
     monkey: {title: "The Secret of Monkey Island", version: 5, files: /^(monkey1?|secret)$/},
     monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/},
     atlantis: {title: "Indiana Jones and the Fate of Atlantis", version: 5, files: /^atlantis$/}
@@ -313,7 +317,9 @@
         throw new Error("Cannot open the game's archive (" + err.message + ").");
       });
     }).then(function (archive) {
-      var pair = findDataFiles(archive, support), source;
+      var pair, source;
+      if (support.lfl) return readLflFiles(archive, game, support, report);
+      pair = findDataFiles(archive, support);
       if (!pair) throw new Error("The archive has no " + gameId.toUpperCase() + ".000 and .001.");
       source = new Source(gameId, game.item, archive, pair);
       source.version = support.version;
@@ -347,6 +353,36 @@
       });
     });
   };
+
+  // An old game's room files, all read before it starts, with one bar for
+  // the lot. The index (the lowest-numbered file) comes first.
+  function readLflFiles(archive, game, support, report) {
+    var entries = archive.entries.filter(function (e) {
+          return !junk(e.name) && support.lfl.test(base(e.name));
+        }).sort(function (a, b) { return base(a.name).localeCompare(base(b.name)); }),
+        source = new Source(game.id, game.item, archive, null),
+        total = 0, done = 0, label = "Reading the game files";
+    if (!entries.length) throw new Error("The archive has none of " + game.id.toUpperCase() + "'s files.");
+    entries.forEach(function (e) { total += e.size; });
+    source.version = support.version;
+    source.encByte = support.encByte;
+    source.names = entries.map(function (e) { return base(e.name).toLowerCase(); });
+    report(label, 0);
+    return entries.reduce(function (chain, e) {
+      return chain.then(function () {
+        return archive.read(e, function (f) { report(label, (done + f * e.size) / total); });
+      }).then(function (bytes) {
+        done += e.size;
+        source.files[base(e.name).toLowerCase()] = binaryString(bytes);
+      });
+    }, Promise.resolve()).then(function () {
+      report(label, 1);
+      ScummVM.source = source;
+      return source;
+    }, function (err) {
+      throw new Error("Cannot read the game's files (" + err.message + ").");
+    });
+  }
 
   /* --- asking for the feed ---------------------------------------------- */
 

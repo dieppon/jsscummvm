@@ -61,11 +61,19 @@
     }
   }
 
+  // A variable by its name in vars.js. Older versions have fewer: those
+  // missing are kept aside, so they neither clash with each other nor
+  // land on a real variable.
   s.scummVar = function(name,value) {
-    var t = this;
+    var t = this, n = t._vars[name];
+    if(n === undefined) {
+      t._unmappedVars = t._unmappedVars || {};
+      if(typeof value != "undefined") t._unmappedVars[name] = value;
+      return t._unmappedVars[name] || 0;
+    }
     if(typeof value != "undefined")
-      t._scummVars[t._vars[name]] = value;
-    return t._scummVars[t._vars[name]];
+      t._scummVars[n] = value;
+    return t._scummVars[n];
   }
 
   s.runBootscript = function() {
@@ -145,7 +153,7 @@
 
     if(script < t._nums['global_scripts']) {
       scriptPtr = t.getResourceAddress("script", script);
-      scriptOffs = 8;
+      scriptOffs = t._resourceHeaderSize;
       scriptType = "global";
       // log("runScript(Global-"+script+") from "+t._roomResource);
     } else {
@@ -261,7 +269,8 @@
       slot.status = "running";
       slot.number = 10001;
       slot.where = "room";
-      slot.offs = 8;
+      // v5: the EXCD block, past its header; older: an offset in the room
+      slot.offs = t._gfx["EXCD_offs"] || 8;
       slot.ptr = t._gfx["EXCD"];
       slot.freezeResistant = 0;
       slot.freezeCount = 0;
@@ -287,7 +296,7 @@
       slot.status = "running";
       slot.number = 10002;
       slot.where = "room";
-      slot.offs = 8;
+      slot.offs = t._gfx["ENCD_offs"] || 8;
       slot.ptr = t._gfx["ENCD"];
       slot.freezeResistant = 0;
       slot.freezeCount = 0;
@@ -391,8 +400,9 @@
   };
 
   s.checkAndRunSentenceScript = function() {
+    // v1/v2's sentence script is always script 2
     var t = this, i, ss, st, args = [],
-        sentenceScript = t.scummVar("sentence_script");
+        sentenceScript = t._version <= 2 ? 2 : t.scummVar("sentence_script");
 
     for(i = 0; i < 25; i++) args[i] = 0;
 
@@ -410,9 +420,17 @@
 
     if(st.preposition && st.objectB == st.objectA) return;
 
-    args[0] = st.verb;
-    args[1] = st.objectA;
-    args[2] = st.objectB;
+    if(t._version <= 2) {
+      // v1/v2 pass the sentence in variables, not arguments
+      t.scummVar("active_verb", st.verb);
+      t.scummVar("active_object1", st.objectA);
+      t.scummVar("active_object2", st.objectB);
+      t.scummVar("verb_allowed", t.getVerbEntryPoint(st.objectA, st.verb) != 0 ? 1 : 0);
+    } else {
+      args[0] = st.verb;
+      args[1] = st.objectA;
+      args[2] = st.objectB;
+    }
 
     t._currentScript = 0xFF;
     if(sentenceScript) t.runScript(sentenceScript, 0, 0, args);
