@@ -15,6 +15,11 @@
   var s = ScummVM.engines.SCUMM, MKID_BE = function(id) { return ScummVM.system.MKID_BE(id); };
   var RES_INVALID_OFFSET = 0xFFFFFFFF, OF_OWNER_MASK = 0x0F, OF_STATE_SHL = 4;
 
+  function pad(n, width) {
+    n = String(n);
+    while (n.length < width) n = "0" + n;
+    return n;
+  }
   function u8(r, o) { return r.readByteAt(r.offset + o); }
   function u16(r, o) { return u8(r, o) | (u8(r, o + 1) << 8); }
   function s16(r, o) { var v = u16(r, o); return v > 0x7FFF ? v - 0x10000 : v; }
@@ -378,6 +383,77 @@
       return {stream: this.getResourceAddress("room", this._roomResource), offset: od.OBIMoffset + 8};
     },
     getObjectImage: function(img) { return img; },
+
+    /* --- Loom CD's files (resource.cpp, resource_v4.cpp) ---------------- */
+    // The index is 000.LFL, the fonts 901-904.LFL, and the rooms are in
+    // DISKnn.LEC, each in an "LF" block whose place a table at the file's
+    // start gives. (Indy3, v3, has its own: a file per room.)
+
+    generateFilename: function(room) {
+      var n = room > 0 ? this._res.types.room.roomno[room] : 0;
+      return room == 0 || room >= 900 ? pad(room, 3) + ".lfl" : "disk" + pad(n, 2) + ".lec";
+    },
+    openResourceFile: function(filename) {
+      var i = this._filenames[filename.toLowerCase()];
+      if (i === undefined) return false;
+      this._file = this._files[i];
+      return true;
+    },
+    openRoom: function(room) {
+      var t = this, name, file, num, r, offs;
+      if (t._lastLoadedRoom == room) return;
+      t._lastLoadedRoom = room;
+      if (room == -1) return;
+      name = t.generateFilename(room);
+      if (!t.openResourceFile(name)) error("openRoom: no " + name + " for room " + room);
+      t._fileOffset = 0;
+      if (room == 0) return;
+      // readRoomsOffsets, GF_SMALL_HEADER: the table is at 12
+      file = t._file;
+      file.seek(12, true);
+      num = file.readUI8();
+      while (num--) {
+        r = file.readUI8();
+        offs = file.readUI32();
+        if (r == room) t._fileOffset = offs;
+      }
+    },
+    closeRoom: function() { this._lastLoadedRoom = -1; },
+
+    // resource.cpp loadResource: in v4 a resource's offset is 8 before it
+    loadResource: function(type, idx) {
+      var t = this, res = t._res.types[type], roomNr, fileOffs, file, size;
+      if (type == "charset") { t.loadCharset(idx); return 1; }
+      if (idx >= res.num) { error(type + " " + idx + " undefined"); return 0; }
+      roomNr = t.getResourceRoomNr(type, idx);
+      if (roomNr == 0) roomNr = t._roomResource;
+      fileOffs = type == "room" ? 0 : res.roomoffs[idx];
+      if (fileOffs == RES_INVALID_OFFSET) return 0;
+      t.openRoom(roomNr);
+      file = t._file;
+      file.seek(t._fileOffset + fileOffs + 8, true);
+      size = file.readUI32();
+      file.seek(-4);
+      t._res.createResource(type, idx, size);
+      return 1;
+    },
+
+    // resource_v4.cpp loadCharset: charset n is 90n.LFL, after its size; the
+    // colours come from the scripts, not the font
+    loadCharset: function(no) {
+      var t = this, file, size;
+      if (!t.openResourceFile(pad(900 + no, 3) + ".lfl")) return;
+      file = t._file;
+      size = file.seek(0, true).readUI32() + 11;
+      t._res.types.charset.address[no] = file.newStream(4, Math.min(size, file.length - 4));
+      t._charsetData[no] = [];
+      for (var i = 0; i < 16; i++) t._charsetData[no][i] = 0;
+      t._lastLoadedRoom = -1;
+    },
+    resetScumm: function() {
+      this._res.allocResTypeData("charset", 0, 9, "charset", 0);
+      this._baseMethods.resetScumm.call(this);
+    },
 
     // gfx.cpp initBGBuffers: v3 has one mask plane; v4 counts the planes
     // after the picture

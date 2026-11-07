@@ -772,6 +772,7 @@
   //   29  bitsPerPixel, fontHeight, numChars (LE16)
   //   33  numChars x LE32 glyph offsets, relative to offset 29
   // which is the same place ScummVM lands with its `_fontPtr += 29` for v5.
+  // A v4 font is its 90x.LFL file after the size: there, 17.
   var FONT_BASE = 29;
 
   s.CharsetRenderer = function(engine) {
@@ -792,7 +793,8 @@
       if(!ptr) return false;
       t.ptr = ptr;
       t.curId = id;
-      t.bitsPerPixel = ptr.seek(FONT_BASE, true).readUI8();
+      t.base = t.engine._version == 4 ? 17 : FONT_BASE;
+      t.bitsPerPixel = ptr.seek(t.base, true).readUI8();
       t.fontHeight = ptr.readUI8();
       t.numChars = ptr.readUI16();
       return true;
@@ -802,7 +804,7 @@
     charOffset: function(chr) {
       var t = this;
       if(chr < 0 || chr >= t.numChars) return 0;
-      return t.ptr.seek(FONT_BASE + chr * 4 + 4, true).readUI32();
+      return t.ptr.seek(t.base + chr * 4 + 4, true).readUI32();
     },
 
     // Advance width: the glyph's own width plus its x offset, as ScummVM's
@@ -810,8 +812,8 @@
     getCharWidth: function(chr) {
       var t = this, offs = t.charOffset(chr);
       if(!offs) return 0;
-      return t.ptr.seek(FONT_BASE + offs, true).readUI8() +
-             t.ptr.seek(FONT_BASE + offs + 2, true).readSI8();
+      return t.ptr.seek(t.base + offs, true).readUI8() +
+             t.ptr.seek(t.base + offs + 2, true).readSI8();
     },
 
     getStringWidth: function(codes) {
@@ -871,7 +873,7 @@
     glyphInfo: function(chr) {
       var t = this, offs = t.charOffset(chr);
       if(!offs) return null;
-      t.ptr.seek(FONT_BASE + offs, true);
+      t.ptr.seek(t.base + offs, true);
       return {w: t.ptr.readUI8(), h: t.ptr.readUI8(), xoff: t.ptr.readSI8(), yoff: t.ptr.readSI8()};
     },
 
@@ -881,7 +883,7 @@
       if(!offs) return 0;
 
       var ptr = t.ptr, engine = t.engine;
-      ptr.seek(FONT_BASE + offs, true);
+      ptr.seek(t.base + offs, true);
       var w = ptr.readUI8(), h = ptr.readUI8(),
           xoff = ptr.readSI8(), yoff = ptr.readSI8(),
           bpp = t.bitsPerPixel, mask = (1 << bpp) - 1,

@@ -62,7 +62,7 @@
 
   // script_v5.cpp decodeParseString
   s.decodeParseString = function() {
-    var t = this, textSlot, str, len;
+    var t = this, textSlot, str, len, v;
 
     switch(t._actorToPrintStrFor) {
       case 252: textSlot = 3; break;
@@ -106,6 +106,20 @@
         break;
         case 7: // overhead
           str.overhead = true;
+        break;
+        case 8: // say voice -- Loom CD's lines, a stretch of its CD track
+          v = t.getVarOrDirectWord(PARAM_1) & 0xFFFF;
+          len = t.getVarOrDirectWord(PARAM_2) & 0xFFFF;
+          if(t._game == "loom" && t._version == 4) {
+            if(v == 0 && len == 0) {
+              t.scummVar("music_timer", 0);
+              t.stopCD();
+            } else {
+              // the offset is from the CD's start: less track 1 (22500
+              // frames) and the 2-second lead-in (150)
+              t.playCDTrack(1, 1, Math.floor(v * 7.5 - 22650), Math.floor(len * 7.5 + 5));
+            }
+          }
         break;
         case 15: // textstring
           len = t.resStrLen();

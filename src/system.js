@@ -25,7 +25,8 @@
       // the index first, as file 0
       if(src.names) {
         src.names.forEach(function(name, i) {
-          ScummVM.engine.setFile(i, name, src.files[name], src.encByte);
+          ScummVM.engine.setFile(i, name, src.files[name],
+            typeof src.encByte == "function" ? src.encByte(name) : src.encByte);
         });
         if(callback) callback();
         return;

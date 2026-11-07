@@ -7,6 +7,13 @@
   var _system = ScummVM.system,
       s = ScummVM.engines.SCUMM;
 
+  // actor.cpp derefActor: actor 0 is one too -- Loom asks for the width of
+  // ego before there is one (VAR_EGO 0)
+  function derefActor(id) {
+    return s.getActor(id) || (id == 0 && s._actors[0]) ||
+      {width: 0, scalex: 0, costume: 0, cost: {animCounter: 0}};
+  }
+
   var unimplementedOpcode = function() {
     // log("opcode 0x"+s._opcode.toString(16)+" unimplemented");
   };
@@ -409,15 +416,15 @@
     },
     getActorWidth: function() {
       s.getResultPos();
-      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).width);
+      s.setResult(derefActor(s.getVarOrDirectByte(PARAM_1)).width);
     },
     getActorScale: function() {
       s.getResultPos();
-      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).scalex);
+      s.setResult(derefActor(s.getVarOrDirectByte(PARAM_1)).scalex);
     },
     getActorCostume: function() {
       s.getResultPos();
-      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).costume);
+      s.setResult(derefActor(s.getVarOrDirectByte(PARAM_1)).costume);
     },
     getActorWalkBox: function() {
       s.getResultPos();
@@ -427,7 +434,7 @@
     },
     getAnimCounter: function() {
       s.getResultPos();
-      s.setResult(s.getActor(s.getVarOrDirectByte(PARAM_1)).cost.animCounter);
+      s.setResult(derefActor(s.getVarOrDirectByte(PARAM_1)).cost.animCounter);
     },
     isActorInBox: function() {
       var a = s.getActor(s.getVarOrDirectByte(PARAM_1)),

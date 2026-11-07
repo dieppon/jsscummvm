@@ -29,11 +29,15 @@
   // has more than one pair
   // Games before v4 have no .000/.001 pair but a file per room (00.LFL,
   // 01.LFL...): `lfl` says which files, read all of them (they are small),
-  // XOR-ed with encByte.
+  // XOR-ed with encByte (or what encByte(name) says, file by file).
   var SUPPORTED = {
     maniac: {title: "Maniac Mansion", version: 2, lfl: /^\d\d\.lfl$/i, encByte: 0xFF},
     zak: {title: "Zak McKracken and the Alien Mindbenders", version: 2, lfl: /^\d\d\.lfl$/i, encByte: 0xFF},
     indy3: {title: "Indiana Jones and the Last Crusade", version: 3, lfl: /^\d\d\.lfl$/i, encByte: 0},
+    // the index and fonts as they are, the rooms' DISKnn.LEC XOR-ed; all
+    // its music and voices are CD track 1, read before it starts
+    loom: {title: "Loom", version: 4, lfl: /^(\d\d\d\.lfl|disk\d\d\.lec)$/i,
+           encByte: function (name) { return /\.lec$/i.test(name) ? 0x69 : 0; }, track: 1},
     monkey: {title: "The Secret of Monkey Island", version: 5, files: /^(monkey1?|secret)$/},
     monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/},
     atlantis: {title: "Indiana Jones and the Fate of Atlantis", version: 5, files: /^atlantis$/}
@@ -379,10 +383,34 @@
       });
     }, Promise.resolve()).then(function () {
       report(label, 1);
-      ScummVM.source = source;
-      return source;
     }, function (err) {
       throw new Error("Cannot read the game's files (" + err.message + ").");
+    }).then(function () {
+      return support.track && readTrack(archive, source, support.track, report);
+    }).then(function () {
+      ScummVM.source = source;
+      return source;
+    });
+  }
+
+  // A CD track the game cannot do without for long, read before it starts
+  // and kept as trackUrl keeps one. The game plays on without it.
+  var TRACK_MIME = {webm: "audio/webm", ogg: "audio/ogg", mp3: "audio/mpeg", flac: "audio/flac",
+                    fla: "audio/flac", wav: "audio/wav"};
+  function readTrack(archive, source, track, report) {
+    var entry = archive.entries.filter(function (e) {
+          var m = /^track0*(\d+)\.(\w+)$/i.exec(base(e.name));
+          return !junk(e.name) && m && +m[1] == track && TRACK_MIME[m[2].toLowerCase()];
+        })[0], label, ext;
+    if (!entry) return;
+    ext = /\.(\w+)$/.exec(entry.name)[1].toLowerCase();
+    label = "Reading " + base(entry.name).toUpperCase();
+    report(label, 0);
+    return archive.read(entry, function (f) { report(label, f); }).then(function (bytes) {
+      source.tracks[track] = Promise.resolve(URL.createObjectURL(new Blob([bytes], {type: TRACK_MIME[ext]})));
+    }, function (err) {
+      debug(1, "CD track " + track + ": " + err.message);
+      report("No music: " + err.message);
     });
   }
 
