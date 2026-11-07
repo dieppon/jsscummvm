@@ -867,12 +867,16 @@
        widen the search: prefer a box within 30 pixels, then 80, then any.
        This is what stops actors walking through scenery. */
     t.adjustXYToBeInBox = function(dstX, dstY) {
-      var thresholdTable = [30, 80, 0],
-          abr = {x: dstX, y: dstY, box: s.kInvalidBox},
+      // v3/v4 (small headers) walk in box 0 too, and start from the last
+      // point found, which they reuse when no box is near (bug #2377)
+      var old = s._version <= 4,
+          thresholdTable = [30, 80, 0],
+          abr = {x: old && t.lastValidX !== undefined ? t.lastValidX : dstX,
+                 y: old && t.lastValidY !== undefined ? t.lastValidY : dstY, box: s.kInvalidBox},
           tIdx, threshold, numBoxes, bestDist, bestBox, box, flags, closest,
-          firstValidBox = 1;
+          firstValidBox = old ? 0 : 1;
 
-      if(t.ignoreBoxes) return abr;
+      if(t.ignoreBoxes) return {x: dstX, y: dstY, box: s.kInvalidBox};
 
       for(tIdx = 0; tIdx < thresholdTable.length; tIdx++) {
         threshold = thresholdTable[tIdx];
@@ -896,6 +900,7 @@
             continue;
 
           if(s.checkXYInBoxBounds(box, dstX, dstY)) {
+            t.lastValidX = dstX; t.lastValidY = dstY;
             abr.x = dstX; abr.y = dstY; abr.box = box;
             return abr;
           }
@@ -903,6 +908,7 @@
           closest = s.getClosestPtOnBox(s.getBoxCoordinates(box), dstX, dstY);
 
           if(closest.dist < bestDist) {
+            t.lastValidX = closest.x; t.lastValidY = closest.y;
             abr.x = closest.x;
             abr.y = closest.y;
 
