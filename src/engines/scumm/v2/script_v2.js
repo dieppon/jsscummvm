@@ -83,6 +83,8 @@
       t._currentScript = 0xFF;
       t._currentRoom = 0;
       t.setTalkingActor(0);
+      // vars.cpp: Zak's fuller version needs a fast machine
+      if (t._game == "zak") t.scummVar("machine_speed", 0x7FFF);
     },
 
     // script_v2.cpp: variables are a byte; 14 to 16 stand for the variable
@@ -743,6 +745,9 @@
     },
     startScript: function() {
       var script = s.getVarOrDirectByte(PARAM_1);
+      // script_v2.cpp: Zak's copy protection (script 15 in room 45) is
+      // skipped, as ScummVM does with copy_protection off
+      if (s._game == "zak" && script == 15 && s._roomResource == 45) return;
       // script_v2.cpp: Maniac Mansion workarounds -- the doorbell
       // script 87 is not started over scripts 88/89, nor the
       // closed-door script 155 once var 120 is set
@@ -788,6 +793,10 @@
       if (!a) return;
       a.room = room;
       if (!room) a.putActor(0, 0, 0);
+      // script_v2.cpp: Zak's actor 7 with object 344 locked
+      if (s._game == "zak" && a.number == 7 && (s.getState(344) & kObjectStateLocked) &&
+          room != 10 && room != 16 && s._currentRoom != 10)
+        s.writeVar(245, 0x18);
     },
     getActorElevation: function() {
       var a;
