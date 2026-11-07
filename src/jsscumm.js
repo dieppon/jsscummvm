@@ -297,6 +297,7 @@ function assert(condition) {
     var width = root.clientWidth;
     fitQueued = false;
     if (!root.classList.contains("has-room")) return;
+    arrangeShelves();
     centreShelf();
     roomThings.forEach(function(el) {
       // the lamp is an empty box with its arms hanging out of it, so take
@@ -312,16 +313,43 @@ function assert(condition) {
     });
   }
 
-  // The shelf stands halfway between the window's left edge and the
+  // More than this many pixels of boxes, and they go on two shelves
+  var ONE_SHELF_PX = 465;
+
+  // The boxes, in the feed's order, on one shelf -- or, if they are too
+  // wide together, on two, the books making way for the second: split
+  // where the two come out nearest the same width
+  function arrangeShelves() {
+    var shelves = document.querySelectorAll(".room-shelf"), top = shelves[0], lower = shelves[1],
+        boxes, widths, total = 0, best = Infinity, split = 0, sum = 0, i, two;
+    if (!top || !lower) return;
+    boxes = Array.prototype.slice.call(document.querySelectorAll(".room-shelf > button"));
+    boxes.sort(function(a, b) { return a.dataset.order - b.dataset.order; });
+    boxes.forEach(function(box) { top.appendChild(box); });
+    widths = boxes.map(function(box) { return box.getBoundingClientRect().width; });
+    widths.forEach(function(w) { total += w; });
+    two = total > ONE_SHELF_PX && boxes.length > 1;
+    root.classList.toggle("two-shelves", two);
+    if (!two) return;
+    for (i = 1; i < boxes.length; i++) {
+      sum += widths[i - 1];
+      if (Math.abs(total - 2 * sum) < best) { best = Math.abs(total - 2 * sum); split = i; }
+    }
+    boxes.slice(split).forEach(function(box) { lower.appendChild(box); });
+  }
+
+  // Each shelf stands halfway between the window's left edge and the
   // monitor's: its middle there, however many boxes are on it
   function centreShelf() {
-    var shelf = document.querySelector(".room-shelf"), monitor = document.querySelector("#crt .monitor"),
-        parent, m, w;
-    if (!shelf || !monitor || !(parent = shelf.offsetParent)) return;
+    var monitor = document.querySelector("#crt .monitor"), m;
+    if (!monitor) return;
     m = monitor.getBoundingClientRect();
-    w = shelf.getBoundingClientRect().width;
-    if (!m.width || !w) return;
-    shelf.style.left = Math.round(m.left / 2 - w / 2 - parent.getBoundingClientRect().left) + "px";
+    if (!m.width) return;
+    document.querySelectorAll(".room-shelf").forEach(function(shelf) {
+      var parent = shelf.offsetParent, w = shelf.getBoundingClientRect().width;
+      if (!parent || !w) return;
+      shelf.style.left = Math.round(m.left / 2 - w / 2 - parent.getBoundingClientRect().left) + "px";
+    });
   }
 
   function queueFit() {
@@ -341,8 +369,8 @@ function assert(condition) {
   function stockShelf(games) {
     var shelf = document.querySelector(".room-shelf");
     if (!shelf) return;
-    shelf.textContent = "";
-    games.forEach(function(game) {
+    document.querySelectorAll(".room-shelf").forEach(function(el) { el.textContent = ""; });
+    games.forEach(function(game, order) {
       var box = document.createElement("button"),
           spine = game.item && game.item.spine,
           name = document.createElement("b");
@@ -350,6 +378,7 @@ function assert(condition) {
       box.title = game.title;
       box.setAttribute("aria-label", game.title);
       box.dataset.game = game.id;
+      box.dataset.order = order;
       if (!game.supported) box.classList.add("unsupported");
       box.addEventListener("click", function() { askToLoad(game); });
       // a click leaves the focus where it was (the DOS prompt, say), for the

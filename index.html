@@ -1343,6 +1343,11 @@
     .room-shelf > button:hover,
     .room-shelf > button:focus-visible { transform: translateY(-.12em); }
     .room-shelf > button:focus-visible { outline: .04em solid #fff; outline-offset: .03em; }
+    /* too many boxes for one shelf: a second one under it, where the books
+       were (jsscumm.js shares the boxes out) */
+    .room-shelf-lower { bottom: 3.5em; display: none; }
+    .two-shelves .room-shelf-lower { display: flex; }
+    .two-shelves .room-books { display: none; }
     /* games that do not run here yet: in black and white */
     .room-shelf > .unsupported { filter: grayscale(1); }
     .room-shelf > .is-current { cursor: default; }
@@ -2325,6 +2330,7 @@
     </div>
     <div class="room-front">
       <div class="room-shelf" role="group" aria-label="Games"></div>
+      <div class="room-shelf room-shelf-lower" role="group" aria-label="More games"></div>
       <div class="room-lamp" aria-hidden="true">
         <div class="lamp-base room-shadow">
           <i class="lamp-foot-edge"></i>
