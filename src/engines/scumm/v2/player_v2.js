@@ -38,10 +38,12 @@
 
   function s16(v) { return (v << 16) >> 16; }
 
-  ScummVM.PlayerV2 = function(sampleRate) {
+  // v3: a 6-byte header, and the music timer counted by the player
+  ScummVM.PlayerV2 = function(sampleRate, v3) {
     var t = this, i, out;
     t.pcjr = true;
-    t.headerLen = 4;               // GF_OLD_BUNDLE
+    t.isV3 = !!v3;
+    t.headerLen = v3 ? 6 : 4;      // GF_OLD_BUNDLE has 4
     t.freqs = PCJR_FREQ_TABLE;
     t.channels = [];
     for (i = 0; i < 5; i++) t.channels.push(new Uint16Array(CHANNEL_SIZE));
@@ -139,7 +141,7 @@
     getSoundStatus: function(nr) {
       return this.currentNr == nr || this.nextNr == nr ? 1 : 0;
     },
-    getMusicTimer: function() { return this.channels[0][MUSIC_TIMER]; },
+    getMusicTimer: function() { return this.isV3 ? this.musicTimer : this.channels[0][MUSIC_TIMER]; },
 
     // Player_V2Base::execute_cmd: run a channel's program until its next note
     executeCmd: function(channel) {
@@ -376,14 +378,14 @@
 
   /* --- in the engine --------------------------------------------------- */
 
-  s.defineVersion("2", {
+  var engineMethods = {
     // the player, rendered by Web Audio, and a clock that steps it while
     // the browser holds sound back, so scripts timed by the music go on
     initMusicV2: function() {
       var t = this, ctx, player, node, last, lastAudio = 0, silent;
       if (t._playerV2) return t._playerV2;
       ctx = t.getAudioContext();
-      player = t._playerV2 = new ScummVM.PlayerV2(ctx ? ctx.sampleRate : 44100);
+      player = t._playerV2 = new ScummVM.PlayerV2(ctx ? ctx.sampleRate : 44100, t._version == 3);
       if (ctx && ctx.createScriptProcessor) {
         node = ctx.createScriptProcessor(2048, 0, 1);
         node.onaudioprocess = function(ev) {
@@ -406,12 +408,30 @@
       return player;
     },
 
-    // sound.cpp triggerSound: every v2 sound is the player's
+    // sound.cpp triggerSound: every v2 sound is the player's; a v3 sound
+    // holds versions for several cards, and the PCjr's is its "WA" block
+    // (sound.cpp readSoundResourceSmallHeader)
     triggerSound: function(id) {
-      var t = this, r = t.getResourceAddress("sound", id), data, i;
+      var t = this, r = t.getResourceAddress("sound", id), data, i, start = 0, len, pos, size, tag, total;
       if (!r) return;
-      data = new Uint8Array(r.length);
-      for (i = 0; i < r.length; i++) data[i] = r.readByteAt(i);
+      len = r.length;
+      if (t._version == 3) {
+        var b = function(o) { return r.readByteAt(o); };
+        total = (b(0) | (b(1) << 8) | (b(2) << 16) | (b(3) << 24)) >>> 0;
+        if ((b(4) | (b(5) << 8)) == 0x4F52) return;   // RO: Roland only
+        start = -1;
+        for (pos = 6; pos + 6 <= total && pos + 6 <= r.length; ) {
+          size = (b(pos) | (b(pos + 1) << 8) | (b(pos + 2) << 16) | (b(pos + 3) << 24)) >>> 0;
+          tag = b(pos + 4) | (b(pos + 5) << 8);
+          if (tag == 0x4157) { start = pos; len = size + 6; break; }   // WA
+          if (tag == 0x4F53) { pos += 6; continue; }                    // SO: look inside
+          if (size < 6) break;
+          pos += size;
+        }
+        if (start < 0) return;
+      }
+      data = new Uint8Array(len);
+      for (i = 0; i < len; i++) data[i] = start + i < r.length ? r.readByteAt(start + i) : 0;
       t.initMusicV2().startSound(id, data);
     },
     isSoundRunning: function(sound) {
@@ -441,5 +461,8 @@
       t._baseMethods.shutdownSound.call(t);
       t._playerV2 = null;
     }
-  });
+  };
+  // v2, and v3 played as on a PCjr (ScummVM's Player_V2 serves both)
+  s.defineVersion("2", engineMethods);
+  s.defineVersion("3", engineMethods);
 }());
