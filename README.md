@@ -25,7 +25,11 @@ for full credits.
 
 stream.js is based on the stream implementation of [gordon](http://github.com/tobeytailor/gordon/) by Tobias Schneider.
 
+The CRT monitor's case is adapted from Manz's [pure-CSS CRT monitor](https://codepen.io/manz/pen/yLbrpGV).
+
 The coffee mug on the desk is adapted from Alvaro Montoro's [pure-CSS coffee mug](https://codepen.io/alvaromontoro/pen/wvxoarW).
+
+The DOS prompt is set in [Less Perfect DOS VGA](http://laemeur.sdf.org/fonts/) by laemeur, after Zeh Fernando's Perfect DOS VGA 437.
 
 LucasArts, Monkey Island, Maniac Mansion, Full Throttle, The Dig, LOOM, and probably lots of other things are
 registered trademarks of LucasArts, Inc.. All other trademarks and registered trademarks are owned by their respective
