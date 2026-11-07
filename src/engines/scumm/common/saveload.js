@@ -23,7 +23,10 @@
     "_shadowPalette", "_colorCycle", "_palManipCounter", "_palManipStart", "_palManipEnd",
     "_palManipPalette", "_palManipIntermediatePal", "_charsetData", "_charsetColorMap",
     "_string", "_sentence", "_sentenceNum", "_actors", "_shakeEnabled",
-    "_screenB", "_screenH"
+    "_screenB", "_screenH",
+    // v1/v2: the interface the engine draws, and variables v5 has and v2
+    // does not
+    "_userState", "_inventoryOffset", "_unmappedVars"
   ];
   var VM_KEYS = ["slot", "nest", "localvar", "cutSceneStackPointer", "cutScenePtr",
                  "cutSceneScript", "cutSceneScriptIndex", "cutSceneData"];
@@ -183,6 +186,11 @@
       if (t._actors[i]) t._actors[i].needRedraw = true;
     }
     t._imageVerbSig = null;
+    // v1/v2 draw their inventory and sentence line themselves
+    if (t.redrawV2Inventory) {
+      t.redrawV2Inventory();
+      t.drawSentence();
+    }
     t._fullRedraw = true;
     t._bgNeedsRedraw = true;
     t.cameraMoved();

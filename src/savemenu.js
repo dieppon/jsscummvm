@@ -32,6 +32,9 @@
   // asked for here though ScummVM allows it, not during a cutscene, so a
   // save is never taken (or a game loaded) halfway through one.
   function refused(e) {
+    // v1/v2 have no menu key variable and no cutscene stack: there, not
+    // while the player has no control
+    if (e._version <= 2) return e._userPut > 0 ? null : "Not right now";
     if (e.scummVar("mainmenu_key") == 0) return "Not right now";
     if (e._vm.cutSceneStackPointer > 0) return "Not during a cutscene";
     return null;
