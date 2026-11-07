@@ -1721,7 +1721,8 @@
     /* The mug, adapted from "Coffee mug" by Alvaro Montoro
        (https://codepen.io/alvaromontoro/pen/wvxoarW): his drawing, at a
        font size that makes its 35em cup the mug's width, standing on the
-       desk where his centres it on the page. The steam is this page's. */
+       desk where his centres it on the page, and mirrored. The steam is
+       this page's. */
     .room-mug {
       left: calc(50% - 12.7em);
       bottom: .2em;
@@ -1736,6 +1737,10 @@
       height: 47.5em;
       left: 0;
       bottom: 0;
+      /* mirrored about the cup's middle: the handle and the shadow to the
+         left, the cup where it stands */
+      transform: scaleX(-1);
+      transform-origin: 17.5em 50%;
     }
     .room-mug .coffee-mug,
     .room-mug .coffee-mug * {
