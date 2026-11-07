@@ -6,7 +6,11 @@ A native JavaScript implementation of [ScummVM](http://scummvm.org).
 Progress
 ========
 
-These LucasArts games run, each on the SCUMM version ScummVM gives it:
+This is a work in progress. Support for every game below is incomplete:
+none has been played from start to finish here, and any of them may have
+bugs, glitches or missing features, or stop working at some point.
+
+These LucasArts games start, each on the SCUMM version ScummVM gives it:
 
 * Maniac Mansion (SCUMM v2): playable, with saving and PCjr sound.
 * Zak McKracken and the Alien Mindbenders (v2): playable, with saving and
