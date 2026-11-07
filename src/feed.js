@@ -40,7 +40,8 @@
            encByte: function (name) { return /\.lec$/i.test(name) ? 0x69 : 0; }, track: 1},
     monkey: {title: "The Secret of Monkey Island", version: 5, files: /^(monkey1?|secret)$/},
     monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/},
-    atlantis: {title: "Indiana Jones and the Fate of Atlantis", version: 5, files: /^atlantis$/}
+    atlantis: {title: "Indiana Jones and the Fate of Atlantis", version: 5, files: /^atlantis$/},
+    tentacle: {title: "Day of the Tentacle", version: 6, files: /^tentacle$/}
   };
 
   // Names games go by besides ScummVM's, normalised as norm() leaves them
