@@ -297,6 +297,7 @@ function assert(condition) {
     var width = root.clientWidth;
     fitQueued = false;
     if (!root.classList.contains("has-room")) return;
+    centreShelf();
     roomThings.forEach(function(el) {
       // the lamp is an empty box with its arms hanging out of it, so take
       // in everything inside each one
@@ -309,6 +310,18 @@ function assert(condition) {
       });
       el.classList.toggle("is-out", left < 0 || right > width);
     });
+  }
+
+  // The shelf stands halfway between the window's left edge and the
+  // monitor's: its middle there, however many boxes are on it
+  function centreShelf() {
+    var shelf = document.querySelector(".room-shelf"), monitor = document.querySelector("#crt .monitor"),
+        parent, m, w;
+    if (!shelf || !monitor || !(parent = shelf.offsetParent)) return;
+    m = monitor.getBoundingClientRect();
+    w = shelf.getBoundingClientRect().width;
+    if (!m.width || !w) return;
+    shelf.style.left = Math.round(m.left / 2 - w / 2 - parent.getBoundingClientRect().left) + "px";
   }
 
   function queueFit() {
