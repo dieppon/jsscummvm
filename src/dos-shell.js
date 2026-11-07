@@ -117,17 +117,15 @@
 
     var html, pos, last, before;
     if (!showPrompt) { out.innerHTML = esc(view.join("\n")); return; }
-    // the cursor where the typing goes: after the line, or under the
-    // character it is on
+    // the cursor where the typing goes: after the line, or on the
+    // character it is under
     pos = Math.min(field.selectionStart == null ? current.length : field.selectionStart, current.length);
     last = view.pop();
     before = last.length - (current.length - pos);
     html = esc(view.concat([last.slice(0, before)]).join("\n"));
-    if (pos < current.length)
-      html += '<span class="dos-at">' + esc(last.charAt(before)) + '<span class="dos-cursor">_</span></span>' +
-              esc(last.slice(before + 1));
-    else
-      html += '<span class="dos-cursor">_</span>';
+    // the cell the cursor is in, on the character there or a space
+    html += '<span class="dos-cursor">' + esc(pos < current.length ? last.charAt(before) : " ") + '</span>' +
+            esc(last.slice(before + 1));
     out.innerHTML = html;
   }
 

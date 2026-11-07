@@ -432,10 +432,24 @@
       letter-spacing: 0;
     }
 
-    .dos-cursor { animation: dos-blink 1s steps(1) infinite; }
-    /* on a character: the cursor drawn over the bottom of its cell */
-    .dos-at { position: relative; }
-    .dos-at > .dos-cursor { position: absolute; left: 0; top: 0; }
+    /* The cursor is not the "_" glyph but the VGA's own: scan lines 13 and
+       14 of the 16 in the character's cell, the whole cell wide, in the
+       text's colour, on for 16 frames and off for 16 at 70Hz. */
+    .dos-cursor {
+      display: inline-block;
+      position: relative;
+      width: 1ch;
+      height: 1.2em;
+      height: 1lh;
+      vertical-align: top;
+    }
+    .dos-cursor::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(#0000 81.25%, currentColor 0 93.75%, #0000 0);
+      animation: dos-blink .457s steps(1) infinite;
+    }
     @keyframes dos-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
 
     /* a real, focusable input so that typing works and phones raise a
