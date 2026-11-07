@@ -1186,6 +1186,7 @@
     .desk { position: relative; }
 
     .room,
+    .room-mid,
     .room-front {
       position: absolute;
       inset: 0;
@@ -1205,19 +1206,26 @@
        the speaker's lid, which is at 1); and the shelf, which is behind
        nothing but has to be over the page to be clicked */
     .room-front { z-index: 2; }
+    /* between: the shelves, over the page to be clicked but behind the
+       speakers, and the mug in front of them */
+    .room-mid { z-index: 0; }
     .has-room .room,
+    .has-room .room-mid,
     .has-room .room-front { display: block; opacity: 1; }
-    @starting-style { .has-room .room, .has-room .room-front { opacity: 0; } }
+    @starting-style { .has-room .room, .has-room .room-mid, .has-room .room-front { opacity: 0; } }
 
     .room > *,
+    .room-mid > *,
     .room-front > * { position: absolute; }
 
     /* Like the speakers, the things in the room fade out at the window's
        edge rather than being cut in half: jsscumm.js measures them and
        marks any that would not fit. */
     .room > :not(.room-wall):not(.room-desktop),
+    .room-mid > *,
     .room-front > * { transition: opacity .35s ease; }
     .room > .is-out,
+    .room-mid > .is-out,
     .room-front > .is-out { opacity: 0; }
 
     /* the wall, and the desktop in front of it: both reach well past the
@@ -1345,8 +1353,11 @@
     .room-shelf > button:focus-visible { outline: .04em solid #fff; outline-offset: .03em; }
     /* too many boxes for one shelf: a second one under it, where the books
        were (jsscumm.js shares the boxes out) */
-    .room-shelf-lower { bottom: 3.5em; display: none; }
-    .two-shelves .room-shelf-lower { display: flex; }
+    .room-shelf-lower { display: none; }
+    /* the pair higher up the wall, the lower one just under the upper, its
+       boxes in front of the upper one's brackets */
+    .two-shelves .room-shelf { bottom: 10.4em; }
+    .two-shelves .room-shelf-lower { bottom: 4.7em; display: flex; }
     .two-shelves .room-books { display: none; }
     /* games that do not run here yet: in black and white */
     .room-shelf > .unsupported { filter: grayscale(1); }
@@ -2221,7 +2232,7 @@
     .vkey:focus-visible { outline: 2px solid #7d78ff; outline-offset: 2px; }
 
     @media (prefers-reduced-motion: reduce) {
-      html, .room, .room > *, .room-front, .room-front > * { transition: none; }
+      html, .room, .room > *, .room-mid, .room-mid > *, .room-front, .room-front > * { transition: none; }
       .mug-steam { display: none; }
     }
 
@@ -2321,6 +2332,10 @@
         <i class="disks-base"></i>
         <i class="disks-lid"></i>
       </div>
+    </div>
+    <div class="room-mid">
+      <div class="room-shelf" role="group" aria-label="Games"></div>
+      <div class="room-shelf room-shelf-lower" role="group" aria-label="More games"></div>
       <div class="room-mug room-shadow">
         <i class="mug-handle"></i>
         <i class="mug-body"><i class="mug-band"></i></i>
@@ -2329,8 +2344,6 @@
       </div>
     </div>
     <div class="room-front">
-      <div class="room-shelf" role="group" aria-label="Games"></div>
-      <div class="room-shelf room-shelf-lower" role="group" aria-label="More games"></div>
       <div class="room-lamp" aria-hidden="true">
         <div class="lamp-base room-shadow">
           <i class="lamp-foot-edge"></i>
