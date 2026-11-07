@@ -83,6 +83,30 @@
       t.scummVar("voice_mode", 1);
     },
 
+    // palette.cpp getPalettePtr/findPalInPals: palette `palindex` of the
+    // room's PALS block -- WRAP, its OFFS table first, then the APALs it
+    // points to -- as a stream at the colours
+    getPalettePtr: function(palindex, room) {
+      var t = this, MKID_BE = ScummVM.system.MKID_BE, pals = t._gfx.PALS, wrap, offs, n, at, size;
+      if (t._gfx.CLUT) return t._gfx.CLUT;
+      if (!pals) { error("no palette in room " + room); return null; }
+      pals.seek(0, true);
+      wrap = t.findResource(MKID_BE("WRAP"), pals);
+      if (!wrap) return null;
+      wrap.seek(0, true);
+      offs = t.findResourceData(MKID_BE("OFFS"), wrap);
+      if (!offs) return null;
+      n = t.getResourceDataSize(offs) / 4;
+      if (palindex < 0 || palindex >= n) return null;
+      // the offsets count from OFFS's data, which is WRAP's first block
+      at = 16 + offs.seek(8 + palindex * 4, true).readUI32();
+      wrap.seek(at, true);
+      if (wrap.readUI32(true) != MKID_BE("APAL")) at -= 8;
+      wrap.seek(at + 4, true);
+      size = wrap.readUI32(true);
+      return wrap.newStream(at, size).seek(8, true);
+    },
+
     // script_v6.cpp readArrayFromIndexFile: the arrays the game starts with
     readArrayFromIndexFile: function(file) {
       var t = this, num, a, b, c;

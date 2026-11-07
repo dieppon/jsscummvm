@@ -483,13 +483,24 @@
     if(a && str.overhead) {
       str.x = a.getPos().x - (vs ? vs.xstart : 0);
       str.y = a.getPos().y - a.elevation;
-      talkY = t.scummVar("talk_string_y");
-      if(talkY >= 0x8000) talkY -= 0x10000;
-      if(talkY < 0) {
-        sc = Math.trunc(a.scaley * talkY / 0xFF);
-        str.y += Math.trunc((talkY - sc) / 2) + sc;
+      if(t._version >= 6) {
+        // v6: each actor's own text offset (actorOps SO_TEXT_OFFSET), scaled
+        // with the actor; v6 has no VAR_V5_TALK_STRING_Y (its var 54 is
+        // the room height)
+        sc = Math.trunc(a.scalex * a.talkPosX / 0xFF);
+        str.x += Math.trunc((a.talkPosX - sc) / 2) + sc;
+        sc = Math.trunc(a.scaley * a.talkPosY / 0xFF);
+        str.y += Math.trunc((a.talkPosY - sc) / 2) + sc;
+        if(str.y > t._screenHeight - 40) str.y = t._screenHeight - 40;
       } else {
-        str.y = talkY;
+        talkY = t.scummVar("talk_string_y");
+        if(talkY >= 0x8000) talkY -= 0x10000;
+        if(talkY < 0) {
+          sc = Math.trunc(a.scaley * talkY / 0xFF);
+          str.y += Math.trunc((talkY - sc) / 2) + sc;
+        } else {
+          str.y = talkY;
+        }
       }
       if(str.y < 1) str.y = 1;
       if(str.x < 80) str.x = 80;

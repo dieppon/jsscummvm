@@ -167,6 +167,9 @@
 
     ptr = t.findResourceData(MKID_BE("CLUT"), roomptr);
     if(ptr) t._gfx["CLUT"] = ptr;
+    // v6 keeps its palettes, several, in a PALS block (palette_v6.js)
+    ptr = t.findResource(MKID_BE("PALS"), roomptr);
+    if(ptr) t._gfx["PALS"] = ptr;
 
     ptr = t.findResourceData(MKID_BE("TRNS"), roomptr);
     if(ptr) trans = ptr.readUI8();
