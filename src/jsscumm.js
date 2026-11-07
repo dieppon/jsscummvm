@@ -337,6 +337,7 @@ function assert(condition) {
       box.title = game.title;
       box.setAttribute("aria-label", game.title);
       box.dataset.game = game.id;
+      if (!game.supported) box.classList.add("unsupported");
       box.addEventListener("click", function() { askToLoad(game); });
       // a click leaves the focus where it was (the DOS prompt, say), for the
       // box to give back when it closes
