@@ -99,6 +99,12 @@
           s.initCharset(no);
         break;
         case 14: // unknown
+          // v3: two parameters, nothing more
+          if(s._version == 3) {
+            s.getVarOrDirectByte(PARAM_1);
+            s.getVarOrDirectByte(PARAM_2);
+            break;
+          }
           // the charset's colour table, kept in _charsetData too so the next
           // initCharset does not undo it
           table = s.getWordVararg();
@@ -173,12 +179,31 @@
     },
     // o5_roomOps (palette effects and transitions in effects.js)
     roomOps: function() {
-      var a = 0, b = 0, c, d, e, ptr, half = Math.floor(s._screenWidth / 2);
+      var a = 0, b = 0, c, d, e, ptr, half = Math.floor(s._screenWidth / 2),
+          // v3: the two parameters come before the sub-opcode
+          pb = s._version == 3, small = s._resourceHeaderSize == 6;
+      if(pb) {
+        a = s.getVarOrDirectWord(PARAM_1);
+        b = s.getVarOrDirectWord(PARAM_2);
+      }
       s._opcode = s.fetchScriptByte();
-      switch(s._opcode & 0x1F) {
-        case 1: // room scroll: how far the camera may go
+      // v3/v4: a room colour, and a shadow palette entry
+      if(small && ((s._opcode & 0x1F) == 2 || (s._opcode & 0x1F) == 4)) {
+        if(!pb) {
           a = s.getVarOrDirectWord(PARAM_1);
           b = s.getVarOrDirectWord(PARAM_2);
+        }
+        if((s._opcode & 0x1F) == 2) s._roomPalette[b] = a;
+        else s._shadowPalette[b] = a;
+        s._fullRedraw = true;
+        return;
+      }
+      switch(s._opcode & 0x1F) {
+        case 1: // room scroll: how far the camera may go
+          if(!pb) {
+            a = s.getVarOrDirectWord(PARAM_1);
+            b = s.getVarOrDirectWord(PARAM_2);
+          }
           if(a < half) a = half;
           if(b < half) b = half;
           if(a > s._roomWidth - half) a = s._roomWidth - half;
@@ -187,8 +212,10 @@
           s.scummVar("camera_max_x", b);
         break;
         case 3: // room screen
-          a = s.getVarOrDirectWord(PARAM_1);
-          b = s.getVarOrDirectWord(PARAM_2);
+          if(!pb) {
+            a = s.getVarOrDirectWord(PARAM_1);
+            b = s.getVarOrDirectWord(PARAM_2);
+          }
           s.initScreens(a, b);
         break;
         case 4: // room palette
@@ -719,7 +746,12 @@
       var state = 1, obj, idx, i, xpos = 255, ypos = 255, x, y, w, h, od, o;
 
       obj = s.getVarOrDirectWord(PARAM_1);
-      s._opcode = s.fetchScriptByte();
+      // v3/v4: where, and no sub-opcode
+      if(s._resourceHeaderSize == 6) {
+        xpos = s.getVarOrDirectWord(PARAM_2);
+        ypos = s.getVarOrDirectWord(PARAM_3);
+        s._opcode = 0x1F;
+      } else s._opcode = s.fetchScriptByte();
       switch(s._opcode & 0x1F) {
         case 0:
           xpos = s.getVarOrDirectWord(PARAM_1);
@@ -812,6 +844,9 @@
       var a = s.getVarOrDirectByte(PARAM_1), act = s.getActor(a), i, j, op;
 
       while((s._opcode = s.fetchScriptByte()) != 0xFF) {
+        // v3/v4 number the sub-opcodes differently (script_v5.cpp)
+        if(s._resourceHeaderSize == 6)
+          s._opcode = (s._opcode & 0xE0) | [1, 0, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 20][(s._opcode & 0x1F) - 1];
         op = s._opcode & 0x1F;
         switch(op) {
           case 0: // dummy
@@ -878,9 +913,9 @@
           case 16: // actor width
             act.width = s.getVarOrDirectByte(PARAM_1);
           break;
-          case 17: // actor scale
+          case 17: // actor scale -- one value for both in v4
             i = s.getVarOrDirectByte(PARAM_1);
-            j = s.getVarOrDirectByte(PARAM_2);
+            j = s._version == 4 ? i : s.getVarOrDirectByte(PARAM_2);
             act.boxscale = i;
             act.setScale(i, j);
           break;
@@ -921,7 +956,9 @@
     },
     loadRoom: function() {
       var room = s.getVarOrDirectByte(PARAM_1);
-      s.startScene(room, 0, 0);
+      // v3/v4 do not load the room they are in again
+      if(s._resourceHeaderSize != 6 || room != s._currentRoom)
+        s.startScene(room, 0, 0);
       s._fullRedraw = true;
     },
     print: function() {
@@ -1111,6 +1148,12 @@
       act = s.getActor(a);
       if(s.whereIsObject(obj) == WIO_NOT_FOUND) return;
       pos = s.getObjectXYPos(obj);
+      // v3 and before: the place is fitted into a box first
+      if(s._version <= 3 && act.adjustXYToBeInBox) {
+        var abr = act.adjustXYToBeInBox(pos.x, pos.y);
+        pos.x = abr.x;
+        pos.y = abr.y;
+      }
       act.startWalkActor(pos.x, pos.y, pos.dir);
     },
     startMusic: function() {

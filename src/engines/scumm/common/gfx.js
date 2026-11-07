@@ -256,7 +256,10 @@
       t.decomp_shr = code % 10;
       t.decomp_mask = 0xFF >> (8 - t.decomp_shr);
 
-      if(code == 1) {
+      // the v3 VGA games' own codecs (GF_OLD256), column by column
+      if(t.engine._version == 3 && (code == 1 || code == 2 || code == 3 || code == 4 || code == 7)) {
+        t.drawStripOld256(code, dst, dstPitch, src, numLinesToProcess);
+      } else if(code == 1) {
         t.drawStripRaw(dst, dstPitch, src, numLinesToProcess, false);
       } else if(code >= 14 && code <= 18) {
         t.drawStripBasicV(dst, dstPitch, src, numLinesToProcess, false);
@@ -279,6 +282,92 @@
         log("unknown decompressBitmap code "+code);
       }
       return transpStrip;
+    };
+
+    // gfx.cpp drawStripRaw (GF_OLD256) and unkDecode8 to 11: these fill
+    // a strip a column at a time, top to bottom, then the next column
+    t.drawStripOld256 = function(code, dst, dstPitch, src, height) {
+      var base = dst.offset, pal = t.roomPalette, col = 0, row = 0, done = false,
+          buffer = 0, mask = 128, i, n, c, color, run, numcolors, local, inc, h;
+      function put(color) {
+        if(done) return;
+        dst.writeByteAt(base + row * dstPitch + col, pal[color & 0xFF]);
+        if(++row == height) {
+          row = 0;
+          if(++col == 8) done = true;
+        }
+      }
+      // READ_BIT_256 / READ_N_BITS: bits taken lowest first
+      function bit() {
+        if((mask <<= 1) == 256) {
+          buffer = src.readUI8();
+          mask = 1;
+        }
+        return (buffer & mask) != 0 ? 1 : 0;
+      }
+      function bits(count) {
+        var v = 0, b;
+        for(b = 0; b < count; b++) v += bit() << b;
+        return v;
+      }
+      switch(code) {
+        case 1:
+          while(!done) put(src.readUI8());
+        break;
+        case 2:
+          while(!done) {
+            run = src.readUI8() + 1;
+            color = src.readUI8();
+            while(run-- && !done) put(color);
+          }
+        break;
+        case 3:
+          run = 0;
+          while(!done) {
+            c = bits(4);
+            switch(c >> 2) {
+              case 0:
+                color = bits(4);
+                for(i = 0; i < (c & 3) + 2; i++) put(run * 16 + color);
+              break;
+              case 1:
+                for(i = 0; i < (c & 3) + 1; i++) put(run * 16 + bits(4));
+              break;
+              case 2:
+                run = bits(4);
+              break;
+            }
+          }
+        break;
+        case 4:
+          numcolors = src.readUI8();
+          local = [];
+          for(i = 0; i < numcolors; i++) local.push(src.readUI8());
+          while(!done) {
+            color = src.readUI8();
+            if(color < numcolors) {
+              put(local[color]);
+            } else {
+              n = color - numcolors + 1;
+              color = src.readUI8();
+              while(n-- && !done) put(color);
+            }
+          }
+        break;
+        case 7:
+          inc = 1;
+          color = src.readUI8();
+          for(col = 0; col < 8; col++) {
+            for(h = 0; h < height; h++) {
+              dst.writeByteAt(base + h * dstPitch + col, pal[color & 0xFF]);
+              for(i = 0; i < 3; i++) if(!bit()) break;
+              if(i == 1) { inc = -inc; color = (color - inc) & 0xFF; }
+              else if(i == 2) color = (color - inc) & 0xFF;
+              else if(i == 3) { inc = 1; color = bits(8); }
+            }
+          }
+        break;
+      }
     };
 
     t.writeRoomColor = function(dst, color) {

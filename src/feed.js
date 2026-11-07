@@ -33,6 +33,7 @@
   var SUPPORTED = {
     maniac: {title: "Maniac Mansion", version: 2, lfl: /^\d\d\.lfl$/i, encByte: 0xFF},
     zak: {title: "Zak McKracken and the Alien Mindbenders", version: 2, lfl: /^\d\d\.lfl$/i, encByte: 0xFF},
+    indy3: {title: "Indiana Jones and the Last Crusade", version: 3, lfl: /^\d\d\.lfl$/i, encByte: 0},
     monkey: {title: "The Secret of Monkey Island", version: 5, files: /^(monkey1?|secret)$/},
     monkey2: {title: "Monkey Island 2: LeChuck's Revenge", version: 5, files: /^monkey2$/},
     atlantis: {title: "Indiana Jones and the Fate of Atlantis", version: 5, files: /^atlantis$/}

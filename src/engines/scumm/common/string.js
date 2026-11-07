@@ -96,9 +96,13 @@
           str.center = true;
           str.overhead = false;
         break;
-        case 6: // left
-          str.center = false;
-          str.overhead = false;
+        case 6: // left -- in v3, the line height
+          if(t._version == 3) {
+            str.height = t.getVarOrDirectWord(PARAM_1);
+          } else {
+            str.center = false;
+            str.overhead = false;
+          }
         break;
         case 7: // overhead
           str.overhead = true;
@@ -114,7 +118,16 @@
       }
     }
 
-    str.saveDefault();
+    // v3 and before keep only the place, height and colour (ScummVM bug
+    // #1588); later versions the lot
+    if(t._version <= 3) {
+      str._default.x = str.x;
+      str._default.y = str.y;
+      str._default.height = str.height;
+      str._default.color = str.color;
+    } else {
+      str.saveDefault();
+    }
   };
 
   s.printString = function(slot, msg) {

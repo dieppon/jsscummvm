@@ -954,11 +954,12 @@
       // (GF_OLD_BUNDLE) the header starts two bytes earlier, the costume
       // has one colour byte in place of a palette, and offsets count from
       // its start.
-      var old = s._resourceHeaderSize == 4, base;
+      // v3/v4 (GF_SMALL_HEADER): it starts at 0
+      var old = s._resourceHeaderSize == 4, small = s._resourceHeaderSize == 6, base;
       t.id = id;
       ptr = s.getResourceAddress("costume", id).newRelativeStream();
-      ptr.seek(old ? -2 : 2);
-      base = old ? 0 : 2;
+      ptr.seek(old ? -2 : small ? 0 : 2);
+      base = old || small ? 0 : 2;
       t.baseptr = ptr.newRelativeStream(old ? 2 : 0);
       t.numAnim = ptr.seek(6).readUI8();
       tmp = ptr.readUI8();

@@ -7,7 +7,8 @@
  * index, all XOR-ed with 0xFF. There are no tagged blocks: the index lists,
  * for each costume, script and sound, the room whose file holds it and
  * where, and each resource starts with its size (GF_OLD_BUNDLE), a 4-byte
- * header in all.
+ * header in all. The fixed sizes they share with v3 and v4 (readMAXS) are
+ * in v4/resource_v4.js.
  */
 (function () {
   "use strict";
@@ -22,28 +23,6 @@
     while (n.length < width) n = "0" + n;
     return n;
   }
-
-  // ScummEngine_v4::readMAXS: these games' sizes are fixed, not in the index
-  s.defineVersion("4", {
-    readMAXS: function () {
-      var n = this._nums;
-      n.variables = 800;
-      n.bit_variables = 4096;
-      n.local_objects = 200;
-      n.array = 50;
-      n.verbs = 100;
-      n.new_names = 50;
-      n.charsets = 9;
-      n.inventory = 80;
-      n.global_scripts = 200;
-      n.fl_object = 50;
-      n.shadow_pallete_size = 256;
-      n.images = 0;
-      // scumm.cpp: Maniac Mansion has 25 actors, the rest 13
-      n.actors = this._game == "maniac" ? 25 : 13;
-      this._objectRoomTable = null;
-    }
-  });
 
   s.defineVersion("3old", {
     _resourceHeaderSize: 4,
