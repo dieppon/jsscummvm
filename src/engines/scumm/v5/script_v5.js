@@ -408,11 +408,13 @@
 
     getActorX: function() {
       s.getResultPos();
-      s.setResult(s.getObjX(s.getVarOrDirectWord(PARAM_1)));
+      // Indy3's actor is a byte
+      s.setResult(s.getObjX(s._game == "indy3" ? s.getVarOrDirectByte(PARAM_1) : s.getVarOrDirectWord(PARAM_1)));
     },
     getActorY: function() {
       s.getResultPos();
-      s.setResult(s.getObjY(s.getVarOrDirectWord(PARAM_1)));
+      // Indy3's actor is a byte
+      s.setResult(s.getObjY(s._game == "indy3" ? s.getVarOrDirectByte(PARAM_1) : s.getVarOrDirectWord(PARAM_1)));
     },
     getActorWidth: function() {
       s.getResultPos();
@@ -712,7 +714,8 @@
     wait: function() {
       var oldoffset = s._scriptPointer.offset - 1;
 
-      s._opcode = s.fetchScriptByte();
+      // Indy3's wait has no sub-op: it waits for the message
+      s._opcode = s._game == "indy3" ? 2 : s.fetchScriptByte();
       switch(s._opcode & 0x1F) {
         case 1: // wait for actor
           var a = s.getActor(s.getVarOrDirectByte(PARAM_1));

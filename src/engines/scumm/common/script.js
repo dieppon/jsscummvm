@@ -763,6 +763,9 @@
       return t._scummVars[varId];
     }
     if(varId & 0x8000) {
+      // v3 keeps its bit variables in the variables: var >> 4, bit var & 15
+      if(t._version == 3)
+        return (t._scummVars[(varId >> 4) & 0xFF] & (1 << (varId & 0xF))) ? 1 : 0;
       varId &= 0x7FFF;
       return (t._bitVars[varId >> 3] & (1 << (varId & 7))) ? 1 : 0;
     }
@@ -782,6 +785,12 @@
       t._scummVars[varId] = value;
     }
     if(varId & 0x8000) {
+      if(t._version == 3) {
+        speed = (varId >> 4) & 0xFF;
+        if(value) t._scummVars[speed] |= 1 << (varId & 0xF);
+        else t._scummVars[speed] &= ~(1 << (varId & 0xF));
+        return;
+      }
       varId &= 0x7FFF;
       if(value)
         t._bitVars[varId >> 3] |= (1 << (varId & 7));

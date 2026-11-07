@@ -703,6 +703,7 @@
       t.updateDirtyScreen(0); // Main
     }
 
+    t.renderBoxesUnderVerbs();
     t.drawVerbs();
     t.renderTexts();
 

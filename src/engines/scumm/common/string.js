@@ -608,6 +608,23 @@
   };
 
   // Paint the text layer over the frame
+  // Boxes off the room picture -- over the verbs' area, as Indy3 clears it
+  // with one before it puts its verbs there -- go under the verbs, which
+  // are drawn again every frame where ScummVM draws them once, after them
+  s.renderBoxesUnderVerbs = function() {
+    var t = this, glyphs = t._textLayer, ctx = ScummVM.context,
+        width = ScummVM.width, height = ScummVM.height, img, i, g, any = false;
+    if(!glyphs || !glyphs.length) return;
+    for(i = 0; i < glyphs.length && !any; i++) any = glyphs[i].box && !glyphs[i].main;
+    if(!any) return;
+    img = ctx.getImageData(0, 0, width, height);
+    for(i = 0; i < glyphs.length; i++) {
+      g = glyphs[i];
+      if(g.box && !g.main) fillBox(img.data, width, g, t._currentPalette[g.color]);
+    }
+    ctx.putImageData(img, 0, 0);
+  };
+
   s.renderTexts = function() {
     var t = this, glyphs = t._textLayer, ctx = ScummVM.context,
         width = ScummVM.width, height = ScummVM.height, img, i, g, cs, data, j;
@@ -617,7 +634,10 @@
     img = ctx.getImageData(0, 0, width, height);
     for(i = 0; i < glyphs.length; i++) {
       g = glyphs[i];
-      if(g.box) { fillBox(img.data, width, g, t._currentPalette[g.color]); continue; }
+      if(g.box) {
+        if(g.main) fillBox(img.data, width, g, t._currentPalette[g.color]);
+        continue;
+      }
       cs = t.getCharsetRenderer(g.cs);
       if(!cs) continue;
       // The charset's own colour table, then colour 1 replaced by the
