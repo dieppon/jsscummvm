@@ -6,15 +6,38 @@ A native JavaScript implementation of [ScummVM](http://scummvm.org).
 Progress
 ========
 
-Currently I focus on running Monkey Island 1 (CDROM version,
-Scumm 5.x engine). Support for other games may be added at
-a later time.
+These LucasArts games run, each on the SCUMM version ScummVM gives it:
+
+* Maniac Mansion (SCUMM v2): playable, with saving and PCjr sound.
+* Zak McKracken and the Alien Mindbenders (v2): playable, with saving and
+  PCjr sound.
+* Indiana Jones and the Last Crusade, VGA (v3): playable, with saving and
+  PCjr sound.
+* Loom, CD (v4): starts, with its CD music and voices; the drafts are still
+  to be tested.
+* The Secret of Monkey Island, CD (v5): playable, with saving and CD music.
+* Monkey Island 2: LeChuck's Revenge (v5): playable, with iMUSE music.
+* Indiana Jones and the Fate of Atlantis, CD (v5): playable, with speech.
+* Day of the Tentacle, CD (v6): plays its intro into the first room; the
+  rest, its speech and its music still to be tested.
+
+Sam & Max Hit the Road, Full Throttle, The Dig and The Curse of Monkey
+Island do not run yet.
+
+It runs at [dieppa.co.uk/jsscummvm](https://dieppa.co.uk/jsscummvm/).
 
 Usage
 =====
 
-Copy the Monkey Island game files (monkey1.000 and monkey1.001)
-to games/monkey1 and open index.html in Safari or Chrome.
+The games are not included. They come from a
+[webRcade](https://www.webrcade.com/) feed: a JSON list of games, each with
+a link to a zip of its data files (and, for the CD games, their tracks and
+speech). Give the page the feed, and the game by its ScummVM id:
+
+    index.html?feed=https://example.com/example-feed&game=monkey
+
+Without a feed the page asks for one. Without a game it starts at a DOS
+prompt, and the boxes on the shelf load the games in the feed.
 
 Credits
 =======
