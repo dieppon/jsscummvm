@@ -829,15 +829,17 @@
     if (waiting) { e.preventDefault(); return; }
 
     if (booting) { e.preventDefault(); finishBoot(); return; }
+    if (e.key !== "Tab" && !/^(Shift|Control|Alt|Meta|CapsLock)$/.test(e.key)) completing = null;
 
     if (e.key === "Enter") {
       e.preventDefault();
       submit();
     } else if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
-      // as COMMAND.COM: Tab is typed, to the next tab stop (every eight
-      // columns) -- not a move to the next thing on the page
+      // file name completion as Windows NT's cmd.exe has it -- not a move to
+      // the next thing on the page
       e.preventDefault();
-      typeTab();
+      complete(e.shiftKey ? -1 : 1);
+      return;
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       if (!history.length) return;
@@ -855,15 +857,43 @@
     }
   }
 
-  function typeTab() {
-    var start = field.selectionStart == null ? current.length : field.selectionStart,
-        end = field.selectionEnd == null ? start : field.selectionEnd,
-        col = cwd.length + 1 + start, n = 8 - col % 8,
-        max = COLS - (cwd.length + 1) - 1, value;
-    value = current.slice(0, start) + "        ".slice(0, n) + current.slice(end);
+  // Tab completion, as cmd.exe does it: the word before the cursor is
+  // finished with the first file or directory whose name starts with it,
+  // in alphabetical order; Tab again takes the next, Shift+Tab the one
+  // before, round and round. After CD, RD or MD only directories are
+  // offered. Any other key ends it, and the next Tab starts from what is
+  // typed then. (MS-DOS 6.22 itself had no completion: its Tab was typed.)
+  var completing = null;
+  function complete(step) {
+    var c = completing, pos, before, start, token, slash, dirPart, prefix, dir, first, dirsOnly, names, value,
+        max = COLS - (cwd.length + 1) - 1;
+    if (!c) {
+      pos = field.selectionStart == null ? current.length : field.selectionStart;
+      before = current.slice(0, pos);
+      start = before.lastIndexOf(" ") + 1;
+      token = before.slice(start);
+      slash = Math.max(token.lastIndexOf("\\"), token.lastIndexOf("/"));
+      dirPart = token.slice(0, slash + 1);
+      prefix = token.slice(slash + 1).toUpperCase();
+      dir = resolve(dirPart || ".");
+      first = before.trim().split(/\s+/)[0].toUpperCase();
+      dirsOnly = start > 0 && /^(CD|CHDIR|RD|RMDIR|MD|MKDIR)$/.test(first);
+      names = (DRIVE[dir] || []).filter(function (e) {
+        var a = attrsOf(e);
+        if (a.indexOf("H") >= 0 || a.indexOf("S") >= 0) return false;
+        if (e[0] === "." || e[0] === "..") return false;
+        if (dirsOnly && !isDir(e)) return false;
+        return shortOf(e).toUpperCase().indexOf(prefix) === 0;
+      }).map(shortOf).sort();
+      if (!names.length) return;
+      c = completing = {head: current.slice(0, start) + dirPart, tail: current.slice(pos), names: names,
+                        i: step > 0 ? -1 : 0};
+    }
+    c.i = (c.i + step + c.names.length) % c.names.length;
+    value = c.head + c.names[c.i] + c.tail;
     if (value.length > max) return;
     current = field.value = value;
-    field.selectionStart = field.selectionEnd = start + n;
+    field.selectionStart = field.selectionEnd = c.head.length + c.names[c.i].length;
     render();
   }
 
@@ -877,6 +907,7 @@
     // a phone's keyboard types rather than pressing keys: any of it pages on
     if (pager && field.value) { field.value = ""; pageKey(false); return; }
     if (booting || running || off || waiting) { field.value = ""; return; }
+    completing = null;
     var max = COLS - (cwd.length + 1) - 1;
     if (field.value.length > max) field.value = field.value.slice(0, max);
     current = field.value;
