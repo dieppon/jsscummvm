@@ -122,9 +122,21 @@
     switch(slot) {
       case 0: t.actorTalk(msg); break;
       case 1: t.drawString(1, msg); break;
-      case 2: log("debug message: " + t.convertMessageToString(msg)); break;
+      case 2: t.debugMessage(msg); break;
       case 3: log("message dialog: " + t.convertMessageToString(msg)); break;
     }
+  };
+
+  // string.cpp debugMessage: a talkie's sound effect from monster.sou,
+  // named the way a message names its line; anything else is only logged
+  s.debugMessage = function(msg) {
+    var t = this, b = t.convertMessageToString(msg), c = function(i) { return b.charCodeAt(i) || 0; };
+    if(c(0) == 0xFF && c(1) == 10) {
+      t.talkSound((c(2) | (c(3) << 8) | (c(6) << 16) | (c(7) << 24)) >>> 0,
+                  (c(10) | (c(11) << 8) | (c(14) << 16) | (c(15) << 24)) >>> 0, 1);
+      return;
+    }
+    log("debug message: " + b);
   };
 
   s.getTalkingActor = function() {
@@ -201,6 +213,8 @@
   // actor.cpp stopTalk
   s.stopTalk = function() {
     var t = this, act, a;
+    t.stopTalkSound();
+    t._digiSndMode = 0;
     t._haveMsg = 0;
     t._talkDelay = 0;
     act = t.getTalkingActor();
@@ -367,7 +381,15 @@
           v = buf[pos] | (buf[pos + 1] << 8); pos += 2;
           if(a) a.startAnimActor(v);
         break;
-        case 10: pos += 14; break;
+        case 10:
+          // a talkie's line for this message (sound.js): the offset and
+          // length are split over four 0xFF 0x0A codes
+          t.talkSound((buf[pos] | (buf[pos + 1] << 8) | (buf[pos + 4] << 16) | (buf[pos + 5] << 24)) >>> 0,
+                      (buf[pos + 8] | (buf[pos + 9] << 8) | (buf[pos + 12] << 16) | (buf[pos + 13] << 24)) >>> 0,
+                      2);
+          t._haveActorSpeechMsg = false;
+          pos += 14;
+        break;
         case 12:
           v = buf[pos] | (buf[pos + 1] << 8); pos += 2;
           st.color = v == 0xFF ? t._charsetColor : v;
@@ -450,8 +472,10 @@
 
     if(t._talkDelay) return;
 
+    // all shown: the talking ends, unless the line is still being spoken
+    // (processSfxQueues ends it then)
     if(t._haveMsg == 1) {
-      t.stopTalk();
+      if(!(t._digiSndMode & 2)) t.stopTalk();
       return;
     }
 

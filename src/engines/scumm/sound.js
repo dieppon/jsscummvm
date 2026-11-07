@@ -179,6 +179,8 @@
   // sound.cpp processSoundQueues: last in, first out, as ScummVM pops it
   s.processSound = function() {
     var t = this, snd;
+    // sound.cpp processSound: v5 talkies' speech first, then the queue
+    t.processSfxQueues();
     while (t._soundQueue.length) {
       snd = t._soundQueue.pop();
       if (snd) t.triggerSound(snd);
@@ -526,6 +528,8 @@
 
   s.stopAllSounds = function() {
     var t = this, id;
+    t.stopTalkSound();
+    t.stopSpeechSfx();
     if (t._currentCDSound) {
       t._currentCDSound = 0;
       t._cdStatus = null;
@@ -589,5 +593,185 @@
   s.soundKludge = function(list) {
     if (list[0] == -1) this.processSound();
     else this._musicQueue.push(list.slice());
+  };
+  // --- speech (sound.cpp's talkie half) ------------------------------------
+  // A talkie's lines are in monster.sou, which feed.js has read whole by
+  // the time the game starts (ScummVM.source.speech). A message names its
+  // line by offset into the original file (0xFF 0x0A codes), and the
+  // debug-message string does the same for sound effects. Compressed copies
+  // (.sof FLAC, .sog Vorbis, .so3 MP3) start with a table from the original
+  // offsets to theirs; each line is then a small file of its own, which the
+  // browser decodes. A line starts with its mouth sync times: when the
+  // speaker's mouth opens and closes, in 60ths of a second.
+
+  var DIGI_SND_MODE_SFX = 1, DIGI_SND_MODE_TALKIE = 2;
+
+  // the compressed copies' table, read once: org -> {offset, numTags, size}
+  function speechTable(sp) {
+    var b = sp.bytes, be = function(o) { return ((b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3]) >>> 0; },
+        size, pos, table = {};
+    if (sp.ext == "sou") return null;
+    if (sp.table) return sp.table;
+    size = be(0);
+    for (pos = 4; pos + 16 <= 4 + size; pos += 16)
+      table[be(pos)] = {offset: be(pos + 4) + size + 4, numTags: be(pos + 8), size: be(pos + 12)};
+    sp.table = table;
+    return table;
+  }
+
+  // A VOC file's sound: 8-bit unsigned PCM blocks (types 1 and 2), as
+  // Audio::makeVOCStream reads them
+  function decodeVOC(ctx, b, pos) {
+    var samples = [], rate = 11025, type, len, n = 0, i, buf, out, k;
+    if (b[pos] != 0x43) return null;               // "Creative Voice File"
+    pos += b[pos + 20] | (b[pos + 21] << 8);
+    while (pos < b.length) {
+      type = b[pos];
+      if (type == 0) break;
+      len = b[pos + 1] | (b[pos + 2] << 8) | (b[pos + 3] << 16);
+      pos += 4;
+      if (type == 1) {
+        rate = Math.round(1000000 / (256 - b[pos]));
+        if (b[pos + 1] == 0) samples.push(b.subarray(pos + 2, pos + len));
+      } else if (type == 2) {
+        samples.push(b.subarray(pos, pos + len));
+      }
+      pos += len;
+    }
+    for (i = 0; i < samples.length; i++) n += samples[i].length;
+    if (!n) return null;
+    buf = ctx.createBuffer(1, n, rate);
+    out = buf.getChannelData(0);
+    for (i = 0, k = 0; i < samples.length; i++)
+      for (var j = 0; j < samples[i].length; j++) out[k++] = (samples[i][j] - 128) / 128;
+    return Promise.resolve(buf);
+  }
+
+  // sound.cpp talkSound: queued, and started by processSfxQueues
+  s.talkSound = function(offset, length, mode) {
+    var t = this;
+    t._queuedTalk = t._queuedTalk || {};
+    t._queuedTalk[mode] = {offset: offset, length: length};
+    t._queuedSoundMode = (t._queuedSoundMode || 0) | mode;
+  };
+
+  // sound.cpp startTalkSound: find the line, note its mouth sync times,
+  // and play it. Speech is played only once the browser lets sound play at
+  // all -- a line that could not be heard would hold its text up for ever.
+  s.startTalkSound = function(offset, length, mode) {
+    var t = this, src = ScummVM.source, sp = src && src.game == t._game && src.speech,
+        ctx = ScummVM.audioContext, b, table, e, num = 0, i, start, size, decoding, play;
+    if (!sp || !ctx || ctx.state != "running") return;
+    b = sp.bytes;
+    if (length > 8) num = (length - 8) >> 1;
+    table = speechTable(sp);
+    if (table) {
+      e = table[offset];
+      if (!e) { debug(2, "startTalkSound: no sound at offset " + offset); return; }
+      if (2 * num != e.numTags) num = e.numTags;
+      start = e.offset;
+      size = e.size;
+    } else {
+      start = offset + 8;
+    }
+    if (mode == DIGI_SND_MODE_TALKIE) {
+      t._mouthSyncTimes = [];
+      for (i = 0; i < num; i++) t._mouthSyncTimes.push((b[start + 2 * i] << 8) | b[start + 2 * i + 1]);
+      t._mouthSyncTimes.push(0xFFFF);
+      t._mouthSyncMode = true;
+    }
+    start += num * 2;
+    t._digiSndMode = (t._digiSndMode || 0) | mode;
+
+    play = {done: false, source: null, started: 0};
+    if (mode == DIGI_SND_MODE_TALKIE) { t.stopTalkSound(true); t._talkPlay = play; }
+    else { t._sfxPlays = t._sfxPlays || []; t._sfxPlays.push(play); }
+
+    if (table) decoding = ctx.decodeAudioData(b.slice(start, start + size).buffer);
+    else decoding = decodeVOC(ctx, b, start);
+    if (!decoding) { play.done = true; return; }
+    decoding.then(function(buffer) {
+      var node;
+      if (play.done) return;
+      node = ctx.createBufferSource();
+      node.buffer = buffer;
+      node.connect(ScummVM.audioOut);
+      node.onended = function() { play.done = true; };
+      play.source = node;
+      play.started = ctx.currentTime;
+      node.start();
+    }, function() {
+      play.done = true;
+    });
+  };
+
+  s.stopTalkSound = function(keepMode) {
+    var t = this, p = t._talkPlay;
+    if (p) {
+      p.done = true;
+      if (p.source) { try { p.source.stop(); } catch (e) { /* ended */ } }
+      t._talkPlay = null;
+    }
+    if (!keepMode) t._digiSndMode = (t._digiSndMode || 0) & ~DIGI_SND_MODE_TALKIE;
+  };
+
+  s.stopSpeechSfx = function() {
+    (this._sfxPlays || []).forEach(function(p) {
+      p.done = true;
+      if (p.source) { try { p.source.stop(); } catch (e) { /* ended */ } }
+    });
+    this._sfxPlays = [];
+  };
+
+  // how far into the line, in 60ths of a second (the speech timer)
+  s.speechPos = function() {
+    var p = this._talkPlay, ctx = ScummVM.audioContext;
+    if (!p || !p.source || !ctx) return 0;
+    return Math.floor((ctx.currentTime - p.started) * 60);
+  };
+
+  // sound.cpp isMouthSyncOff
+  s.isMouthSyncOff = function(pos) {
+    var ms = this._mouthSyncTimes || [0xFFFF], val = true, j, k = 0;
+    do {
+      val = !val;
+      j = ms[k++];
+      if (j == 0xFFFF || j === undefined) break;
+    } while (pos > j);
+    return val;
+  };
+
+  // sound.cpp processSfxQueues: start what was queued; move the speaker's
+  // mouth with the line; and once the line is over and the text has been
+  // up long enough, end the talking
+  s.processSfxQueues = function() {
+    var t = this, q = t._queuedTalk, act, a, finished, off;
+    if (t._queuedSoundMode) {
+      if (t._queuedSoundMode & DIGI_SND_MODE_SFX) t.startTalkSound(q[1].offset, q[1].length, DIGI_SND_MODE_SFX);
+      if (t._queuedSoundMode & DIGI_SND_MODE_TALKIE) t.startTalkSound(q[2].offset, q[2].length, DIGI_SND_MODE_TALKIE);
+      t._queuedSoundMode = 0;
+    }
+    act = t.getTalkingActor();
+    if ((t._digiSndMode & DIGI_SND_MODE_TALKIE) && act != 0) {
+      finished = !t._talkPlay || t._talkPlay.done;
+      if (act < 0x80 && !t._string[0].no_talk_anim) {
+        a = t.getActor(act);
+        if (a && a.isInCurrentRoom()) {
+          off = t.isMouthSyncOff(t.speechPos());
+          if (finished || (off && t._mouthSyncMode)) {
+            a.runActorTalkScript(a.talkStopFrame);
+            t._mouthSyncMode = false;
+          } else if (!off && !t._mouthSyncMode) {
+            a.runActorTalkScript(a.talkStartFrame);
+            t._mouthSyncMode = true;
+          }
+        }
+      }
+      if (finished && t._talkDelay == 0) t.stopTalk();
+    }
+    if (t._digiSndMode & DIGI_SND_MODE_SFX) {
+      t._sfxPlays = (t._sfxPlays || []).filter(function(p) { return !p.done; });
+      if (!t._sfxPlays.length) t._digiSndMode &= ~DIGI_SND_MODE_SFX;
+    }
   };
 }());

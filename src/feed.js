@@ -224,6 +224,24 @@
     return best;
   }
 
+  // The talkie versions' speech: monster.sou, or the same compressed as
+  // FLAC (.sof), Ogg Vorbis (.sog) or MP3 (.so3), or under the game's own
+  // name. The first of those the archive has, in that order of preference.
+  var SPEECH_EXTENSIONS = ["sof", "sog", "so3", "sou"];
+  function findSpeechFile(archive, pair) {
+    var i, j, e, m;
+    for (i = 0; i < SPEECH_EXTENSIONS.length; i++) {
+      for (j = 0; j < archive.entries.length; j++) {
+        e = archive.entries[j];
+        m = /^(.*)\.(\w+)$/.exec(base(e.name));
+        if (!junk(e.name) && m && m[2].toLowerCase() == SPEECH_EXTENSIONS[i] &&
+            (m[1].toLowerCase() == "monster" || m[1].toLowerCase() == pair.name))
+          return {entry: e, ext: SPEECH_EXTENSIONS[i]};
+      }
+    }
+    return null;
+  }
+
   function binaryString(bytes) {
     var s = "", i, step = 0x8000;
     for (i = 0; i < bytes.length; i += step)
@@ -307,10 +325,25 @@
         return archive.read(pair[1], function (f) { report(label, f); });
       }).then(function (data) {
         source.files[1] = binaryString(data);
-        ScummVM.source = source;
-        return source;
       }, function (err) {
         throw new Error("Cannot read the game's files (" + err.message + ").");
+      }).then(function () {
+        // the speech too, all of it, before the game starts: the archive
+        // holds it compressed, so no line can be read out of it alone
+        var speech = findSpeechFile(archive, pair), label;
+        if (!speech) return;
+        label = "Reading " + base(speech.entry.name).toUpperCase();
+        report(label, 0);
+        return archive.read(speech.entry, function (f) { report(label, f); }).then(function (bytes) {
+          source.speech = {ext: speech.ext, bytes: bytes};
+        }, function (err) {
+          // the game plays on without it, as with the text alone
+          debug(1, "speech: " + err.message);
+          report("No speech: " + err.message);
+        });
+      }).then(function () {
+        ScummVM.source = source;
+        return source;
       });
     });
   };

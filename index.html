@@ -2455,17 +2455,19 @@
         (<code>MONKEY</code>, <code>DIG</code>, <code>ATLANTIS</code>&hellip;),
         holding the zip's files and an <code>.EXE</code> to run it. For now
         The Secret of Monkey Island and Monkey Island 2 run, and Indiana
-        Jones and the Fate of Atlantis is on its way (without its speech
-        yet).</li>
+        Jones and the Fate of Atlantis is on its way.</li>
       <li><b>The zip.</b> The game's two data files, <code>MONKEY.000</code> and
         <code>MONKEY.001</code> (or <code>MONKEY1.000</code> and
         <code>.001</code>), in any folder; and for the music, the CD tracks as
         <code>track1</code> to <code>track24</code> in WebM, Ogg, MP3, FLAC
-        (<code>.flac</code> or <code>.fla</code>) or WAV.</li>
+        (<code>.flac</code> or <code>.fla</code>) or WAV. A talkie's speech is
+        <code>MONSTER.SOU</code>, or ScummVM's compressed
+        <code>.SOF</code> (FLAC), <code>.SOG</code> or <code>.SO3</code>.</li>
       <li><b>Hosting.</b> The feed and the zip must let other sites read them
         (CORS). Dropbox share links work; archive.org's do not.</li>
       <li><b>Downloading.</b> Only the files the game needs are taken out of the
-        zip, when it needs them, and kept in the browser for next time.</li>
+        zip, when it needs them, and kept in the browser for next time. The
+        speech is the exception: it comes whole, before the game starts.</li>
     </ul>
     <p>Then at the <code>C:\&gt;</code> prompt type <kbd>cd games\monkey</kbd>
       and <kbd>monkey</kbd>. The power button switches the monitor off and

@@ -75,6 +75,7 @@ var NUM_SENTENCE = 6;
     _palDirtyMax: 0,
     _haveMsg: 0,
     _haveActorSpeechMsg: false,
+    _digiSndMode: 0,
     _talkDelay: 0,
     _useTalkAnims: false,
     _defaultTalkDelay: 0,
